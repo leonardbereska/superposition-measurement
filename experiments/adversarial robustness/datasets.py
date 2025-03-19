@@ -4,8 +4,9 @@
 import torch
 import torchvision
 import torch.nn.functional as F
+from torch.utils.data import Dataset
 
-class MNISTDataset(torch.utils.data.Dataset):
+class MNISTDataset(Dataset):
     """MNIST dataset with optional downsampling and binary classification."""
     
     def __init__(

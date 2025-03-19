@@ -27,8 +27,6 @@ TRAINING_CONFIG = {
 ADVERSARIAL_CONFIG = {
     "train_epsilons": [0.0, 0.05, 0.1, 0.15, 0.2],
     "test_epsilons": [0.0, 0.02, 0.05, 0.1, 0.15, 0.2],
-    # "train_epsilons": [0.0],
-    # "test_epsilons": [0.0],
     "n_runs": 5,  # For statistical significance
 }
 

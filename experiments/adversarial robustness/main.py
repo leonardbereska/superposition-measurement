@@ -1,20 +1,19 @@
 #%%
 """Main experiment runner for adversarial robustness vs superposition."""
 
-import torch
-from datetime import datetime
+import json
 import numpy as np
 from pathlib import Path
+from datetime import datetime
 from typing import Dict, List, Optional, Union
-import json
 
 from config import (
     MODEL_CONFIG, DATASET_CONFIG, TRAINING_CONFIG, 
     ADVERSARIAL_CONFIG, RESULTS_DIR, DEVICE, DATA_DIR, SAE_CONFIG
 )
 from datasets import MNISTDataset
-from training import SuperpositionExperiment, evaluate_adversarial_robustness
 from metrics import measure_superposition
+from training import SuperpositionExperiment, evaluate_adversarial_robustness
 from utils import (
     set_seed, plot_robustness_curve, plot_feature_counts, 
     plot_feature_vs_robustness, save_results_to_json, json_serializer,
