@@ -44,6 +44,9 @@ SAE_CONFIG = {
 # Paths configuration
 RESULTS_DIR = "../../results/adversarial_robustness"
 DATA_DIR = "../../data"
+# make results and data directories if they don't exist
+os.makedirs(RESULTS_DIR, exist_ok=True)
+os.makedirs(DATA_DIR, exist_ok=True)
 
 # Device configuration
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else 
