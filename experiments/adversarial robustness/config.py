@@ -13,27 +13,33 @@ MODEL_CONFIG = {
 # Dataset configuration
 DATASET_CONFIG = {
     "target_size": 28,
-    "binary_digits": (0, 1),  # Use None for multi-class
+    # "binary_digits": (0, 1),  # Use None for multi-class
+    "binary_digits": None,
 }
 
 # Training configuration
 TRAINING_CONFIG = {
     "batch_size": 64,
     "learning_rate": 1e-3,
-    "n_epochs": 200,
+    # "n_epochs": 200,
+    "n_epochs": 20,
 }
 
 # Adversarial training configuration
 ADVERSARIAL_CONFIG = {
-    "train_epsilons": [0.0, 0.05, 0.1, 0.15, 0.2],
-    "test_epsilons": [0.0, 0.02, 0.05, 0.1, 0.15, 0.2],
-    "n_runs": 5,  # For statistical significance
+    # "train_epsilons": [0.0, 0.05, 0.1, 0.15, 0.2],
+    # "test_epsilons": [0.0, 0.02, 0.05, 0.1, 0.15, 0.2],
+    # "n_runs": 5,  # For statistical significance
+    "train_epsilons": [0.0],
+    "test_epsilons": [0.0],
+    "n_runs": 1,
 }
 
 # SAE configuration
 SAE_CONFIG = {
     "expansion_factor": 2,
-    "n_epochs": 200,
+    # "n_epochs": 200,
+    "n_epochs": 20,
     "learning_rate": 1e-3,
     "batch_size": 128,
     "l1_lambda": 0.1,

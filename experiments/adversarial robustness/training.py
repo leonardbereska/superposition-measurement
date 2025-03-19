@@ -456,12 +456,19 @@ class SuperpositionExperiment:
        self.val_loader = DataLoader(val_dataset, batch_size=64)
        
        # Initialize model
+       # Get number of classes from dataset
+       num_classes = len(set(y.item() for _, y in train_dataset))
+       # Use 1 for binary classification, actual count for multi-class
+       output_dim = 1 if num_classes <= 2 else num_classes
+       
        if model_type.lower() == 'mlp':
            from models import MLP
-           self.model = MLP(hidden_dim, image_size).to(self.device)
+           print("Initializing MLP classifier with output dimension:", output_dim)
+           self.model = MLP(hidden_dim, image_size, num_classes=output_dim).to(self.device)
        elif model_type.lower() == 'cnn':
            from models import CNN
-           self.model = CNN(image_size).to(self.device)
+           print("Initializing CNN classifier with output dimension:", output_dim)
+           self.model = CNN(image_size, num_classes=output_dim).to(self.device)
        else:
            raise ValueError(f"Unknown model type: {model_type}")
        
@@ -534,8 +541,10 @@ class SuperpositionExperiment:
        """
        # Binary or multi-class criterion
        if list(self.model.parameters())[-1].size(0) == 1:
+           print("Binary classification")
            criterion = nn.BCEWithLogitsLoss()
        else:
+           print("Multi-class classification")
            criterion = nn.CrossEntropyLoss()
        
        for epoch in range(n_epochs):
@@ -582,18 +591,4 @@ class SuperpositionExperiment:
                if measure_superposition:
                    print(f"Superposition: {metrics['feature_count']:.2f}")
                print("-" * 40)
-# %%
-
-if __name__ == "__main__":
-    from datasets import get_dataloaders
-    train_loader, test_loader = get_dataloaders(batch_size=64, binary_digits=None, target_size=28)
-    print(len(train_loader.dataset), len(test_loader.dataset))
-
-    from models import create_model
-
-    model = create_model(model_type='mlp', hidden_dim=32, image_size=28, num_classes=1)
-    print(model)
-
-    experiment = SuperpositionExperiment(train_loader, test_loader, model_type='mlp', hidden_dim=32, image_size=28)
-    experiment.train(n_epochs=100, epsilon=0.0, alpha=0.5, measure_superposition=True, measure_frequency=5)
 # %%
