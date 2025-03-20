@@ -8,6 +8,8 @@ from torch.utils.data import DataLoader
 from typing import Dict, List, Optional, Tuple, Callable
 from pathlib import Path
 
+from models import create_model
+
 def train_step(model: nn.Module, 
                inputs: torch.Tensor, 
                targets: torch.Tensor, 
@@ -461,16 +463,14 @@ class SuperpositionExperiment:
        # Use 1 for binary classification, actual count for multi-class
        output_dim = 1 if num_classes <= 2 else num_classes
        
-       if model_type.lower() == 'mlp':
-           from models import MLP
-           print(f"Initializing MLP classifier over {output_dim} classes")
-           self.model = MLP(hidden_dim, image_size, num_classes=output_dim).to(self.device)
-       elif model_type.lower() == 'cnn':
-           from models import CNN
-           print(f"Initializing CNN classifier over {output_dim} classes")
-           self.model = CNN(image_size, num_classes=output_dim).to(self.device)
-       else:
-           raise ValueError(f"Unknown model type: {model_type}")
+       print(f"Initializing {model_type.upper()} classifier over {output_dim} classes")
+       self.model = create_model(
+           model_type=model_type,
+           hidden_dim=hidden_dim,
+           image_size=image_size,
+           num_classes=output_dim, 
+           use_nnsight=False
+       ).to(self.device)
        
        # Initialize optimizer
        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)

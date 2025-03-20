@@ -102,7 +102,7 @@ def run_experiment(
     exp.save(save_dir / "experiment.pt")
     
     # Measure superposition
-    layer_name = 'after_relu' if model_type.lower() == 'mlp' else 'conv_features'
+    layer_name = 'relu' if model_type.lower() == 'mlp' else 'features.0'
     metrics = measure_superposition(
         exp.model, 
         exp.train_loader, 

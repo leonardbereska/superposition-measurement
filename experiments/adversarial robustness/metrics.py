@@ -6,6 +6,8 @@ import numpy as np
 from typing import Dict, Optional
 from pathlib import Path
 
+from models import NNsightModelWrapper
+
 def get_feature_distribution(activations: torch.Tensor) -> np.ndarray:
     """Get distribution of activation magnitudes per feature.
     
@@ -59,10 +61,19 @@ def measure_superposition(
 ) -> Dict[str, float]:
     """Measure feature superposition in a model layer."""
     device = next(model.parameters()).device
-    
-    # Get activations
-    activations = model.get_activations(data_loader, layer_name)
-    
+
+    if hasattr(model, 'get_activations'):
+        # Get activations
+        activations = model.get_activations(data_loader, layer_name)
+    else:
+        model = NNsightModelWrapper(model)
+        # Get activations
+        activations = model.get_activations(data_loader, layer_name)
+
+    print(f"Activations shape: {activations.shape}")
+    print(f"Activations type: {type(activations)}")
+    activations = activations.detach().cpu().contiguous()
+
     # Check if the activations are from a convolutional layer
     is_conv = activations.dim() == 4
     
@@ -136,57 +147,6 @@ def measure_superposition(
     metrics = calculate_feature_metrics(p)
     
     return metrics
-
-# def measure_superposition(
-#     model: torch.nn.Module,
-#     data_loader: torch.utils.data.DataLoader,
-#     layer_name: str,
-#     sae_model=None,
-#     expansion_factor: int = 2,
-#     l1_lambda: float = 0.1,
-#     batch_size: int = 128,
-#     learning_rate: float = 1e-3,
-#     n_epochs: int = 300,
-#     save_dir: Optional[Path] = None
-# ) -> Dict[str, float]:
-#     """Measure feature superposition in a model layer.
-    
-#     Args:
-#         model: Model to analyze
-#         data_loader: DataLoader with samples for activation extraction
-#         layer_name: Name of layer to analyze
-#         sae_model: Pre-trained SAE model (if None, trains a new one)
-#         expansion_factor: Expansion factor for SAE dictionary size
-#         save_dir: Directory to save SAE model
-        
-#     Returns:
-#         Dictionary of superposition metrics
-#     """
-#     device = next(model.parameters()).device
-    
-#     # Get activations
-#     activations = model.get_activations(data_loader, layer_name)
-    
-#     # Train SAE if not provided
-#     if sae_model is None:
-#         from sae import train_sae
-#         sae_model = train_sae(activations, expansion_factor=expansion_factor, n_epochs=n_epochs, l1_lambda=l1_lambda, batch_size=batch_size, learning_rate=learning_rate)
-    
-#     # Get SAE features
-#     sae_acts, _ = sae_model(activations.to(device))
-#     sae_acts = sae_acts.detach().cpu().numpy()
-    
-#     # Save SAE model if requested
-#     if save_dir:
-#         save_dir.mkdir(parents=True, exist_ok=True)
-#         sae_model.save(save_dir / f"sae_{layer_name}.pth")
-    
-#     # Calculate metrics
-#     p = get_feature_distribution(sae_acts)
-#     metrics = calculate_feature_metrics(p)
-    
-#     return metrics
-
 
 # %%
 if __name__ == "__main__":

@@ -3,44 +3,78 @@
 
 import torch
 import torch.nn as nn
-from collections import defaultdict
+from nnsight import NNsight
 
-class BaseClassifier(nn.Module):
-    """Base class for all classifiers."""
+class NNsightModelWrapper:
+    """Wrapper for models to use with nnsight."""
     
-    def __init__(self):
-        super().__init__()
-        self.activation_storage = defaultdict(list)
-        self.collect_activations = False
+    def __init__(self, model, device=None):
+        self.model = NNsight(model)
+        self.device = device or next(model.parameters()).device
+        self._base_model = model  # Store reference to original model
     
-    def get_activations(self, dataloader: torch.utils.data.DataLoader, layer_name: str) -> torch.Tensor:
-        """Collect activations for a specific layer across the dataset.
+    def get_activations(self, dataloader, layer_name):
+        """Extract activations using nnsight tracing.
         
         Args:
-            dataloader: DataLoader to collect activations from
-            layer_name: Name of layer to collect activations from
-        
+            dataloader: DataLoader with input samples
+            layer_name: Name/path to the layer
+            
         Returns:
-            Tensor of collected activations
+            Tensor of activations
         """
-        self.activation_storage.clear()
-        self.collect_activations = True
-        self.eval()
+        activations = []
         
-        with torch.no_grad():
-            for inputs, _ in dataloader:
-                inputs = inputs.to(next(self.parameters()).device)
-                _ = self(inputs)
+        # Process in batches
+        for inputs, _ in dataloader:
+            inputs = inputs.to(self.device)
+            
+            # Use nnsight trace to access intermediate activations
+            with self.model.trace(inputs) as tracer:
+                # Access the specified layer's output
+                layer_output = self._get_layer_output(layer_name).save()
+            
+            activations.append(layer_output.cpu())
+            
+        return torch.cat(activations, dim=0)
+    
+    def _get_layer_output(self, layer_name):
+        """Access a layer by name/path using dot notation.
         
-        self.collect_activations = False
+        Args:
+            layer_name: Layer name with dot notation (e.g., 'features.0')
+            
+        Returns:
+            Layer output proxy
+        """
+        # Split by dots to handle nested attributes
+        parts = layer_name.split('.')
+        current = self.model
         
-        # Concatenate all stored activations
-        activations = torch.cat(self.activation_storage[layer_name], dim=0)
-        self.activation_storage.clear()
-        return activations
+        # Navigate through the model hierarchy
+        for part in parts:
+            if part.isdigit():  # Handle numerical indices for ModuleLists
+                current = current[int(part)]
+            else:
+                current = getattr(current, part)
+        
+        return current.output
 
-class MLP(BaseClassifier):
-    """Simple MLP classifier with activation collection capabilities."""
+    def __call__(self, x):
+        """Forward pass through the model."""
+        # Ensure input is on the correct device
+        x = x.to(self.device)
+        
+        # Use nnsight's trace to run the model
+        with self.model.trace(x) as tracer:
+            output = self.model.output.save()
+        
+        return output
+
+
+
+class MLP(nn.Module):
+    """Simple MLP classifier."""
     
     def __init__(self, hidden_dim=32, image_size=28, num_classes=1):
         super().__init__()
@@ -53,23 +87,14 @@ class MLP(BaseClassifier):
         
     def forward(self, x):
         x = self.flatten(x)
-        
-        # First linear layer
         x = self.fc1(x)
-        if self.collect_activations:
-            self.activation_storage['before_relu'].append(x.detach().cpu())
-            
-        # ReLU
         x = self.relu(x)
-        if self.collect_activations:
-            self.activation_storage['after_relu'].append(x.detach().cpu())
-            
-        # Final layer
         x = self.fc2(x)
         return x
 
-class CNN(BaseClassifier):
-    """Simple CNN classifier with activation collection capabilities."""
+
+class CNN(nn.Module):
+    """Simple CNN classifier."""
     
     def __init__(self, image_size=28, num_classes=1):
         super().__init__()
@@ -101,13 +126,11 @@ class CNN(BaseClassifier):
             x = x.unsqueeze(1)
             
         x = self.features(x)
-        if self.collect_activations:
-            self.activation_storage['conv_features'].append(x.detach().cpu())
-            
         x = self.classifier(x)
         return x
 
-def create_model(model_type='mlp', **kwargs):
+
+def create_model(model_type='mlp', use_nnsight=False, **kwargs):
     """Factory function to create models.
     
     Args:
@@ -115,21 +138,82 @@ def create_model(model_type='mlp', **kwargs):
         **kwargs: Arguments to pass to model constructor
     
     Returns:
-        Instantiated model
+        Instantiated model, optionally wrapped with NNsight
     """
     if model_type.lower() == 'mlp':
-        return MLP(**kwargs)
+        model = MLP(hidden_dim=kwargs['hidden_dim'], image_size=kwargs['image_size'], num_classes=kwargs['num_classes'])
     elif model_type.lower() == 'cnn':
-        return CNN(**kwargs)
+        model = CNN(image_size=kwargs['image_size'], num_classes=kwargs['num_classes'])
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     
-# %%
+    if use_nnsight:
+        return NNsightModelWrapper(model)
+    return model
 
+
+def explore_model_structure(model):
+    """Display the model structure with layer names accessible via nnsight.
+    
+    Args:
+        model: Either a PyTorch model or a nnsight-wrapped model
+    
+    Returns:
+        Dictionary mapping full layer paths to layer types
+    """
+    # Ensure model is wrapped with nnsight
+    if not isinstance(model, NNsight) and not hasattr(model, 'model'):
+        model = NNsight(model)
+    elif hasattr(model, 'model') and isinstance(model.model, NNsight):
+        model = model.model
+    
+    # Dictionary to store full paths to layers
+    layer_paths = {}
+    
+    def _explore_module(module, prefix=""):
+        # Check if we're dealing with the NNsight wrapper or a regular module
+        if hasattr(module, '_model'):
+            target_module = module._model
+        else:
+            target_module = module
+            
+        # Iterate through named children (immediate submodules)
+        for name, child in target_module.named_children():
+            # Build the full path to this layer
+            full_path = f"{prefix}.{name}" if prefix else name
+            
+            # Store the layer type
+            layer_type = child.__class__.__name__
+            layer_paths[full_path] = layer_type
+            
+            # Recursively explore children
+            _explore_module(child, full_path)
+            
+    # Start exploration from the root
+    _explore_module(model)
+    
+    # Print the results in a readable format
+    print("Available layer paths for activation extraction:")
+    print("-" * 50)
+    
+    for path, layer_type in layer_paths.items():
+        print(f"{path:<40} : {layer_type}")
+    
+    return layer_paths
+
+
+# Example usage
 if __name__ == "__main__":
-    mlp = create_model(model_type='mlp', hidden_dim=32, image_size=28, num_classes=1)
-    print(mlp)
+    # Test model creation and structure exploration
+    mlp = create_model('mlp', hidden_dim=32, image_size=28, num_classes=1)
+    explore_model_structure(mlp)
 
-    cnn = create_model(model_type='cnn', image_size=28, num_classes=1)
-    print(cnn)
+    cnn = create_model('cnn', image_size=28, num_classes=1)
+    explore_model_structure(cnn)
+    
+    # Test with a more complex model
+    import torchvision.models as models
+    resnet = models.resnet18()
+    wrapped_resnet = NNsightModelWrapper(resnet)
+    explore_model_structure(wrapped_resnet)
 # %%
