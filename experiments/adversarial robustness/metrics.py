@@ -1,3 +1,4 @@
+# %%
 """Feature measurement for adversarial robustness experiments."""
 
 import torch
@@ -53,34 +54,78 @@ def measure_superposition(
     batch_size: int = 128,
     learning_rate: float = 1e-3,
     n_epochs: int = 300,
-    save_dir: Optional[Path] = None
+    save_dir: Optional[Path] = None,
+    max_samples: int = 10000
 ) -> Dict[str, float]:
-    """Measure feature superposition in a model layer.
-    
-    Args:
-        model: Model to analyze
-        data_loader: DataLoader with samples for activation extraction
-        layer_name: Name of layer to analyze
-        sae_model: Pre-trained SAE model (if None, trains a new one)
-        expansion_factor: Expansion factor for SAE dictionary size
-        save_dir: Directory to save SAE model
-        
-    Returns:
-        Dictionary of superposition metrics
-    """
+    """Measure feature superposition in a model layer."""
     device = next(model.parameters()).device
     
     # Get activations
     activations = model.get_activations(data_loader, layer_name)
     
-    # Train SAE if not provided
-    if sae_model is None:
-        from sae import train_sae
-        sae_model = train_sae(activations, expansion_factor=expansion_factor, n_epochs=n_epochs, l1_lambda=l1_lambda, batch_size=batch_size, learning_rate=learning_rate)
+    # Check if the activations are from a convolutional layer
+    is_conv = activations.dim() == 4
     
-    # Get SAE features
-    sae_acts, _ = sae_model(activations.to(device))
-    sae_acts = sae_acts.detach().cpu().numpy()
+    if is_conv:
+        # Reshape: [B, C, H, W] -> [B*H*W, C]
+        orig_shape = activations.shape
+        activations_reshaped = activations.reshape(
+            orig_shape[0], orig_shape[1], -1).permute(0, 2, 1).reshape(-1, orig_shape[1])
+        
+        # Limit number of samples for SAE training if needed
+        if max_samples and len(activations_reshaped) > max_samples:
+            train_activations = activations_reshaped[:max_samples]
+        else:
+            train_activations = activations_reshaped
+        
+        # Train SAE if not provided
+        if sae_model is None:
+            from sae import train_sae
+            sae_model = train_sae(
+                train_activations, 
+                expansion_factor=expansion_factor, 
+                n_epochs=n_epochs, 
+                l1_lambda=l1_lambda, 
+                batch_size=batch_size, 
+                learning_rate=learning_rate
+            )
+        
+        # Apply SAE to get activations
+        sae_acts, _ = sae_model(activations_reshaped.to(device))
+        sae_acts = sae_acts.detach().cpu()
+        
+        # Reshape back: [B*H*W, D] -> [B, H*W, D] -> [B, D, H*W]
+        sae_acts = sae_acts.reshape(
+            orig_shape[0], 
+            -1,  # H*W
+            sae_model.dictionary_dim
+        ).permute(0, 2, 1)
+        
+        # Sum over spatial dimensions
+        sae_acts_summed = sae_acts.sum(dim=2).numpy()
+        
+        # Calculate metrics based on feature importance across spatial dimensions
+        p = get_feature_distribution(sae_acts_summed)
+        
+    else:
+        # For fully connected layers, use the existing approach
+        if sae_model is None:
+            from sae import train_sae
+            sae_model = train_sae(
+                activations, 
+                expansion_factor=expansion_factor, 
+                n_epochs=n_epochs, 
+                l1_lambda=l1_lambda, 
+                batch_size=batch_size, 
+                learning_rate=learning_rate
+            )
+        
+        # Get SAE features
+        sae_acts, _ = sae_model(activations.to(device))
+        sae_acts = sae_acts.detach().cpu().numpy()
+        
+        # Calculate metrics with the original approach
+        p = get_feature_distribution(sae_acts)
     
     # Save SAE model if requested
     if save_dir:
@@ -88,7 +133,126 @@ def measure_superposition(
         sae_model.save(save_dir / f"sae_{layer_name}.pth")
     
     # Calculate metrics
-    p = get_feature_distribution(sae_acts)
     metrics = calculate_feature_metrics(p)
     
     return metrics
+
+# def measure_superposition(
+#     model: torch.nn.Module,
+#     data_loader: torch.utils.data.DataLoader,
+#     layer_name: str,
+#     sae_model=None,
+#     expansion_factor: int = 2,
+#     l1_lambda: float = 0.1,
+#     batch_size: int = 128,
+#     learning_rate: float = 1e-3,
+#     n_epochs: int = 300,
+#     save_dir: Optional[Path] = None
+# ) -> Dict[str, float]:
+#     """Measure feature superposition in a model layer.
+    
+#     Args:
+#         model: Model to analyze
+#         data_loader: DataLoader with samples for activation extraction
+#         layer_name: Name of layer to analyze
+#         sae_model: Pre-trained SAE model (if None, trains a new one)
+#         expansion_factor: Expansion factor for SAE dictionary size
+#         save_dir: Directory to save SAE model
+        
+#     Returns:
+#         Dictionary of superposition metrics
+#     """
+#     device = next(model.parameters()).device
+    
+#     # Get activations
+#     activations = model.get_activations(data_loader, layer_name)
+    
+#     # Train SAE if not provided
+#     if sae_model is None:
+#         from sae import train_sae
+#         sae_model = train_sae(activations, expansion_factor=expansion_factor, n_epochs=n_epochs, l1_lambda=l1_lambda, batch_size=batch_size, learning_rate=learning_rate)
+    
+#     # Get SAE features
+#     sae_acts, _ = sae_model(activations.to(device))
+#     sae_acts = sae_acts.detach().cpu().numpy()
+    
+#     # Save SAE model if requested
+#     if save_dir:
+#         save_dir.mkdir(parents=True, exist_ok=True)
+#         sae_model.save(save_dir / f"sae_{layer_name}.pth")
+    
+#     # Calculate metrics
+#     p = get_feature_distribution(sae_acts)
+#     metrics = calculate_feature_metrics(p)
+    
+#     return metrics
+
+
+# %%
+if __name__ == "__main__":
+    # Test the measure_superposition function with a CNN model
+    from models import CNN
+    from datasets import MNISTDataset
+    from torch.utils.data import DataLoader
+    
+    def test_cnn_superposition():
+        # Create model and data loader
+        model = CNN(28, 10)
+        data_loader = DataLoader(MNISTDataset(28, 10), batch_size=128, shuffle=True)
+        
+        # Get convolutional feature activations (shape: [B, C, H, W])
+        orig_activations = model.get_activations(data_loader, "conv_features")
+        print(f"Original activations shape: {orig_activations.shape}")
+        
+        # Reshape activations to apply SAE on channel dimension
+        # Flatten spatial dimensions: (B, C, H, W) -> (B*H*W, C)
+        activations = orig_activations.view(-1, orig_activations.shape[1])
+        print(f"Reshaped for SAE training: {activations.shape}")
+        # only take limited number of samples for training the SAE
+        activations = activations[:10000]
+        print(f"Cropped for SAE training: {activations.shape}")
+        # Train SAE on channel dimension (shared across spatial locations)
+        from sae import train_sae
+        sae_model = train_sae(
+            activations, 
+            expansion_factor=2, 
+            n_epochs=300, 
+            l1_lambda=0.1, 
+            batch_size=128, 
+            learning_rate=1e-3
+        )
+        
+        # Apply SAE to get feature activations
+        device = next(model.parameters()).device
+        activations = activations.to(device)
+        sae_model.to(device)
+        sae_acts, _ = sae_model(activations)
+        sae_acts = sae_acts.detach().cpu().numpy()
+        
+        # Reshape SAE activations back to include spatial dimensions
+        # (B*H*W, D) -> (B, D, H*W)
+        sae_acts = sae_acts.reshape(
+            orig_activations.shape[0],  # Batch size
+            -1,                         # Dictionary size (D)
+            orig_activations.shape[2] * orig_activations.shape[3]  # H*W
+        )
+        print(f"Reshaped SAE activations: {sae_acts.shape}")
+        
+        # Sum over spatial dimensions to get feature importance across space
+        sae_acts_summed = sae_acts.sum(axis=2)
+        print(f"After summing over spatial dimension: {sae_acts_summed.shape}")
+        
+        # Calculate feature distribution and metrics
+        p = get_feature_distribution(sae_acts_summed)
+        metrics = calculate_feature_metrics(p)
+        print(f"Feature metrics: {metrics}")
+        
+        return metrics
+
+
+
+
+if __name__ == "__main__":
+    test_cnn_superposition()
+
+# %%

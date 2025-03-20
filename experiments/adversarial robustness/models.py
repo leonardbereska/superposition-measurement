@@ -102,7 +102,7 @@ class CNN(BaseClassifier):
             
         x = self.features(x)
         if self.collect_activations:
-            self.activation_storage['conv_features'].append(x.flatten(1).detach().cpu())
+            self.activation_storage['conv_features'].append(x.detach().cpu())
             
         x = self.classifier(x)
         return x

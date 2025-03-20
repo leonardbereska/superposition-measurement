@@ -7,6 +7,12 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
+import os
+# change working directory to the directory of the script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+print(f"Current working directory: {os.getcwd()}")
+
 from config import (
     MODEL_CONFIG, DATASET_CONFIG, TRAINING_CONFIG, 
     ADVERSARIAL_CONFIG, RESULTS_DIR, DEVICE, DATA_DIR, SAE_CONFIG

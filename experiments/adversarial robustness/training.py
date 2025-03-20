@@ -463,11 +463,11 @@ class SuperpositionExperiment:
        
        if model_type.lower() == 'mlp':
            from models import MLP
-           print("Initializing MLP classifier with output dimension:", output_dim)
+           print(f"Initializing MLP classifier over {output_dim} classes")
            self.model = MLP(hidden_dim, image_size, num_classes=output_dim).to(self.device)
        elif model_type.lower() == 'cnn':
            from models import CNN
-           print("Initializing CNN classifier with output dimension:", output_dim)
+           print(f"Initializing CNN classifier over {output_dim} classes")
            self.model = CNN(image_size, num_classes=output_dim).to(self.device)
        else:
            raise ValueError(f"Unknown model type: {model_type}")
@@ -540,7 +540,8 @@ class SuperpositionExperiment:
            measure_frequency: How often to measure superposition
        """
        # Binary or multi-class criterion
-       if list(self.model.parameters())[-1].size(0) == 1:
+       only_one_output_class = list(self.model.parameters())[-1].size(0) == 1
+       if only_one_output_class:
            print("Binary classification")
            criterion = nn.BCEWithLogitsLoss()
        else:
