@@ -5,7 +5,7 @@ import torch
 
 # Model configuration
 MODEL_CONFIG = {
-    "model_type": "cnn",
+    "model_type": "mlp",
     "hidden_dim": 32,
     "image_size": 28,
 }
@@ -21,25 +21,25 @@ DATASET_CONFIG = {
 TRAINING_CONFIG = {
     "batch_size": 64,
     "learning_rate": 1e-3,
-    # "n_epochs": 200,
-    "n_epochs": 5,
+    "n_epochs": 200,
+    # "n_epochs": 5,
 }
 
 # Adversarial training configuration
 ADVERSARIAL_CONFIG = {
-    # "train_epsilons": [0.0, 0.05, 0.1, 0.15, 0.2],
-    # "test_epsilons": [0.0, 0.02, 0.05, 0.1, 0.15, 0.2],
-    # "n_runs": 5,  # For statistical significance
-    "train_epsilons": [0.0],
-    "test_epsilons": [0.0],
-    "n_runs": 1,
+    "train_epsilons": [0.0, 0.05, 0.1, 0.15, 0.2],
+    "test_epsilons": [0.0, 0.02, 0.05, 0.1, 0.15, 0.2],
+    "n_runs": 5,  # For statistical significance
+    # "train_epsilons": [0.0],
+    # "test_epsilons": [0.0],
+    # "n_runs": 1,
 }
 
 # SAE configuration
 SAE_CONFIG = {
     "expansion_factor": 2,
-    # "n_epochs": 200,
-    "n_epochs": 5,
+    "n_epochs": 200,
+    # "n_epochs": 5,
     "learning_rate": 1e-3,
     "batch_size": 128,
     "l1_lambda": 0.1,
