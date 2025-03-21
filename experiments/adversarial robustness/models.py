@@ -13,20 +13,25 @@ class NNsightModelWrapper:
         self.device = device or next(model.parameters()).device
         self._base_model = model  # Store reference to original model
     
-    def get_activations(self, dataloader, layer_name):
+    def get_activations(self, dataloader, layer_name, max_activations=10000):
         """Extract activations using nnsight tracing.
         
         Args:
             dataloader: DataLoader with input samples
             layer_name: Name/path to the layer
-            
+            max_activations: Maximum number of activations to extract
         Returns:
             Tensor of activations
         """
         activations = []
         
         # Process in batches
-        for inputs, _ in dataloader:
+        total_samples = 0
+        for i, (inputs, _) in enumerate(dataloader):
+            batch_size = inputs.shape[0]
+            total_samples += batch_size
+            if max_activations and total_samples >= max_activations:
+                break
             inputs = inputs.to(self.device)
             
             # Use nnsight trace to access intermediate activations

@@ -62,13 +62,10 @@ def measure_superposition(
     """Measure feature superposition in a model layer."""
     device = next(model.parameters()).device
 
-    if hasattr(model, 'get_activations'):
-        # Get activations
-        activations = model.get_activations(data_loader, layer_name)
-    else:
-        model = NNsightModelWrapper(model)
-        # Get activations
-        activations = model.get_activations(data_loader, layer_name)
+    model = NNsightModelWrapper(model)
+
+    # limiting the number of activations to extract to avoid memory issues
+    activations = model.get_activations(data_loader, layer_name, max_activations=max_samples)
 
     print(f"Activations shape: {activations.shape}")
     print(f"Activations type: {type(activations)}")
@@ -88,6 +85,7 @@ def measure_superposition(
             train_activations = activations_reshaped[:max_samples]
         else:
             train_activations = activations_reshaped
+        print(f"Train activations shape: {train_activations.shape}")
         
         # Train SAE if not provided
         if sae_model is None:

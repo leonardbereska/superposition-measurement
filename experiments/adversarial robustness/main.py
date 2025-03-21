@@ -77,7 +77,7 @@ def run_experiment(
     )
     
     # Create experiment directory
-    save_dir = Path(save_dir) / f"eps_{epsilon}/run_{run_idx}"
+    save_dir = save_dir / f"eps_{epsilon}/run_{run_idx}"
     save_dir.mkdir(parents=True, exist_ok=True)
     
     # Run experiment
@@ -100,9 +100,11 @@ def run_experiment(
     
     # Save experiment
     exp.save(save_dir / "experiment.pt")
+    # exp.load(save_dir / "experiment.pt", train_dataset, test_dataset)
+    # print("Experiment loaded")
     
     # Measure superposition
-    layer_name = 'relu' if model_type.lower() == 'mlp' else 'features.0'
+    layer_name = 'relu' if model_type.lower() == 'mlp' else 'features.1'
     metrics = measure_superposition(
         exp.model, 
         exp.train_loader, 
