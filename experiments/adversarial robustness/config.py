@@ -13,8 +13,8 @@ MODEL_CONFIG = {
 # Dataset configuration
 DATASET_CONFIG = {
     "target_size": 28,
-    "binary_digits": (0, 1),  # Use None for multi-class
-    # "binary_digits": None,
+    # "binary_digits": (0, 1),  # Use None for multi-class
+    "binary_digits": None,
 }
 
 # Training configuration
