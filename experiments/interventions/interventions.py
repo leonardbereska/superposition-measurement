@@ -15,6 +15,7 @@ print(f"Current working directory: {os.getcwd()}")
 # Model configuration
 MODEL_CONFIG = {
     "hidden_dim": 64,
+    "hidden_dims": [16, 32, 64, 128, 256],  # Multiple hidden dimensions for capacity sweep
 }
 
 # Dataset configuration
@@ -28,23 +29,30 @@ TRAINING_CONFIG = {
     "batch_size": 64,
     "learning_rate": 0.001,
     "n_epochs": 300,
+    # "n_epochs": 10,
 }
 
 # Intervention configuration
 INTERVENTION_CONFIG = {
     "interventions": [
-        ('dropout', [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]),
-        ('l1_activation', [0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5]),
-        ('solu', [None, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]),  # Temperature values
-        ('l1_weight', [0.0, 0.0001, 0.001, 0.01, 0.1, 1.0])
+        ('dropout', [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]),
+        # ('l1_activation', [0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5]),
+        # ('solu', [None, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]),  # Temperature values
+        # ('l1_weight', [0.0, 0.0001, 0.001, 0.01, 0.1, 1.0])
+        # ('dropout', [0.0, 0.1, 0.3, 0.5, 0.7]),  # Extended dropout values
+        # ('l1_activation', [0.0, 0.01]),
+        # ('solu', [None, 1.0]),
+        # ('l1_weight', [0.0, 0.001]),
     ],
     "seeds": 5,
+    # "seeds": 2,
 }
 
 # SAE configuration
 SAE_CONFIG = {
     "l1_coef": 0.1,
     "epochs": 300,
+    # "epochs": 10,
     "batch_size": 128,
     "learning_rate": 0.001,
 }
@@ -332,6 +340,56 @@ class InterventionExperiment:
         
         return results
     
+    def run_capacity_intervention_sweep(self, intervention_type, strengths, hidden_dims, seeds=INTERVENTION_CONFIG["seeds"]):
+        """Run experiment across both intervention strengths and model capacities."""
+        results = {hidden_dim: {strength: [] for strength in strengths} for hidden_dim in hidden_dims}
+        
+        for hidden_dim in hidden_dims:
+            print(f"\n=== Testing with hidden dimension {hidden_dim} ===")
+            
+            # Create a new experiment with the specified hidden dimension
+            # We keep the same dataset but change the model capacity
+            self.hidden_dim = hidden_dim
+            
+            for strength in strengths:
+                print(f"\n=== Testing {intervention_type} with strength {strength} ===")
+                
+                for seed in range(seeds):
+                    print(f"Running seed {seed}...")
+                    torch.manual_seed(seed)
+                    np.random.seed(seed)
+                    
+                    model = self.create_model(intervention_type, strength)
+                    
+                    # For L1 weight regularization, use a different approach
+                    if intervention_type == 'l1_weight':
+                        history, model = self.train_model(
+                            self.create_model('none', 0),
+                            add_l1_weight_reg=strength
+                        )
+                    else:
+                        history, model = self.train_model(model)
+                    
+                    # Measure feature count after training
+                    feature_count = self.measure_feature_count(model)
+                    
+                    # Record final metrics
+                    final_metrics = {
+                        'feature_count': feature_count,
+                        'train_acc': history['train_acc'][-1],
+                        'test_acc': history['test_acc'][-1],
+                        'epochs': len(history['train_acc']),
+                        'history': history
+                    }
+                    
+                    results[hidden_dim][strength].append(final_metrics)
+                    
+                    print(f"Hidden dim {hidden_dim}, Strength {strength}, Seed {seed} results: "
+                          f"Feature Count={final_metrics['feature_count']:.2f}, "
+                          f"Test Acc={final_metrics['test_acc']:.4f}")
+        
+        return results
+    
 
 def train_sae(activations, hidden_dim, l1_coef=SAE_CONFIG["l1_coef"], epochs=SAE_CONFIG["epochs"]):
     """Train a simple SAE for feature extraction."""
@@ -411,118 +469,335 @@ def main():
     results = {}
     from datetime import datetime
     
+    # Let's restructure the code to:
+    # 1. Create a main experiment directory with timestamp for the full suite
+    # 2. Create subdirectories for each intervention within this main directory
+    # 3. Run each intervention experiment and save results in its subdirectory
+    # 4. Save plots in the same intervention-specific subdirectories
+    # 5. Also save the complete results in the main experiment directory
+    
+    # Create timestamp for the full experimental suite
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    
+    # Create main experiment directory
+    experiment_dir = os.path.join(RESULTS_DIR, f"interventions_{timestamp}")
+    os.makedirs(experiment_dir, exist_ok=True)
+    
+    # Dictionary to store all intervention directories
+    intervention_dirs = {}
+    
     for intervention, strengths in INTERVENTION_CONFIG["interventions"]:
         print(f"\n=== Running {intervention} experiments ===")
-        results[intervention] = experiment.run_intervention_sweep(
-            intervention, strengths, seeds=INTERVENTION_CONFIG["seeds"]
-        )
-    
-    # Save results
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    for intervention in results:
-        # Create intervention-specific directory
-        intervention_dir = os.path.join(RESULTS_DIR, f"{intervention}_{timestamp}")
-        os.makedirs(intervention_dir, exist_ok=True)
         
-        # Save intervention-specific results
-        results_path = os.path.join(intervention_dir, RESULTS_FILE)
-        torch.save(results[intervention], results_path)
+        # Special case for dropout: run capacity sweep
+        if intervention == 'dropout':
+            print(f"\n=== Running capacity sweep for {intervention} ===")
+            
+            # Run the capacity intervention sweep
+            capacity_results = experiment.run_capacity_intervention_sweep(
+                intervention, strengths, MODEL_CONFIG["hidden_dims"], seeds=INTERVENTION_CONFIG["seeds"]
+            )
+            
+            # Store in overall results
+            results[intervention] = {"capacity_sweep": capacity_results}
+            
+            # Create intervention-specific directory
+            intervention_dir = os.path.join(experiment_dir, f"{intervention}_capacity_sweep")
+            os.makedirs(intervention_dir, exist_ok=True)
+            intervention_dirs[intervention] = intervention_dir
+            
+            # Save intervention-specific results
+            results_path = os.path.join(intervention_dir, RESULTS_FILE)
+            torch.save(capacity_results, results_path)
+            
+            # Visualize and save plots in the intervention-specific directory
+            visualize_capacity_intervention_results(intervention, capacity_results, intervention_dir)
+        else:
+            # Run the regular intervention sweep for other interventions
+            intervention_results = experiment.run_intervention_sweep(
+                intervention, strengths, seeds=INTERVENTION_CONFIG["seeds"]
+            )
+            
+            # Store in overall results
+            results[intervention] = intervention_results
+            
+            # Create intervention-specific directory
+            intervention_dir = os.path.join(experiment_dir, intervention)
+            os.makedirs(intervention_dir, exist_ok=True)
+            intervention_dirs[intervention] = intervention_dir
+            
+            # Save intervention-specific results
+            results_path = os.path.join(intervention_dir, RESULTS_FILE)
+            torch.save(intervention_results, results_path)
+            
+            # Visualize and save plots in the intervention-specific directory
+            visualize_intervention_results(intervention, intervention_results, intervention_dir)
     
-    # Also save the complete results
-    results_path = os.path.join(RESULTS_DIR, RESULTS_FILE)
-    torch.save(results, results_path)
-    
-    # Visualize
-    visualize_results(results)
+    # Save the complete results in the main experiment directory
+    complete_results_path = os.path.join(experiment_dir, RESULTS_FILE)
+    torch.save(results, complete_results_path)
 
-def visualize_results(results):
-    """Visualize experiment results."""
+
+def visualize_intervention_results(intervention, intervention_results, save_dir):
+    """Visualize results for a specific intervention and save to the specified directory."""
+    # Get all strengths and handle None values specially
+    all_strengths = list(intervention_results.keys())
     
-    # Create figure for each intervention
-    for intervention, intervention_results in results.items():
-        # Get all strengths and handle None values specially
-        all_strengths = list(intervention_results.keys())
+    # For plotting, we need to convert None to a string for display
+    # but keep numerical values for proper ordering
+    plot_strengths = []
+    strength_labels = []
+    
+    # Calculate means and std devs
+    feature_counts = []
+    feature_stds = []
+    test_accs = []
+    test_accs_stds = []
+    
+    # Sort strengths, handling None specially
+    if None in all_strengths:
+        # Process None first
+        fc_values = [r['feature_count'] for r in intervention_results[None]]
+        feature_counts.append(np.mean(fc_values))
+        feature_stds.append(np.std(fc_values))
         
-        # For plotting, we need to convert None to a string for display
-        # but keep numerical values for proper ordering
-        plot_strengths = []
-        strength_labels = []
+        acc_values = [r['test_acc'] for r in intervention_results[None]]
+        test_accs.append(np.mean(acc_values))
+        test_accs_stds.append(np.std(acc_values))
         
-        # Calculate means and std devs
-        feature_counts = []
-        feature_stds = []
-        test_accs = []
-        test_accs_stds = []
+        plot_strengths.append(0)  # Use 0 as placeholder for None in plot
+        strength_labels.append("None")
         
-        # Sort strengths, handling None specially
-        if None in all_strengths:
-            # Process None first
-            fc_values = [r['feature_count'] for r in intervention_results[None]]
+        # Then process numerical values
+        num_strengths = sorted([s for s in all_strengths if s is not None])
+        for strength in num_strengths:
+            fc_values = [r['feature_count'] for r in intervention_results[strength]]
             feature_counts.append(np.mean(fc_values))
             feature_stds.append(np.std(fc_values))
             
-            acc_values = [r['test_acc'] for r in intervention_results[None]]
+            acc_values = [r['test_acc'] for r in intervention_results[strength]]
             test_accs.append(np.mean(acc_values))
             test_accs_stds.append(np.std(acc_values))
             
-            plot_strengths.append(0)  # Use 0 as placeholder for None in plot
-            strength_labels.append("None")
+            plot_strengths.append(strength)
+            strength_labels.append(str(strength))
+    else:
+        # No None values, just sort normally
+        sorted_strengths = sorted(all_strengths)
+        for strength in sorted_strengths:
+            fc_values = [r['feature_count'] for r in intervention_results[strength]]
+            feature_counts.append(np.mean(fc_values))
+            feature_stds.append(np.std(fc_values))
             
-            # Then process numerical values
-            num_strengths = sorted([s for s in all_strengths if s is not None])
-            for strength in num_strengths:
-                fc_values = [r['feature_count'] for r in intervention_results[strength]]
-                feature_counts.append(np.mean(fc_values))
-                feature_stds.append(np.std(fc_values))
-                
-                acc_values = [r['test_acc'] for r in intervention_results[strength]]
-                test_accs.append(np.mean(acc_values))
-                test_accs_stds.append(np.std(acc_values))
-                
-                plot_strengths.append(strength)
-                strength_labels.append(str(strength))
-        else:
-            # No None values, just sort normally
-            sorted_strengths = sorted(all_strengths)
-            for strength in sorted_strengths:
-                fc_values = [r['feature_count'] for r in intervention_results[strength]]
-                feature_counts.append(np.mean(fc_values))
-                feature_stds.append(np.std(fc_values))
-                
-                acc_values = [r['test_acc'] for r in intervention_results[strength]]
-                test_accs.append(np.mean(acc_values))
-                test_accs_stds.append(np.std(acc_values))
-                
-                plot_strengths.append(strength)
-                strength_labels.append(str(strength))
-        
-        # Create plots
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
-        
-        # Feature count
-        ax1.errorbar(plot_strengths, feature_counts, yerr=feature_stds, marker='o')
-        ax1.set_title(f"{intervention} vs Feature Count")
-        ax1.set_xlabel("Intervention Strength")
-        ax1.set_ylabel("Feature Count")
-        ax1.set_xticks(plot_strengths)
-        ax1.set_xticklabels(strength_labels)
-        ax1.grid(True)
-        
-        # Test accuracy
-        ax2.errorbar(plot_strengths, test_accs, yerr=test_accs_stds, marker='o')
-        ax2.set_title(f"{intervention} vs Test Accuracy")
-        ax2.set_xlabel("Intervention Strength")
-        ax2.set_ylabel("Test Accuracy")
-        ax2.set_xticks(plot_strengths)
-        ax2.set_xticklabels(strength_labels)
-        ax2.grid(True)
-        
-        plt.tight_layout()
-        # Save the figure to the results directory
-        plt.savefig(os.path.join(RESULTS_DIR, f"{intervention}_results.pdf"))
+            acc_values = [r['test_acc'] for r in intervention_results[strength]]
+            test_accs.append(np.mean(acc_values))
+            test_accs_stds.append(np.std(acc_values))
+            
+            plot_strengths.append(strength)
+            strength_labels.append(str(strength))
+    
+    # Create plots
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
+    
+    # Feature count
+    ax1.errorbar(plot_strengths, feature_counts, yerr=feature_stds, marker='o')
+    ax1.set_title(f"{intervention.capitalize()} vs Feature Count")
+    ax1.set_xlabel("{} Strength".format(intervention).capitalize())
+    ax1.set_ylabel("Feature Count")
+    ax1.set_xticks(plot_strengths)
+    ax1.set_xticklabels(strength_labels)
+    ax1.grid(True)
+    # x axis log scale
+    # ax1.set_xscale('log')
+    
+    # Test accuracy
+    ax2.errorbar(plot_strengths, test_accs, yerr=test_accs_stds, marker='o')
+    ax2.set_title(f"{intervention.capitalize()} vs Test Accuracy")
+    ax2.set_xlabel("{} Strength".format(intervention).capitalize())
+    ax2.set_ylabel("Test Accuracy")
+    ax2.set_xticks(plot_strengths)
+    ax2.set_xticklabels(strength_labels)
+    ax2.grid(True)
+    
+    plt.tight_layout()
+    
+    # Save the figure to the intervention-specific directory
+    if save_dir is not None:
+        plot_path = os.path.join(save_dir, f"{intervention}_results.pdf")
+        plt.savefig(plot_path)
         plt.close()  # Close the figure to free memory
-        
+    else:
+        plt.show()
 
+# %%
+def visualize_capacity_intervention_results(intervention, capacity_results, save_dir):
+    """Visualize results for a capacity intervention sweep and save to the specified directory.
+    
+    Args:
+        intervention: Name of the intervention type (e.g., "Dropout")
+        capacity_results: Nested dictionary of results organized by hidden_dim and strength
+        save_dir: Directory path to save visualization files
+    """
+    import os
+    import numpy as np
+    import matplotlib.pyplot as plt
+    
+    # ===== CONFIGURATION =====
+    # Color palette - soft muted colors
+    colors = ['#F0BE5E', '#94B9A3', '#88A7B2', '#DDC6E1']
+    reference_line_color = '#8B5C5D'  # Dark red for reference/threshold lines
+    
+    # Typography settings - much larger fonts for better readability
+    FONT_SIZE_LABELS = 36
+    FONT_SIZE_TITLE = 48 # Increased from 18
+    FONT_SIZE_TICKS = 36   # Increased from 14
+    FONT_SIZE_LEGEND = 28 # Increased from 14
+    
+    # Plot settings
+    MARKER_SIZE = 15       # Increased from 8
+    LINE_WIDTH = 5.0       # Increased from 2.0
+    CAPSIZE = 12            # Increased from 4
+    FIGURE_SIZE = (12, 10) # Increased from (10, 8)
+    COMBINED_FIG_SIZE = (20, 10) # Increased from (16, 8)
+    
+    # ===== DATA PREPARATION =====
+    # Extract dimensions and strengths
+    hidden_dims = sorted(capacity_results.keys())
+    all_strengths = list(capacity_results[hidden_dims[0]].keys())
+    
+    # Sort strengths, handling None specially
+    if None in all_strengths:
+        strengths = [None] + sorted([s for s in all_strengths if s is not None])
+    else:
+        strengths = sorted(all_strengths)
+    
+    # Process data once for all plots
+    plot_data = {}
+    for hidden_dim in hidden_dims:
+        plot_data[hidden_dim] = {
+            'plot_strengths': [],
+            'feature_counts': [],
+            'feature_stds': [],
+            'test_accs': [],
+            'test_accs_stds': []
+        }
+        
+        for strength in strengths:
+            # Handle None values for plotting
+            plot_strength = 0 if strength is None else strength
+            plot_data[hidden_dim]['plot_strengths'].append(plot_strength)
+            
+            # Calculate statistics
+            fc_values = [r['feature_count'] for r in capacity_results[hidden_dim][strength]]
+            plot_data[hidden_dim]['feature_counts'].append(np.mean(fc_values))
+            plot_data[hidden_dim]['feature_stds'].append(np.std(fc_values))
+            
+            acc_values = [r['test_acc'] for r in capacity_results[hidden_dim][strength]]
+            plot_data[hidden_dim]['test_accs'].append(np.mean(acc_values))
+            plot_data[hidden_dim]['test_accs_stds'].append(np.std(acc_values))
+    
+    # Create custom x-tick labels if needed
+    if None in strengths:
+        strength_labels = ["None" if s is None else str(s) for s in strengths]
+    
+    # ===== PLOTTING FUNCTIONS =====
+    def setup_axis(ax, title, xlabel, ylabel):
+        """Configure a matplotlib axis with consistent styling."""
+        ax.set_title(title, fontsize=FONT_SIZE_TITLE, fontweight='bold')
+        ax.set_xlabel(xlabel, fontsize=FONT_SIZE_LABELS)
+        ax.set_ylabel(ylabel, fontsize=FONT_SIZE_LABELS)
+        ax.legend(fontsize=FONT_SIZE_LEGEND, loc='best')
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(labelsize=FONT_SIZE_TICKS)
+        
+        # Set custom x-tick labels if needed
+        if None in strengths:
+            first_dim = list(plot_data.keys())[0]
+            ax.set_xticks(plot_data[first_dim]['plot_strengths'])
+            ax.set_xticklabels(strength_labels)
+    
+    def plot_metric(ax, metric_name, hidden_dims):
+        """Plot a specific metric (feature count or test accuracy) to the given axis."""
+        for i, hidden_dim in enumerate(hidden_dims):
+            data = plot_data[hidden_dim]
+            
+            if metric_name == 'feature':
+                y_values = data['feature_counts']
+                y_errors = data['feature_stds']
+            else:  # accuracy
+                y_values = data['test_accs']
+                y_errors = data['test_accs_stds']
+             
+            ax.errorbar(
+                data['plot_strengths'], 
+                y_values, 
+                yerr=y_errors, 
+                marker='o', 
+                color=colors[i % len(colors)], 
+                markersize=MARKER_SIZE,
+                linewidth=LINE_WIDTH,
+                capsize=CAPSIZE,
+                capthick=LINE_WIDTH,
+                elinewidth=LINE_WIDTH,
+                label=f"h={hidden_dim}"
+            )
+    
+    # ===== CREATE INDIVIDUAL PLOTS =====
+    # Feature count plot
+    fig1, ax1 = plt.subplots(figsize=FIGURE_SIZE)
+    plot_metric(ax1, 'feature', hidden_dims)
+    setup_axis(ax1, f"{intervention.capitalize()} vs Feature Count", "{} Strength".format(intervention.capitalize()), "Feature Count")
+    fig1.tight_layout(pad=2.0)
+    
+    # Test accuracy plot
+    fig2, ax2 = plt.subplots(figsize=FIGURE_SIZE)
+    plot_metric(ax2, 'accuracy', hidden_dims)
+    setup_axis(ax2, f"{intervention.capitalize()} vs Test Accuracy", "{} Strength".format(intervention.capitalize()), "Test Accuracy")
+    fig2.tight_layout(pad=2.0)
+    
+    # ===== SAVE PLOTS =====
+    if save_dir is not None:
+        # Create directory if it doesn't exist
+        os.makedirs(save_dir, exist_ok=True)
+        
+        # Save individual plots
+        feature_plot_path = os.path.join(save_dir, f"{intervention}_feature_count.pdf")
+        accuracy_plot_path = os.path.join(save_dir, f"{intervention}_accuracy.pdf")
+        
+        fig1.savefig(feature_plot_path, dpi=300, bbox_inches='tight')
+        fig2.savefig(accuracy_plot_path, dpi=300, bbox_inches='tight')
+        
+        # Create and save combined plot
+        fig3, (ax3, ax4) = plt.subplots(1, 2, figsize=COMBINED_FIG_SIZE)
+        
+        plot_metric(ax3, 'feature', hidden_dims)
+        setup_axis(ax3, "Feature Count", intervention, "Feature Count")
+        
+        plot_metric(ax4, 'accuracy', hidden_dims)
+        setup_axis(ax4, "Test Accuracy", intervention, "Test Accuracy")
+        
+        fig3.tight_layout(pad=2.5)
+        combined_plot_path = os.path.join(save_dir, f"{intervention}_combined.pdf")
+        fig3.savefig(combined_plot_path, dpi=300, bbox_inches='tight')
+        
+        plt.close(fig3)
+    
+    # Return the figure handles for further manipulation if needed
+    return fig1, fig2
+
+# %%
 if __name__ == "__main__":
     main()
+
 # %%
+    # interventions = ['dropout', 'l1_activation', 'solu', 'l1_weight']
+    # intervention = interventions[1]
+    intervention = 'dropout'
+    time_stamp = '2025-03-29_16-18-13'
+
+    # Load results
+    results = torch.load("../../results/interventions/interventions_{}/{}_capacity_sweep/intervention_results.pt".format(time_stamp, intervention))
+
+    # visualize results
+    visualize_capacity_intervention_results(intervention, results, None)
+    # %%
