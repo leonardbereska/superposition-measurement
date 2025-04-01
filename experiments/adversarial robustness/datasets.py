@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 
 class MNISTDataset(Dataset):
-    """MNIST dataset with optional downsampling and binary classification."""
+    """MNIST dataset with optional downsampling and class selection."""
     
     def __init__(
         self, 
@@ -15,7 +15,7 @@ class MNISTDataset(Dataset):
         train=True,
         root='../../data',
         download=True,
-        binary_digits=None  # None for multi-class, tuple for binary
+        selected_classes=None  # None for all classes, list/tuple for specific classes 
     ):
         """
         Args:
@@ -23,7 +23,7 @@ class MNISTDataset(Dataset):
             train: If True, use training set
             root: Path to store the dataset
             download: If True, download the dataset
-            binary_digits: Optional tuple of two digits for binary classification
+            selected_classes: Optional list/tuple of classes to include
         """
         # Load original MNIST
         self.original_dataset = torchvision.datasets.MNIST(
@@ -47,21 +47,25 @@ class MNISTDataset(Dataset):
         self.data = self.data.squeeze(1)  # Remove channel dimension [N, H, W]
         self.targets = self.original_dataset.targets
         
-        # Filter for binary classification if specified
-        if binary_digits is not None:
-            assert len(binary_digits) == 2, "binary_digits must be a tuple of two digits"
+        # Filter for selected classes if specified
+        if selected_classes is not None:
             mask = torch.zeros_like(self.targets, dtype=torch.bool)
-            for digit in binary_digits:
+            for digit in selected_classes:
                 mask = mask | (self.targets == digit)
             
             self.data = self.data[mask]
             self.targets = self.targets[mask]
             
-            # Relabel as 0 and 1 for binary classification
-            self.targets = (self.targets == binary_digits[1]).float()
-        
+            # Relabel sequential classes for classification (only if binary was intended)
+            if len(selected_classes) == 2:
+                self.targets = (self.targets == selected_classes[1]).float()
+            else:
+                # Create a mapping to sequential class indices
+                class_map = {c: i for i, c in enumerate(sorted(selected_classes))}
+                self.targets = torch.tensor([class_map[t.item()] for t in self.targets])
+
         # Store configuration
-        self.binary_digits = binary_digits
+        self.selected_classes = selected_classes
         self.target_size = target_size
         self.train = train
     

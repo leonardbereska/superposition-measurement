@@ -67,8 +67,6 @@ def measure_superposition(
     # limiting the number of activations to extract to avoid memory issues
     activations = model.get_activations(data_loader, layer_name, max_activations=max_samples)
 
-    print(f"Activations shape: {activations.shape}")
-    print(f"Activations type: {type(activations)}")
     activations = activations.detach().cpu().contiguous()
 
     # Check if the activations are from a convolutional layer
@@ -85,7 +83,6 @@ def measure_superposition(
             train_activations = activations_reshaped[:max_samples]
         else:
             train_activations = activations_reshaped
-        print(f"Train activations shape: {train_activations.shape}")
         
         # Train SAE if not provided
         if sae_model is None:

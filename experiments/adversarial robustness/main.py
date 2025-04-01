@@ -32,7 +32,7 @@ def run_experiment(
     model_type: str = 'mlp',
     hidden_dim: Optional[int] = None,
     image_size: Optional[int] = None,
-    binary_digits: Optional[tuple] = None,
+    selected_classes: Optional[tuple] = None,
     n_epochs: Optional[int] = None,
     seed: Optional[int] = None,
 ) -> Dict[str, float]:
@@ -55,7 +55,7 @@ def run_experiment(
     # Set defaults from config
     hidden_dim = hidden_dim or MODEL_CONFIG['hidden_dim']
     image_size = image_size or DATASET_CONFIG['target_size']
-    binary_digits = binary_digits or DATASET_CONFIG['binary_digits']
+    selected_classes = selected_classes or DATASET_CONFIG['selected_classes']
     n_epochs = n_epochs or TRAINING_CONFIG['n_epochs']
     
     # Set seed for reproducibility
@@ -66,13 +66,13 @@ def run_experiment(
     train_dataset = MNISTDataset(
         target_size=image_size,
         train=True,
-        binary_digits=binary_digits,
+        selected_classes=selected_classes,
         root=DATA_DIR
     )
     test_dataset = MNISTDataset(
         target_size=image_size,
         train=False,
-        binary_digits=binary_digits,
+        selected_classes=selected_classes,
         root=DATA_DIR
     )
     
@@ -166,11 +166,12 @@ def run_superposition_study(
     train_epsilons = train_epsilons or ADVERSARIAL_CONFIG['train_epsilons']
     test_epsilons = test_epsilons or ADVERSARIAL_CONFIG['test_epsilons']
     n_runs = n_runs or ADVERSARIAL_CONFIG['n_runs']
-    
+
     # Create results directory
     if save_dir is None:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        save_dir = Path(RESULTS_DIR) / f"{model_type}_adversarial_training_{timestamp}"
+        class_info = "".join(map(str, DATASET_CONFIG['selected_classes'])) if DATASET_CONFIG['selected_classes'] else "all"
+        save_dir = Path(RESULTS_DIR) / f"{model_type}_adversarial_classes{class_info}_{timestamp}"
     else:
         save_dir = Path(save_dir)
     
