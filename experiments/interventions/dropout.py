@@ -4,13 +4,14 @@ import numpy as np
 import torch.utils.data
 import os
 import matplotlib.pyplot as plt
-from datasets import MultiTaskSparseParityDataset
+from dataset_multitasksparseparity import MultiTaskSparseParityDataset
 # change working directory to the directory of the script
 script_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(script_dir)
 print(f"Current working directory: {os.getcwd()}")
 
 """Configuration for sparse parity intervention experiments."""
+TEST_MODE = True
 
 # Model configuration
 MODEL_CONFIG = {
@@ -28,31 +29,21 @@ DATASET_CONFIG = {
 TRAINING_CONFIG = {
     "batch_size": 64,
     "learning_rate": 0.001,
-    "n_epochs": 300,
-    # "n_epochs": 10,
+    "n_epochs": 300 if not TEST_MODE else 10,
 }
 
 # Intervention configuration
 INTERVENTION_CONFIG = {
     "interventions": [
-        ('dropout', [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]),
-        # ('l1_activation', [0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5]),
-        # ('solu', [None, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]),  # Temperature values
-        # ('l1_weight', [0.0, 0.0001, 0.001, 0.01, 0.1, 1.0])
-        # ('dropout', [0.0, 0.1, 0.3, 0.5, 0.7]),  # Extended dropout values
-        # ('l1_activation', [0.0, 0.01]),
-        # ('solu', [None, 1.0]),
-        # ('l1_weight', [0.0, 0.001]),
+        ('dropout', [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]) if not TEST_MODE else ('dropout', [0.0, 0.2, 0.5])
     ],
-    "seeds": 5,
-    # "seeds": 2,
+    "seeds": 5 if not TEST_MODE else 2,
 }
 
 # SAE configuration
 SAE_CONFIG = {
     "l1_coef": 0.1,
-    "epochs": 300,
-    # "epochs": 10,
+    "epochs": 300 if not TEST_MODE else 10,
     "batch_size": 128,
     "learning_rate": 0.001,
 }
@@ -80,13 +71,6 @@ class SparseParityModel(torch.nn.Module):
         # Layers
         self.fc1 = torch.nn.Linear(input_dim, hidden_dim)
         self.fc2 = torch.nn.Linear(hidden_dim, 1)
-        
-        # Initialize SoLU parameter if needed
-        self.softmax_temp = None
-        if intervention == 'solu' and intervention_strength is not None:
-            self.softmax_temp = torch.nn.Parameter(
-                torch.ones(1) * intervention_strength
-            )
     
     def forward(self, x):
         # First layer
@@ -101,17 +85,7 @@ class SparseParityModel(torch.nn.Module):
             )
                 
         # Apply activation function
-        if self.intervention == 'solu' and self.softmax_temp is not None:
-            # SoLU activation (softmax linear unit)
-            h_norm = torch.nn.functional.softmax(
-                h * self.softmax_temp, dim=1
-            ) * h.shape[1]
-            h = h * h_norm
-        else:
-            # Default ReLU
-            h = torch.nn.functional.relu(h)
-        # Store activations for L1 regularization if needed
-        self.last_activations = h if self.intervention == 'l1_activation' else None
+        h = torch.nn.functional.relu(h)
             
         # Output layer
         return self.fc2(h)
@@ -179,7 +153,7 @@ class InterventionExperiment:
         
         return model
     
-    def train_model(self, model, add_l1_weight_reg=0.0):
+    def train_model(self, model):
         """Train model for a fixed number of epochs."""
         train_loader = torch.utils.data.DataLoader(
             self.train_dataset, 
@@ -216,18 +190,6 @@ class InterventionExperiment:
                 optimizer.zero_grad()
                 outputs = model(inputs)
                 loss = criterion(outputs, targets)
-                
-                # Add L1 weight regularization if specified
-                if add_l1_weight_reg > 0:
-                    l1_loss = add_l1_weight_reg * sum(
-                        p.abs().sum() for p in model.parameters()
-                    )
-                    loss += l1_loss
-                
-                # Add L1 activation regularization if specified
-                if model.intervention == 'l1_activation' and model.last_activations is not None:
-                    l1_act_loss = model.intervention_strength * model.last_activations.abs().mean()
-                    loss += l1_act_loss
                 
                 loss.backward()
                 optimizer.step()
@@ -310,15 +272,7 @@ class InterventionExperiment:
                 np.random.seed(seed)
                 
                 model = self.create_model(intervention_type, strength)
-                
-                # For L1 weight regularization, use a different approach
-                if intervention_type == 'l1_weight':
-                    history, model = self.train_model(
-                        self.create_model('none', 0),
-                        add_l1_weight_reg=strength
-                    )
-                else:
-                    history, model = self.train_model(model)
+                history, model = self.train_model(model)
                 
                 # Measure feature count after training
                 feature_count = self.measure_feature_count(model)
@@ -360,15 +314,7 @@ class InterventionExperiment:
                     np.random.seed(seed)
                     
                     model = self.create_model(intervention_type, strength)
-                    
-                    # For L1 weight regularization, use a different approach
-                    if intervention_type == 'l1_weight':
-                        history, model = self.train_model(
-                            self.create_model('none', 0),
-                            add_l1_weight_reg=strength
-                        )
-                    else:
-                        history, model = self.train_model(model)
+                    history, model = self.train_model(model)
                     
                     # Measure feature count after training
                     feature_count = self.measure_feature_count(model)
@@ -455,8 +401,7 @@ def calculate_feature_count(feature_norms):
     # Feature count is exp(entropy)
     return torch.exp(entropy).item()
 
-
-def main():
+def capacity_sweep():
     # Create experiment
     experiment = InterventionExperiment(
         num_tasks=DATASET_CONFIG["num_tasks"],
@@ -468,13 +413,6 @@ def main():
     # Run experiments
     results = {}
     from datetime import datetime
-    
-    # Let's restructure the code to:
-    # 1. Create a main experiment directory with timestamp for the full suite
-    # 2. Create subdirectories for each intervention within this main directory
-    # 3. Run each intervention experiment and save results in its subdirectory
-    # 4. Save plots in the same intervention-specific subdirectories
-    # 5. Also save the complete results in the main experiment directory
     
     # Create timestamp for the full experimental suite
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -512,31 +450,56 @@ def main():
             
             # Visualize and save plots in the intervention-specific directory
             visualize_capacity_intervention_results(intervention, capacity_results, intervention_dir)
-        else:
-            # Run the regular intervention sweep for other interventions
-            intervention_results = experiment.run_intervention_sweep(
-                intervention, strengths, seeds=INTERVENTION_CONFIG["seeds"]
-            )
-            
-            # Store in overall results
-            results[intervention] = intervention_results
-            
-            # Create intervention-specific directory
-            intervention_dir = os.path.join(experiment_dir, intervention)
-            os.makedirs(intervention_dir, exist_ok=True)
-            intervention_dirs[intervention] = intervention_dir
-            
-            # Save intervention-specific results
-            results_path = os.path.join(intervention_dir, RESULTS_FILE)
-            torch.save(intervention_results, results_path)
-            
-            # Visualize and save plots in the intervention-specific directory
-            visualize_intervention_results(intervention, intervention_results, intervention_dir)
     
     # Save the complete results in the main experiment directory
     complete_results_path = os.path.join(experiment_dir, RESULTS_FILE)
     torch.save(results, complete_results_path)
 
+def single_capacity_test(intervention='dropout', strengths=None, hidden_dim=64, seeds=3):
+    """
+    Run a single capacity test with one specific hidden dimension.
+    
+    Args:
+        intervention (str): Type of intervention to apply (e.g., 'dropout')
+        strengths (list): List of intervention strengths to test
+        hidden_dim (int): Single hidden dimension to use
+        seeds (int): Number of random seeds to run
+    """
+    # Use default strengths if none provided
+    if strengths is None:
+        strengths = [0.0, 0.2, 0.5]
+    
+    # Create experiment
+    experiment = InterventionExperiment(
+        num_tasks=DATASET_CONFIG["num_tasks"],
+        bits_per_task=DATASET_CONFIG["bits_per_task"],
+        hidden_dim=hidden_dim,
+        n_epochs=TRAINING_CONFIG["n_epochs"]
+    )
+    
+    # Create timestamp for this experiment
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    
+    # Create experiment directory
+    experiment_dir = os.path.join(RESULTS_DIR, f"single_capacity_{intervention}_{hidden_dim}_{timestamp}")
+    os.makedirs(experiment_dir, exist_ok=True)
+    
+    print(f"\n=== Running single capacity test for {intervention} with hidden_dim={hidden_dim} ===")
+    
+    # Run the capacity intervention test with a single hidden dimension
+    capacity_results = experiment.run_capacity_intervention_sweep(
+        intervention, strengths, [hidden_dim], seeds=seeds
+    )
+    
+    # Save results
+    results_path = os.path.join(experiment_dir, RESULTS_FILE)
+    torch.save(capacity_results, results_path)
+    
+    # Visualize and save plots
+    visualize_capacity_intervention_results(intervention, capacity_results, experiment_dir)
+    
+    return capacity_results
 
 def visualize_intervention_results(intervention, intervention_results, save_dir):
     """Visualize results for a specific intervention and save to the specified directory."""
@@ -607,8 +570,6 @@ def visualize_intervention_results(intervention, intervention_results, save_dir)
     ax1.set_xticks(plot_strengths)
     ax1.set_xticklabels(strength_labels)
     ax1.grid(True)
-    # x axis log scale
-    # ax1.set_xscale('log')
     
     # Test accuracy
     ax2.errorbar(plot_strengths, test_accs, yerr=test_accs_stds, marker='o')
@@ -629,7 +590,6 @@ def visualize_intervention_results(intervention, intervention_results, save_dir)
     else:
         plt.show()
 
-# %%
 def visualize_capacity_intervention_results(intervention, capacity_results, save_dir):
     """Visualize results for a capacity intervention sweep and save to the specified directory.
     
@@ -663,6 +623,8 @@ def visualize_capacity_intervention_results(intervention, capacity_results, save
     # ===== DATA PREPARATION =====
     # Extract dimensions and strengths
     hidden_dims = sorted(capacity_results.keys())
+    # filter out hidden_dim = 256
+    hidden_dims = [dim for dim in hidden_dims if dim != 256]
     all_strengths = list(capacity_results[hidden_dims[0]].keys())
     
     # Sort strengths, handling None specially
@@ -670,6 +632,7 @@ def visualize_capacity_intervention_results(intervention, capacity_results, save
         strengths = [None] + sorted([s for s in all_strengths if s is not None])
     else:
         strengths = sorted(all_strengths)
+
     
     # Process data once for all plots
     plot_data = {}
@@ -785,19 +748,20 @@ def visualize_capacity_intervention_results(intervention, capacity_results, save
     # Return the figure handles for further manipulation if needed
     return fig1, fig2
 
-# %%
-if __name__ == "__main__":
-    main()
 
 # %%
-    # interventions = ['dropout', 'l1_activation', 'solu', 'l1_weight']
-    # intervention = interventions[1]
+if __name__ == "__main__":
+    single_capacity_test()
+    # capacity_sweep()
+
+
+# %%
     intervention = 'dropout'
-    time_stamp = '2025-03-29_16-18-13'
+    time_stamp = '2025-03-30_12-30-19'
 
     # Load results
     results = torch.load("../../results/interventions/interventions_{}/{}_capacity_sweep/intervention_results.pt".format(time_stamp, intervention))
 
     # visualize results
-    visualize_capacity_intervention_results(intervention, results, None)
-    # %%
+    visualize_capacity_intervention_results(intervention, results, "../../results/interventions/interventions_{}/{}_capacity_sweep/".format(time_stamp, intervention))
+# %%

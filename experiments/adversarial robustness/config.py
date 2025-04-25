@@ -4,8 +4,8 @@ import os
 import torch
 
 # Set to True for quick testing, False for full experiments
-# TESTING_MODE = False
-TESTING_MODE = True
+TESTING_MODE = False
+# TESTING_MODE = True
 
 # Model configuration
 MODEL_CONFIG = {
@@ -19,8 +19,8 @@ MODEL_CONFIG = {
 DATASET_CONFIG = {
     "target_size": 28,
     # "selected_classes": (0, 1),
-    "selected_classes": (0, 1, 2),
-    # "selected_classes": (0, 1, 2, 3, 4),
+    # "selected_classes": (0, 1, 2),
+    "selected_classes": (0, 1, 2, 3, 4),
     # "selected_classes": None,  # Use all classes
 }
 
