@@ -4,8 +4,8 @@ import os
 import torch
 
 # Set to True for quick testing, False for full experiments
-TESTING_MODE = False
-# TESTING_MODE = True
+# TESTING_MODE = False
+TESTING_MODE = True
 
 # Model configuration
 MODEL_CONFIG = {
