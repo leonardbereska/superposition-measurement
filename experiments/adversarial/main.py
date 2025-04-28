@@ -169,9 +169,9 @@ def run_superposition_study(
 
     # Create results directory
     if save_dir is None:
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
         class_info = "".join(map(str, DATASET_CONFIG['selected_classes'])) if DATASET_CONFIG['selected_classes'] else "all"
-        save_dir = Path(RESULTS_DIR) / f"{model_type}_adversarial_classes{class_info}_{timestamp}"
+        save_dir = Path(RESULTS_DIR) / f"{timestamp}_{model_type}_adversarial_classes{class_info}"
     else:
         save_dir = Path(save_dir)
     
