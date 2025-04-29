@@ -431,22 +431,70 @@ def run_all_phases(
     
     return results_dir
 
+def run_model_class_experiment(
+    model_types: List[str] = ['mlp', 'cnn'],
+    class_counts: List[int] = [2, 3, 5, 10],
+    base_config: Optional[Dict[str, Any]] = None
+) -> Dict[str, Dict[int, Path]]:
+    """Run training phase across model types and class counts.
+    
+    Args:
+        model_types: List of model types to test ('mlp', 'cnn')
+        class_counts: List of class counts to test
+        base_config: Base configuration (uses default if None)
+        
+    Returns:
+        Dictionary mapping model types to dictionaries mapping class counts to result directories
+    """
+    # Get base configuration if not provided
+    if base_config is None:
+        base_config = get_default_config()
+    
+    # Store result directories
+    results = {model_type: {} for model_type in model_types}
+    
+    # Run experiments for each model type and class count
+    for model_type in model_types:
+        for n_classes in class_counts:
+            print(f"\n{'='*50}")
+            print(f"Running experiment: {model_type.upper()} with {n_classes} classes")
+            print(f"{'='*50}\n")
+            
+            # Select classes based on class count
+            selected_classes = tuple(range(n_classes))
+            
+            # Update configuration for this experiment
+            experiment_config = update_config(base_config, {
+                'model': {'model_type': model_type},
+                'dataset': {'selected_classes': selected_classes}
+            })
+            
+            # Run training phase only
+            results_dir = run_training_phase(experiment_config)
+            
+            # Store result directory
+            results[model_type][n_classes] = results_dir
+    
+    return results
+
 # %%
 # Example usage
 if __name__ == "__main__":
     # Get configuration with testing mode for quick runs
-    config = get_default_config(testing_mode=True)
+    # config = get_default_config(testing_mode=True)
     
     # Run specific phase (uncomment as needed)
     # results_dir = run_training_phase(config)
     # results_dir = run_evaluation_phase(config, measure_mixed=False)
     # results_dir = run_evaluation_phase(config, measure_mixed=True)
-    results_dir = run_analysis_phase(config, create_html_report=True)
+    # results_dir = run_analysis_phase(config, create_html_report=True)
     
     # Or run all phases
     # results_dir = run_all_phases(config, measure_mixed=False, create_html_report=True)
     
-    print(f"Experiment completed. Results in: {results_dir}")
-# %%
+    # print(f"Experiment completed. Results in: {results_dir}")
 
-    
+    # Run model comparison experiment
+    results = run_model_class_experiment()
+    print(results)
+
