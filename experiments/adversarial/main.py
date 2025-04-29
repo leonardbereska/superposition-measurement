@@ -17,8 +17,8 @@ from config import (
     MODEL_CONFIG, DATASET_CONFIG, TRAINING_CONFIG, 
     ADVERSARIAL_CONFIG, RESULTS_DIR, DEVICE, DATA_DIR, SAE_CONFIG
 )
-from datasets import MNISTDataset
-from metrics import measure_superposition
+from datasets import create_dataloaders
+from metrics import measure_superposition, measure_superposition_on_mixed_distribution
 from training import SuperpositionExperiment, evaluate_adversarial_robustness
 from utils import (
     set_seed, plot_robustness_curve, plot_feature_counts, 
@@ -45,7 +45,7 @@ def run_experiment(
         model_type: Model type ('mlp' or 'cnn')
         hidden_dim: Hidden dimension (defaults to config)
         image_size: Image size (defaults to config)
-        binary_digits: Binary digits (defaults to config)
+        selected_classes: Selected classes (defaults to config)
         n_epochs: Number of epochs (defaults to config)
         seed: Random seed
         
@@ -61,19 +61,13 @@ def run_experiment(
     # Set seed for reproducibility
     if seed is not None:
         set_seed(seed + run_idx)
-    
-    # Create datasets
-    train_dataset = MNISTDataset(
-        target_size=image_size,
-        train=True,
+
+    # Create dataloaders
+    train_loader, test_loader = create_dataloaders(
+        dataset_type='mnist',
+        batch_size=TRAINING_CONFIG['batch_size'],
         selected_classes=selected_classes,
-        root=DATA_DIR
-    )
-    test_dataset = MNISTDataset(
-        target_size=image_size,
-        train=False,
-        selected_classes=selected_classes,
-        root=DATA_DIR
+        data_dir=DATA_DIR
     )
     
     # Create experiment directory
@@ -82,8 +76,9 @@ def run_experiment(
     
     # Run experiment
     exp = SuperpositionExperiment(
-        train_dataset=train_dataset,
-        val_dataset=test_dataset,
+        train_loader=train_loader,
+        val_loader=test_loader,
+        test_epsilons=ADVERSARIAL_CONFIG['test_epsilons'],
         model_type=model_type,
         hidden_dim=hidden_dim,
         image_size=image_size,
@@ -95,17 +90,15 @@ def run_experiment(
         n_epochs=n_epochs,
         epsilon=epsilon,
         measure_frequency=5,
-        measure_superposition=False
     )
     
     # Save experiment
     exp.save(save_dir / "experiment.pt")
-    # exp.load(save_dir / "experiment.pt", train_dataset, test_dataset)
-    # print("Experiment loaded")
+    # exp.load(save_dir / "experiment.pt")
     
     # Measure superposition
     layer_name = 'relu' if model_type.lower() == 'mlp' else 'features.1'
-    metrics = measure_superposition(
+    adv_results = measure_superposition_on_mixed_distribution(
         exp.model, 
         exp.train_loader, 
         layer_name,
@@ -116,6 +109,7 @@ def run_experiment(
         n_epochs=SAE_CONFIG['n_epochs'],
         save_dir=save_dir
     )
+    metrics = adv_results['clean']
     
     # Measure robustness
     test_epsilons = ADVERSARIAL_CONFIG['test_epsilons']
@@ -166,12 +160,16 @@ def run_superposition_study(
     train_epsilons = train_epsilons or ADVERSARIAL_CONFIG['train_epsilons']
     test_epsilons = test_epsilons or ADVERSARIAL_CONFIG['test_epsilons']
     n_runs = n_runs or ADVERSARIAL_CONFIG['n_runs']
+    print(f"Running {n_runs} runs for each epsilon")
+    print(f"Training epsilons: {train_epsilons}")
+    print(f"Testing epsilons: {test_epsilons}")
 
     # Create results directory
     if save_dir is None:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
         class_info = "".join(map(str, DATASET_CONFIG['selected_classes'])) if DATASET_CONFIG['selected_classes'] else "all"
-        save_dir = Path(RESULTS_DIR) / f"{timestamp}_{model_type}_adversarial_classes{class_info}"
+        n_classes = len(DATASET_CONFIG['selected_classes']) if DATASET_CONFIG['selected_classes'] else 10
+        save_dir = Path(RESULTS_DIR) / f"{timestamp}_{model_type}_{n_classes}-class"
     else:
         save_dir = Path(save_dir)
     

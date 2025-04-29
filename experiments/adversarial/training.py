@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Tuple, Callable
 from pathlib import Path
 
 from models import create_model
+from metrics import measure_superposition, measure_superposition_on_mixed_distribution
 
 def train_step(model: nn.Module, 
                inputs: torch.Tensor, 
@@ -425,25 +426,27 @@ class SuperpositionExperiment:
    
    def __init__(
        self,
-       train_dataset,
-       val_dataset,
+       train_loader: DataLoader,
+       val_loader: DataLoader,
+       test_epsilons: List[float],
        model_type: str = 'mlp',
        hidden_dim: int = 32,
        image_size: int = 28,
        device: Optional[torch.device] = None
-   ):
+   ) -> None:
        """Initialize the experiment.
        
        Args:
-           train_dataset: Training dataset
-           val_dataset: Validation dataset
+           train_loader: Training data loader
+           val_loader: Validation data loader
+           test_epsilons: List of epsilon values to test
            model_type: Type of model to use ('mlp' or 'cnn')
            hidden_dim: Hidden dimension for MLP
            image_size: Image size
            device: Device to use
        """
-       self.train_dataset = train_dataset
-       self.val_dataset = val_dataset
+       self.train_loader = train_loader
+       self.val_loader = val_loader
        self.model_type = model_type
        self.hidden_dim = hidden_dim
        self.image_size = image_size
@@ -453,13 +456,9 @@ class SuperpositionExperiment:
            "cpu"
        )
        
-       # Create dataloaders
-       self.train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-       self.val_loader = DataLoader(val_dataset, batch_size=64)
-       
        # Initialize model
        # Get number of classes from dataset
-       num_classes = len(set(y.item() for _, y in train_dataset))
+       num_classes = len(torch.unique(train_loader.dataset.targets))
        # Use 1 for binary classification, actual count for multi-class
        output_dim = 1 if num_classes <= 2 else num_classes
        
@@ -477,9 +476,9 @@ class SuperpositionExperiment:
        
        # Initialize history
        self.history = {}
-       
-       # Test epsilons for evaluation
-       self.test_epsilons = [0.0, 0.02, 0.04, 0.06, 0.08, 0.1]
+
+       # Initialize test epsilons
+       self.test_epsilons = test_epsilons
 
    def save(self, path: Path) -> None:
        """Save model state, optimizer state, and experiment history."""
@@ -527,7 +526,7 @@ class SuperpositionExperiment:
        n_epochs: int,
        epsilon: float = 0.0,
        alpha: float = 0.5,
-       measure_superposition: bool = False,
+    #    measure_superposition: bool = False,
        measure_frequency: int = 5
    ):
        """Train model and track superposition metrics.
@@ -536,7 +535,6 @@ class SuperpositionExperiment:
            n_epochs: Number of training epochs
            epsilon: Perturbation size for adversarial training
            alpha: Weight for clean vs adversarial loss
-           measure_superposition: Whether to measure superposition
            measure_frequency: How often to measure superposition
        """
        # Binary or multi-class criterion
@@ -576,11 +574,11 @@ class SuperpositionExperiment:
                self._log_metrics(adv_accuracies, "adv_acc_")
                
                # Measure superposition
-               if measure_superposition:
-                   from metrics import measure_superposition
-                   layer_name = 'after_relu' if self.model_type.lower() == 'mlp' else 'conv_features'
-                   metrics = measure_superposition(self.model, self.train_loader, layer_name)
-                   self._log_metrics(metrics, "superposition_")
+            #    if measure_superposition:
+                #    layer_name = 'after_relu' if self.model_type.lower() == 'mlp' else 'conv_features'
+                #    metrics = measure_superposition(self.model, self.train_loader, layer_name)
+                #    metrics = measure_superposition_on_mixed_distribution(self.model, self.train_loader, layer_name)
+                #    self._log_metrics(metrics, "superposition_")
                
                # Print progress
                print(f"Epoch {epoch}/{n_epochs}")
@@ -589,7 +587,7 @@ class SuperpositionExperiment:
                print("Adversarial accuracies:")
                for eps in self.test_epsilons:
                    print(f"ε={eps:.3f}: {adv_accuracies[eps]:.1f}%")
-               if measure_superposition:
-                   print(f"Superposition: {metrics['feature_count']:.2f}")
+            #    if measure_superposition:
+                #    print(f"Superposition: {metrics['feature_count']:.2f}")
                print("-" * 40)
 # %%

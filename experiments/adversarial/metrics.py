@@ -2,10 +2,12 @@
 """Feature measurement for adversarial robustness experiments."""
 
 import torch
+import torch.nn as nn
 import numpy as np
 from typing import Dict, Optional
 from pathlib import Path
 
+from sae import train_sae
 from models import NNsightModelWrapper
 
 def get_feature_distribution(activations: torch.Tensor) -> np.ndarray:
@@ -86,7 +88,6 @@ def measure_superposition(
         
         # Train SAE if not provided
         if sae_model is None:
-            from sae import train_sae
             sae_model = train_sae(
                 train_activations, 
                 expansion_factor=expansion_factor, 
@@ -142,6 +143,77 @@ def measure_superposition(
     metrics = calculate_feature_metrics(p)
     
     return metrics
+
+def measure_superposition_on_mixed_distribution(
+    model: torch.nn.Module,
+    clean_loader: torch.utils.data.DataLoader,
+    epsilon: float,
+    layer_name: str,
+    **sae_params
+) -> Dict[str, Dict[str, float]]:
+    """Measure superposition using SAEs trained on different distributions."""
+    device = next(model.parameters()).device
+    
+    # Get clean activations
+    clean_activations = model.get_activations(clean_loader, layer_name)
+    
+    # Generate adversarial examples and get their activations
+    adv_activations = []
+    for inputs, targets in clean_loader:
+        inputs, targets = inputs.to(device), targets.to(device)
+        
+        # Generate adversarial examples with FGSM
+        inputs.requires_grad = True
+        outputs = model(inputs)
+        
+        if outputs.size(-1) == 1:  # Binary classification
+            loss = nn.BCEWithLogitsLoss()(outputs.squeeze(), targets)
+        else:  # Multi-class classification
+            loss = nn.CrossEntropyLoss()(outputs, targets)
+        
+        model.zero_grad()
+        loss.backward()
+        
+        # FGSM attack
+        perturbed_inputs = inputs + epsilon * inputs.grad.sign()
+        perturbed_inputs = torch.clamp(perturbed_inputs, 0, 1)
+        
+        # Get activations for adversarial examples
+        with torch.no_grad():
+            adv_acts = model.get_activations_for_input(perturbed_inputs, layer_name)
+            adv_activations.append(adv_acts.cpu())
+    
+    adv_activations = torch.cat(adv_activations, dim=0)
+    
+    # Create mixed dataset (50% clean, 50% adversarial)
+    mixed_activations = torch.cat([
+        clean_activations[:min(len(clean_activations), len(adv_activations))],
+        adv_activations[:min(len(clean_activations), len(adv_activations))]
+    ], dim=0)
+    
+    # Train SAEs on different distributions
+    results = {}
+    for name, acts in [
+        ("clean", clean_activations),
+        ("adversarial", adv_activations),
+        ("mixed", mixed_activations)
+    ]:
+        sae = train_sae(acts, **sae_params)
+        
+        # Measure feature count on each distribution using this SAE
+        metrics = {}
+        for eval_name, eval_acts in [
+            ("clean", clean_activations),
+            ("adversarial", adv_activations),
+            ("mixed", mixed_activations)
+        ]:
+            sae_acts, _ = sae(eval_acts.to(device))
+            p = get_feature_distribution(sae_acts.cpu().numpy())
+            metrics[eval_name] = calculate_feature_metrics(p)
+        
+        results[name] = metrics
+    
+    return results
 
 # %%
 if __name__ == "__main__":
