@@ -235,69 +235,69 @@ def run_evaluation_phase(
             eval_dir = run_dir / "evaluation"
             eval_dir.mkdir(exist_ok=True)
             
-            try:
-                # Load model
-                model = load_model(
-                    model_path=run_dir / "model.pt",
-                    device=config['device']
-                )
-                
-                # Measure feature organization
-                if measure_mixed:
-                    feature_metrics = evaluate_feature_organization(
-                        model=model,
-                        train_loader=train_loader,
-                        layer_name=layer_name,
-                        epsilon=epsilon,
-                        use_mixed_distribution=True,
-                        expansion_factor=config['sae']['expansion_factor'],
-                        l1_lambda=config['sae']['l1_lambda'],
-                        batch_size=config['sae']['batch_size'],
-                        learning_rate=config['sae']['learning_rate'],
-                        n_epochs=config['sae']['n_epochs'],
-                        save_dir=eval_dir
-                    )
-                    # Use the feature count from mixed SAE on mixed distribution
-                    feature_count = feature_metrics['mixed']['mixed']['feature_count']
-                else:
-                    feature_metrics = evaluate_feature_organization(
-                        model=model,
-                        train_loader=train_loader,
-                        layer_name=layer_name,
-                        expansion_factor=config['sae']['expansion_factor'],
-                        l1_lambda=config['sae']['l1_lambda'],
-                        batch_size=config['sae']['batch_size'],
-                        learning_rate=config['sae']['learning_rate'],
-                        n_epochs=config['sae']['n_epochs'],
-                        save_dir=eval_dir
-                    )
-                    feature_count = feature_metrics['feature_count']
-                
-                # Load robustness results
-                with open(run_dir / "robustness.json", 'r') as f:
-                    robustness = json.load(f)
-                
-                # Calculate average robustness
-                avg_robustness = sum(float(v) for v in robustness.values()) / len(robustness)
-                
-                # Store results
-                feature_results[epsilon].append(feature_count)
-                robustness_results[epsilon].append(avg_robustness)
-                
-                # Save evaluation results
-                with open(eval_dir / "results.json", 'w') as f:
-                    json.dump({
-                        'feature_count': feature_count,
-                        'robustness_score': avg_robustness,
-                        **{f'accuracy_for_{eps}': robustness[str(eps)] for eps in config['adversarial']['test_epsilons']}
-                    }, f, indent=4, default=json_serializer)
-                
-                print(f"Completed evaluation for run {run_idx+1}")
-                print(f"Feature Count: {feature_count:.2f}")
-                print(f"Average Robustness: {avg_robustness:.2f}%")
+            # try:
+            # Load model
+            model = load_model(
+                model_path=run_dir / "model.pt",
+                device=config['device']
+            )
             
-            except Exception as e:
-                print(f"Error evaluating run {run_idx}: {e}")
+            # Measure feature organization
+            if measure_mixed:
+                feature_metrics = evaluate_feature_organization(
+                    model=model,
+                    train_loader=train_loader,
+                    layer_name=layer_name,
+                    epsilon=epsilon,
+                    use_mixed_distribution=True,
+                    expansion_factor=config['sae']['expansion_factor'],
+                    l1_lambda=config['sae']['l1_lambda'],
+                    batch_size=config['sae']['batch_size'],
+                    learning_rate=config['sae']['learning_rate'],
+                    n_epochs=config['sae']['n_epochs'],
+                    save_dir=eval_dir
+                )
+                # Use the feature count from mixed SAE on mixed distribution
+                feature_count = feature_metrics['mixed']['mixed']['feature_count']
+            else:
+                feature_metrics = evaluate_feature_organization(
+                    model=model,
+                    train_loader=train_loader,
+                    layer_name=layer_name,
+                    expansion_factor=config['sae']['expansion_factor'],
+                    l1_lambda=config['sae']['l1_lambda'],
+                    batch_size=config['sae']['batch_size'],
+                    learning_rate=config['sae']['learning_rate'],
+                    n_epochs=config['sae']['n_epochs'],
+                    save_dir=eval_dir
+                )
+                feature_count = feature_metrics['feature_count']
+            
+            # Load robustness results
+            with open(run_dir / "robustness.json", 'r') as f:
+                robustness = json.load(f)
+            
+            # Calculate average robustness
+            avg_robustness = sum(float(v) for v in robustness.values()) / len(robustness)
+            
+            # Store results
+            feature_results[epsilon].append(feature_count)
+            robustness_results[epsilon].append(avg_robustness)
+            
+            # Save evaluation results
+            with open(eval_dir / "results.json", 'w') as f:
+                json.dump({
+                    'feature_count': feature_count,
+                    'robustness_score': avg_robustness,
+                    **{f'accuracy_for_{eps}': robustness[str(eps)] for eps in config['adversarial']['test_epsilons']}
+                }, f, indent=4, default=json_serializer)
+            
+            print(f"Completed evaluation for run {run_idx+1}")
+            print(f"Feature Count: {feature_count:.2f}")
+            print(f"Average Robustness: {avg_robustness:.2f}%")
+            
+            # except Exception as e:
+            #     print(f"Error evaluating run {run_idx}: {e}")
     
     # Save combined results
     with open(results_dir / "evaluation_results.json", 'w') as f:
@@ -439,11 +439,14 @@ if __name__ == "__main__":
     
     # Run specific phase (uncomment as needed)
     # results_dir = run_training_phase(config)
-    results_dir = run_evaluation_phase(config, measure_mixed=True)
-    # results_dir = run_analysis_phase(config, create_html_report=True)
+    # results_dir = run_evaluation_phase(config, measure_mixed=False)
+    # results_dir = run_evaluation_phase(config, measure_mixed=True)
+    results_dir = run_analysis_phase(config, create_html_report=True)
     
     # Or run all phases
     # results_dir = run_all_phases(config, measure_mixed=False, create_html_report=True)
     
     print(f"Experiment completed. Results in: {results_dir}")
 # %%
+
+    

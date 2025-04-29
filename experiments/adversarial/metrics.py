@@ -2,6 +2,7 @@
 
 import torch
 import numpy as np
+import torch.nn as nn
 from typing import Dict, Optional
 from pathlib import Path
 
@@ -47,7 +48,7 @@ def calculate_feature_metrics(p: np.ndarray) -> Dict[str, float]:
     }
 
 def measure_superposition(
-    model: torch.nn.Module,
+    model: nn.Module,
     data_loader: torch.utils.data.DataLoader,
     layer_name: str,
     sae_model=None,
@@ -117,6 +118,7 @@ def measure_superposition(
         if sae_model is None:
             sae_model = train_sae(
                 activations, 
+                verbose=True,
                 expansion_factor=expansion_factor, 
                 n_epochs=n_epochs, 
                 l1_lambda=l1_lambda, 
@@ -142,7 +144,7 @@ def measure_superposition(
     return metrics
 
 def measure_superposition_on_mixed_distribution(
-    model: torch.nn.Module,
+    model: nn.Module,
     clean_loader: torch.utils.data.DataLoader,
     layer_name: str,
     epsilon: float = 0.1,
@@ -155,8 +157,7 @@ def measure_superposition_on_mixed_distribution(
     max_samples: int = 10000
 ) -> Dict[str, Dict[str, Dict[str, float]]]:
     """Measure superposition using SAEs trained on different distributions."""
-    import torch.nn as nn
-    
+
     device = next(model.parameters()).device
     model_wrapper = NNsightModelWrapper(model)
     
@@ -187,7 +188,7 @@ def measure_superposition_on_mixed_distribution(
         
         # Get activations for adversarial examples
         with torch.no_grad():
-            adv_acts = model_wrapper._get_layer_output(perturbed_inputs, layer_name)
+            adv_acts = model_wrapper.get_layer_output(perturbed_inputs, layer_name)
             adv_activations.append(adv_acts.cpu())
     
     adv_activations = torch.cat(adv_activations, dim=0)
@@ -208,7 +209,8 @@ def measure_superposition_on_mixed_distribution(
     ]:
         # Train SAE on this distribution
         sae = train_sae(
-            acts, 
+            acts,
+            verbose=True,
             expansion_factor=expansion_factor, 
             n_epochs=n_epochs, 
             l1_lambda=l1_lambda, 
@@ -229,7 +231,7 @@ def measure_superposition_on_mixed_distribution(
             ("mixed", mixed_activations)
         ]:
             sae_acts, _ = sae(eval_acts.to(device))
-            p = get_feature_distribution(sae_acts.cpu().numpy())
+            p = get_feature_distribution(sae_acts.detach().cpu().numpy())
             metrics[eval_name] = calculate_feature_metrics(p)
         
         results[name] = metrics
