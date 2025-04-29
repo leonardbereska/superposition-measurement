@@ -5,17 +5,21 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from typing import Dict, List, Optional, Tuple, Callable
+from typing import Dict, List, Optional, Tuple, Callable, Any
 from pathlib import Path
+import json
+import numpy as np
 
 from models import create_model
-from metrics import measure_superposition, measure_superposition_on_mixed_distribution
 
-def train_step(model: nn.Module, 
-               inputs: torch.Tensor, 
-               targets: torch.Tensor, 
-               optimizer: torch.optim.Optimizer, 
-               criterion: Callable) -> Dict[str, float]:
+# %%
+def train_step(
+    model: nn.Module, 
+    inputs: torch.Tensor, 
+    targets: torch.Tensor, 
+    optimizer: torch.optim.Optimizer, 
+    criterion: Callable
+) -> Dict[str, float]:
     """Perform a single training step.
     
     Args:
@@ -39,13 +43,16 @@ def train_step(model: nn.Module,
     
     return {'loss': loss.item()}
 
-def adversarial_train_step(model: nn.Module, 
-                          inputs: torch.Tensor, 
-                          targets: torch.Tensor, 
-                          optimizer: torch.optim.Optimizer, 
-                          criterion: Callable,
-                          epsilon: float, 
-                          alpha: float = 0.5) -> Dict[str, float]:
+# %%
+def adversarial_train_step(
+    model: nn.Module, 
+    inputs: torch.Tensor, 
+    targets: torch.Tensor, 
+    optimizer: torch.optim.Optimizer, 
+    criterion: Callable,
+    epsilon: float, 
+    alpha: float = 0.5
+) -> Dict[str, float]:
     """Perform a single adversarial training step using FGSM.
     
     Args:
@@ -93,12 +100,15 @@ def adversarial_train_step(model: nn.Module,
         'adv_loss': adv_loss.item()
     }
 
-def train_epoch(model: nn.Module, 
-                dataloader: DataLoader, 
-                optimizer: torch.optim.Optimizer, 
-                criterion: Callable,
-                epsilon: float = 0.0, 
-                alpha: float = 0.5) -> Dict[str, float]:
+# %%
+def train_epoch(
+    model: nn.Module, 
+    dataloader: DataLoader, 
+    optimizer: torch.optim.Optimizer, 
+    criterion: Callable,
+    epsilon: float = 0.0, 
+    alpha: float = 0.5
+) -> Dict[str, float]:
     """Train for one epoch with optional adversarial training.
     
     Args:
@@ -139,9 +149,12 @@ def train_epoch(model: nn.Module,
         
     return epoch_stats
 
-def evaluate(model: nn.Module, 
-             dataloader: DataLoader, 
-             criterion: Optional[Callable] = None) -> Dict[str, float]:
+# %%
+def evaluate_model(
+    model: nn.Module, 
+    dataloader: DataLoader, 
+    criterion: Optional[Callable] = None
+) -> Dict[str, float]:
     """Evaluate model on a dataset.
     
     Args:
@@ -188,10 +201,140 @@ def evaluate(model: nn.Module,
     
     return metrics
 
-def evaluate_adversarial_robustness(model: nn.Module, 
-                                   dataloader: DataLoader, 
-                                   epsilons: List[float],
-                                   device: Optional[torch.device] = None) -> Dict[float, float]:
+# %%
+def train_model(
+    train_loader: DataLoader,
+    val_loader: Optional[DataLoader] = None,
+    model_type: str = 'mlp',
+    hidden_dim: int = 32,
+    image_size: int = 28,
+    n_epochs: int = 100,
+    learning_rate: float = 1e-3,
+    epsilon: float = 0.0,
+    alpha: float = 0.5,
+    patience: int = 10,
+    verbose: bool = True,
+    device: Optional[torch.device] = None
+) -> Tuple[nn.Module, Dict[str, List[float]]]:
+    """Train a model with optional adversarial training.
+    
+    Args:
+        train_loader: DataLoader with training data
+        val_loader: Optional DataLoader with validation data
+        model_type: Type of model ('mlp' or 'cnn')
+        hidden_dim: Hidden dimension
+        image_size: Image size
+        n_epochs: Number of epochs
+        learning_rate: Learning rate
+        epsilon: Perturbation size (0.0 for standard training)
+        alpha: Weight for clean vs adversarial loss
+        patience: Early stopping patience (0 to disable)
+        verbose: Whether to print progress
+        device: Device to use
+        
+    Returns:
+        Tuple of (trained model, training history)
+    """
+    # Set up device
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Determine number of classes
+    num_classes = len(torch.unique(train_loader.dataset.targets))
+    output_dim = 1 if num_classes <= 2 else num_classes
+    
+    if verbose:
+        print(f"Creating {model_type.upper()} model with {output_dim} output classes")
+    
+    # Create model
+    model = create_model(
+        model_type=model_type,
+        hidden_dim=hidden_dim,
+        image_size=image_size,
+        num_classes=output_dim,
+        use_nnsight=False
+    ).to(device)
+    
+    # Create optimizer
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    
+    # Create criterion based on output dimension
+    criterion = nn.BCEWithLogitsLoss() if output_dim == 1 else nn.CrossEntropyLoss()
+    
+    # Training history
+    history = {
+        'train_loss': [],
+        'train_accuracy': [],
+        'val_loss': [],
+        'val_accuracy': []
+    }
+    
+    # Early stopping variables
+    best_val_loss = float('inf')
+    best_epoch = 0
+    best_state_dict = None
+    
+    # Training loop
+    for epoch in range(n_epochs):
+        # Train for one epoch
+        train_stats = train_epoch(
+            model, train_loader, optimizer, criterion, epsilon, alpha
+        )
+        
+        # Evaluate on training set
+        train_metrics = evaluate_model(model, train_loader, criterion)
+        
+        # Log training metrics
+        history['train_loss'].append(train_stats.get('loss', 0.0))
+        history['train_accuracy'].append(train_metrics['accuracy'])
+        
+        # Evaluate on validation set if provided
+        if val_loader is not None:
+            val_metrics = evaluate_model(model, val_loader, criterion)
+            history['val_loss'].append(val_metrics['loss'])
+            history['val_accuracy'].append(val_metrics['accuracy'])
+            
+            # Early stopping
+            if patience > 0:
+                if val_metrics['loss'] < best_val_loss:
+                    best_val_loss = val_metrics['loss']
+                    best_epoch = epoch
+                    best_state_dict = model.state_dict().copy()
+                elif epoch - best_epoch >= patience:
+                    if verbose:
+                        print(f"Early stopping at epoch {epoch}")
+                    model.load_state_dict(best_state_dict)
+                    break
+        else:
+            # No validation set, use training metrics
+            history['val_loss'].append(train_metrics.get('loss', 0.0))
+            history['val_accuracy'].append(train_metrics['accuracy'])
+        
+        # Print progress
+        if verbose and (epoch % max(1, n_epochs // 10) == 0 or epoch == n_epochs - 1):
+            log_str = f"Epoch {epoch+1}/{n_epochs}"
+            log_str += f" - Loss: {train_stats.get('loss', 0):.4f}"
+            log_str += f" - Accuracy: {train_metrics['accuracy']:.2f}%"
+            
+            if val_loader is not None:
+                log_str += f" - Val Loss: {val_metrics['loss']:.4f}"
+                log_str += f" - Val Accuracy: {val_metrics['accuracy']:.2f}%"
+                
+            print(log_str)
+    
+    # Load best model if early stopping was used
+    if patience > 0 and best_state_dict is not None:
+        model.load_state_dict(best_state_dict)
+    
+    return model, history
+
+# %%
+def evaluate_model_performance(
+    model: nn.Module, 
+    dataloader: DataLoader, 
+    epsilons: List[float],
+    device: Optional[torch.device] = None
+) -> Dict[str, float]:
     """Evaluate model robustness across different perturbation sizes.
     
     Args:
@@ -225,13 +368,12 @@ def evaluate_adversarial_robustness(model: nn.Module,
                     if outputs.size(-1) == 1:  # Binary
                         predictions = (torch.sigmoid(outputs) > 0.5).squeeze()
                     else:  # Multi
-                        
-
                         predictions = outputs.argmax(dim=1)
-                        correct += (predictions == targets).sum().item()
-                        total += batch_size
-                        continue
-           
+                        
+                    correct += (predictions == targets).sum().item()
+                    total += batch_size
+                    continue
+            
             # Generate adversarial examples with FGSM
             inputs.requires_grad = True
             outputs = model(inputs)
@@ -261,333 +403,84 @@ def evaluate_adversarial_robustness(model: nn.Module,
                 total += batch_size
         
         accuracy = 100 * correct / total
-        results[eps] = accuracy
+        results[str(eps)] = accuracy
         
     return results
 
-def generate_adversarial_example(
-   model: nn.Module,
-   image: torch.Tensor,
-   true_label: torch.Tensor,
-   epsilon: float = 0.1,
-   targeted: bool = False,
-   target_label: Optional[torch.Tensor] = None
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-   """Generate adversarial example using FGSM.
-   
-   Args:
-       model: Trained model
-       image: Input image tensor
-       true_label: Original label
-       epsilon: Perturbation size
-       targeted: If True, optimize toward target_label
-       target_label: Label to target if targeted=True
-   
-   Returns:
-       perturbed_image, prediction, perturbation
-   """
-   # Prepare input
-   device = next(model.parameters()).device
-   image = image.clone().detach().requires_grad_(True).to(device)
-   target = target_label.to(device) if targeted else true_label.to(device)
-   
-   # Forward pass
-   output = model(image.unsqueeze(0))
-   
-   if output.size(-1) == 1:  # Binary classification
-       loss = nn.BCEWithLogitsLoss()(output.squeeze(), target.float())
-   else:  # Multi-class classification
-       loss = nn.CrossEntropyLoss()(output, target)
-   
-   # Backward pass
-   loss.backward()
-   
-   # Generate perturbation
-   # Minus sign for targeted (move toward target)
-   # Plus sign for untargeted (move away from true label)
-   sign = -1 if targeted else 1
-   perturbation = sign * epsilon * image.grad.sign()
-   
-   # Generate adversarial example
-   perturbed_image = torch.clamp(image + perturbation, 0, 1)
-   
-   # Get prediction
-   with torch.no_grad():
-       adv_output = model(perturbed_image.unsqueeze(0))
-       
-       if adv_output.size(-1) == 1:  # Binary
-           pred = torch.sigmoid(adv_output) > 0.5
-       else:  # Multi-class
-           pred = adv_output.argmax(dim=1)
-   
-   return perturbed_image, pred, perturbation
-
-def train_model(model: nn.Module,
-              train_loader: DataLoader,
-              val_loader: Optional[DataLoader] = None,
-              lr: float = 1e-3,
-              n_epochs: int = 100,
-              epsilon: float = 0.0,
-              alpha: float = 0.5,
-              patience: int = 10,
-              verbose: bool = True,
-              device: Optional[torch.device] = None) -> Dict[str, List[float]]:
-   """Train a model with optional adversarial training.
-   
-   Args:
-       model: Model to train
-       train_loader: DataLoader with training data
-       val_loader: Optional DataLoader with validation data
-       lr: Learning rate
-       n_epochs: Number of training epochs
-       epsilon: Perturbation size (0.0 for standard training)
-       alpha: Weight for clean vs adversarial loss
-       patience: Early stopping patience (0 to disable)
-       verbose: Whether to print progress
-       device: Device to use
-       
-   Returns:
-       Dictionary with training history
-   """
-   # Set up device
-   if device is None:
-       device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-   model = model.to(device)
-   
-   # Set up optimizer and criterion
-   optimizer = optim.Adam(model.parameters(), lr=lr)
-   
-   if list(model.parameters())[-1].size(0) == 1:  # Binary classification
-       criterion = nn.BCEWithLogitsLoss()
-   else:  # Multi-class classification
-       criterion = nn.CrossEntropyLoss()
-   
-   # Training logs
-   history = {
-       'train_loss': [],
-       'train_acc': [],
-       'val_loss': [],
-       'val_acc': []
-   }
-   
-   # Early stopping variables
-   best_val_loss = float('inf')
-   best_epoch = 0
-   best_state = None
-   
-   # Training loop
-   for epoch in range(n_epochs):
-       # Train for one epoch
-       train_stats = train_epoch(
-           model, train_loader, optimizer, criterion, epsilon, alpha
-       )
-       
-       # Evaluate on training set
-       train_metrics = evaluate(model, train_loader, criterion)
-       
-       # Log training metrics
-       history['train_loss'].append(train_stats.get('loss', 0))
-       history['train_acc'].append(train_metrics['accuracy'])
-       
-       # Evaluate on validation set if provided
-       if val_loader is not None:
-           val_metrics = evaluate(model, val_loader, criterion)
-           history['val_loss'].append(val_metrics['loss'])
-           history['val_acc'].append(val_metrics['accuracy'])
-           
-           # Early stopping
-           if patience > 0:
-               if val_metrics['loss'] < best_val_loss:
-                   best_val_loss = val_metrics['loss']
-                   best_epoch = epoch
-                   best_state = model.state_dict().copy()
-               elif epoch - best_epoch >= patience:
-                   if verbose:
-                       print(f"Early stopping at epoch {epoch}")
-                   model.load_state_dict(best_state)
-                   break
-       
-       # Print progress
-       if verbose and (epoch % (n_epochs // 10) == 0 or epoch == n_epochs - 1):
-           log_str = f"Epoch {epoch+1}/{n_epochs}"
-           log_str += f" - Loss: {train_stats.get('loss', 0):.4f}"
-           log_str += f" - Accuracy: {train_metrics['accuracy']:.2f}%"
-           
-           if val_loader is not None:
-               log_str += f" - Val Loss: {val_metrics['loss']:.4f}"
-               log_str += f" - Val Accuracy: {val_metrics['accuracy']:.2f}%"
-               
-           print(log_str)
-   
-   return history
-
-class SuperpositionExperiment:
-   """Experiment framework for measuring superposition in adversarially trained models."""
-   
-   def __init__(
-       self,
-       train_loader: DataLoader,
-       val_loader: DataLoader,
-       test_epsilons: List[float],
-       model_type: str = 'mlp',
-       hidden_dim: int = 32,
-       image_size: int = 28,
-       device: Optional[torch.device] = None
-   ) -> None:
-       """Initialize the experiment.
-       
-       Args:
-           train_loader: Training data loader
-           val_loader: Validation data loader
-           test_epsilons: List of epsilon values to test
-           model_type: Type of model to use ('mlp' or 'cnn')
-           hidden_dim: Hidden dimension for MLP
-           image_size: Image size
-           device: Device to use
-       """
-       self.train_loader = train_loader
-       self.val_loader = val_loader
-       self.model_type = model_type
-       self.hidden_dim = hidden_dim
-       self.image_size = image_size
-       self.device = device or torch.device(
-           "cuda" if torch.cuda.is_available() else 
-           "mps" if torch.backends.mps.is_available() else 
-           "cpu"
-       )
-       
-       # Initialize model
-       # Get number of classes from dataset
-       num_classes = len(torch.unique(train_loader.dataset.targets))
-       # Use 1 for binary classification, actual count for multi-class
-       output_dim = 1 if num_classes <= 2 else num_classes
-       
-       print(f"Initializing {model_type.upper()} classifier over {output_dim} classes")
-       self.model = create_model(
-           model_type=model_type,
-           hidden_dim=hidden_dim,
-           image_size=image_size,
-           num_classes=output_dim, 
-           use_nnsight=False
-       ).to(self.device)
-       
-       # Initialize optimizer
-       self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
-       
-       # Initialize history
-       self.history = {}
-
-       # Initialize test epsilons
-       self.test_epsilons = test_epsilons
-
-   def save(self, path: Path) -> None:
-       """Save model state, optimizer state, and experiment history."""
-       path.parent.mkdir(parents=True, exist_ok=True)
-       state = {
-           'model_state': self.model.state_dict(),
-           'optimizer_state': self.optimizer.state_dict(),
-           'history': dict(self.history),
-           'config': {
-               'model_type': self.model_type,
-               'hidden_dim': self.hidden_dim,
-               'image_size': self.image_size,
-               'test_epsilons': self.test_epsilons
-           }
-       }
-       torch.save(state, path)
-   
-   @classmethod
-   def load(cls, path: Path, train_dataset, val_dataset) -> 'SuperpositionExperiment':
-       """Load experiment from saved state."""
-       state = torch.load(path)
-       exp = cls(
-           train_dataset=train_dataset,
-           val_dataset=val_dataset,
-           model_type=state['config']['model_type'],
-           hidden_dim=state['config']['hidden_dim'],
-           image_size=state['config']['image_size']
-       )
-       exp.model.load_state_dict(state['model_state'])
-       exp.optimizer.load_state_dict(state['optimizer_state'])
-       exp.history = state['history']
-       exp.test_epsilons = state['config']['test_epsilons']
-       return exp
-   
-   def _log_metrics(self, metrics: Dict[str, float], prefix: str = "") -> None:
-       """Log metrics to history."""
-       for k, v in metrics.items():
-           key = f"{prefix}{k}" if prefix else k
-           if key not in self.history:
-               self.history[key] = []
-           self.history[key].append(v)
-   
-   def train(
-       self,
-       n_epochs: int,
-       epsilon: float = 0.0,
-       alpha: float = 0.5,
-    #    measure_superposition: bool = False,
-       measure_frequency: int = 5
-   ):
-       """Train model and track superposition metrics.
-       
-       Args:
-           n_epochs: Number of training epochs
-           epsilon: Perturbation size for adversarial training
-           alpha: Weight for clean vs adversarial loss
-           measure_frequency: How often to measure superposition
-       """
-       # Binary or multi-class criterion
-       only_one_output_class = list(self.model.parameters())[-1].size(0) == 1
-       if only_one_output_class:
-           print("Binary classification")
-           criterion = nn.BCEWithLogitsLoss()
-       else:
-           print("Multi-class classification")
-           criterion = nn.CrossEntropyLoss()
-       
-       for epoch in range(n_epochs):
-           # Training
-           if epsilon > 0:
-               stats = train_epoch(
-                   self.model, self.train_loader, self.optimizer, criterion, epsilon, alpha
-               )
-           else:
-               stats = train_epoch(
-                   self.model, self.train_loader, self.optimizer, criterion
-               )
-           
-           # Evaluation
-           val_stats = evaluate(self.model, self.val_loader, criterion)
-           
-           # Log metrics
-           self._log_metrics(stats, "train_")
-           self._log_metrics(val_stats, "val_")
-           
-           # Evaluate adversarial robustness periodically
-           if epoch % (n_epochs // measure_frequency) == 0:
-               adv_accuracies = evaluate_adversarial_robustness(
-                   self.model, 
-                   self.val_loader,
-                   self.test_epsilons
-               )
-               self._log_metrics(adv_accuracies, "adv_acc_")
-               
-               # Measure superposition
-            #    if measure_superposition:
-                #    layer_name = 'after_relu' if self.model_type.lower() == 'mlp' else 'conv_features'
-                #    metrics = measure_superposition(self.model, self.train_loader, layer_name)
-                #    metrics = measure_superposition_on_mixed_distribution(self.model, self.train_loader, layer_name)
-                #    self._log_metrics(metrics, "superposition_")
-               
-               # Print progress
-               print(f"Epoch {epoch}/{n_epochs}")
-               print(f"Train loss: {stats.get('loss', 0):.4f}")
-               print(f"Val accuracy: {val_stats['accuracy']:.2f}%")
-               print("Adversarial accuracies:")
-               for eps in self.test_epsilons:
-                   print(f"ε={eps:.3f}: {adv_accuracies[eps]:.1f}%")
-            #    if measure_superposition:
-                #    print(f"Superposition: {metrics['feature_count']:.2f}")
-               print("-" * 40)
 # %%
+def save_model(
+    model: nn.Module,
+    history: Dict[str, List[float]],
+    config: Dict[str, Any],
+    save_path: Path
+) -> None:
+    """Save model, history, and configuration.
+    
+    Args:
+        model: Trained model
+        history: Training history
+        config: Model configuration
+        save_path: Path to save model
+    """
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save({
+        'model_state': model.state_dict(),
+        'history': history,
+        'config': config
+    }, save_path)
+
+# %%
+def load_model_from_checkpoint(
+    checkpoint_path: Path,
+    device: Optional[torch.device] = None
+) -> Tuple[nn.Module, Dict[str, List[float]], Dict[str, Any]]:
+    """Load model, history, and configuration from checkpoint.
+    
+    Args:
+        checkpoint_path: Path to checkpoint
+        device: Device to load model onto
+        
+    Returns:
+        Tuple of (model, history, config)
+    """
+    # Use default device if not provided
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Load checkpoint
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    
+    # Get configuration
+    config = checkpoint['config']
+    
+    # Create model
+    model_type = config.get('model_type', 'mlp')
+    hidden_dim = config.get('hidden_dim', 32)
+    image_size = config.get('image_size', 28)
+    
+    # Determine number of output classes from state dict
+    if 'model_state' in checkpoint:
+        output_dim = list(checkpoint['model_state'].items())[-1][1].size(0)
+    else:
+        # Default to binary classification
+        output_dim = 1
+    
+    # Create model
+    model = create_model(
+        model_type=model_type,
+        hidden_dim=hidden_dim,
+        image_size=image_size,
+        num_classes=output_dim,
+        use_nnsight=False
+    )
+    
+    # Load state dict
+    model.load_state_dict(checkpoint['model_state'])
+    
+    # Move to device
+    model = model.to(device)
+    
+    # Get history
+    history = checkpoint.get('history', {})
+    
+    return model, history, config
