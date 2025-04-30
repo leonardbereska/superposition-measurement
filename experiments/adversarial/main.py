@@ -1,5 +1,5 @@
 # %%
-"""Main script for running adversarial robustness experiments with a functional approach."""
+"""Main script for running adversarial robustness experiments."""
 
 import os
 import torch
