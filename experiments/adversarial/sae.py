@@ -251,8 +251,6 @@ def train_sae(
     Returns:
         Trained TiedSparseAutoencoder
     """
-    if verbose:
-        print(f"Training SAE on activations with shape {activations.shape}...")
     
     # Determine dictionary size
     input_dim = activations.shape[1]
@@ -260,6 +258,9 @@ def train_sae(
         dictionary_dim = fixed_size
     else:
         dictionary_dim = int(input_dim * expansion_factor)
+    
+    if verbose:
+        print(f"Training SAE of size {dictionary_dim} on activations with shape {activations.shape}...")
     
     # Create SAE model
     sae = TiedSparseAutoencoder(input_dim, dictionary_dim, device)
@@ -270,7 +271,6 @@ def train_sae(
         batch_size=batch_size,
         shuffle=True
     )
-    
     # Create optimizer
     optimizer = torch.optim.Adam(sae.parameters(), lr=learning_rate)
     
@@ -281,6 +281,12 @@ def train_sae(
         'sparsity_loss': []
     }
     
+    # Early stopping variables
+    best_loss = float('inf')
+    best_epoch = 0
+    best_state_dict = None
+    patience = 10  # Default patience value
+    
     for epoch in range(n_epochs):
         # Train for one epoch
         epoch_losses = train_sae_epoch(sae, dataloader, optimizer, l1_lambda, device)
@@ -288,6 +294,18 @@ def train_sae(
         # Update history
         for k, v in epoch_losses.items():
             history[k].append(v)
+        
+        # Early stopping check
+        current_loss = epoch_losses['total_loss']
+        if current_loss < best_loss:
+            best_loss = current_loss
+            best_epoch = epoch
+            best_state_dict = sae.state_dict().copy()
+        elif patience > 0 and epoch - best_epoch >= patience:
+            if verbose:
+                print(f"Early stopping at epoch {epoch+1}")
+            sae.load_state_dict(best_state_dict)
+            break
         
         # Print progress
         if verbose and epoch % max(1, n_epochs // 10) == 0:
@@ -298,11 +316,15 @@ def train_sae(
                 f"Sparsity: {epoch_losses['sparsity_loss']:.2e}"
             )
     
+    # Load best model if early stopping was triggered
+    if patience > 0 and best_state_dict is not None and epoch != best_epoch:
+        sae.load_state_dict(best_state_dict)
+    
     return sae
 
 # %%
 def evaluate_sae(
-    model: TiedSparseAutoencoder,
+    sae: TiedSparseAutoencoder,
     activations: torch.Tensor,
     l1_lambda: float = 0.1,
     batch_size: int = 128,
@@ -321,11 +343,11 @@ def evaluate_sae(
         Dictionary with evaluation metrics
     """
     # Set model to evaluation mode
-    model.eval()
+    sae.eval()
     
     # Use model's device if not specified
     if device is None:
-        device = next(model.parameters()).device
+        device = next(sae.parameters()).device
     
     # Create data loader
     dataloader = torch.utils.data.DataLoader(
@@ -353,7 +375,7 @@ def evaluate_sae(
             batch_size = x.size(0)
             
             # Forward pass
-            activations, reconstruction = model(x)
+            activations, reconstruction = sae(x)
             
             # Compute loss components
             recon_loss = F.mse_loss(reconstruction, x)
@@ -383,7 +405,7 @@ def evaluate_sae(
 
 # %%
 def analyze_feature_statistics(
-    model: TiedSparseAutoencoder,
+    sae: TiedSparseAutoencoder,
     activations: torch.Tensor,
     batch_size: int = 128,
     device: Optional[torch.device] = None
@@ -400,11 +422,11 @@ def analyze_feature_statistics(
         Dictionary with feature statistics
     """
     # Set model to evaluation mode
-    model.eval()
+    sae.eval()
     
     # Use model's device if not specified
     if device is None:
-        device = next(model.parameters()).device
+        device = next(sae.parameters()).device
     
     # Create data loader
     dataloader = torch.utils.data.DataLoader(
@@ -422,7 +444,7 @@ def analyze_feature_statistics(
             x = batch.to(device)
             
             # Get activations
-            act, _ = model(x)
+            act, _ = sae(x)
             all_activations.append(act.cpu())
     
     # Concatenate all activations
@@ -440,7 +462,7 @@ def analyze_feature_statistics(
         'feature_mag': feature_mag.numpy(),
         'active_features': (feature_freq > 0).sum().item(),
         'mean_sparsity': (all_activations == 0).float().mean().item(),
-        'dictionary_norm': model.get_dictionary().norm(dim=1).cpu().numpy()
+        'dictionary_norm': sae.get_dictionary().norm(dim=1).cpu().numpy()
     }
     
     return stats

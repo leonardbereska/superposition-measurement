@@ -13,77 +13,15 @@ from typing import Dict, Any, Optional, List, Tuple
 script_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(script_dir)
 
-# Import configuration
+# Import configuration, datasets, utils
 from config import get_default_config, update_config
-
-# Import components for different phases
 from datasets import create_dataloaders
+from utils import json_serializer, setup_results_dir, find_results_dir, save_config, get_config_and_results_dir
+
+# Import components for different phases 
 from training import train_model, evaluate_model_performance
-from evaluation import evaluate_feature_organization, load_model, json_serializer
+from evaluation import load_model, measure_superposition_on_mixed_distribution
 from analysis import generate_plots, create_summary, create_report
-
-def setup_results_dir(config: Dict[str, Any]) -> Path:
-    """Set up results directory with timestamp.
-    
-    Args:
-        config: Experiment configuration
-        
-    Returns:
-        Path to results directory
-    """
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    
-    # Determine class information for directory name
-    dataset_config = config['dataset']
-    model_type = config['model']['model_type']
-    
-    if dataset_config['selected_classes'] is not None:
-        class_info = "".join(map(str, dataset_config['selected_classes']))
-        n_classes = len(dataset_config['selected_classes'])
-    else:
-        class_info = "all"
-        n_classes = 10  # Default for MNIST/CIFAR
-    
-    # Create directory path
-    results_dir = Path(config['results_dir']) / f"{timestamp}_{model_type}_{n_classes}-class"
-    results_dir.mkdir(parents=True, exist_ok=True)
-    
-    return results_dir
-
-def save_config(config: Dict[str, Any], results_dir: Path) -> None:
-    """Save configuration to file.
-    
-    Args:
-        config: Experiment configuration
-        results_dir: Directory to save configuration
-    """
-    # Create a JSON-serializable copy of the config
-    json_config = {
-        k: (str(v) if isinstance(v, torch.device) else v)
-        for k, v in config.items()
-    }
-    
-    # Save as JSON
-    with open(results_dir / "config.json", 'w') as f:
-        json.dump(json_config, f, indent=4, default=json_serializer)
-
-def find_latest_results_dir(config: Dict[str, Any]) -> Optional[Path]:
-    """Find most recent results directory.
-    
-    Args:
-        config: Experiment configuration
-        
-    Returns:
-        Path to latest results directory or None if not found
-    """
-    model_type = config['model']['model_type']
-    results_dirs = sorted(Path(config['results_dir']).glob(f"*_{model_type}_*"), key=os.path.getmtime)
-    
-    if not results_dirs:
-        print("No results directories found.")
-        return None
-    
-    return results_dirs[-1]
 
 def run_training_phase(config: Dict[str, Any], results_dir: Optional[Path] = None) -> Path:
     """Run training phase.
@@ -136,7 +74,7 @@ def run_training_phase(config: Dict[str, Any], results_dir: Optional[Path] = Non
             run_dir.mkdir(exist_ok=True)
             
             # Train model
-            model, history = train_model(
+            model = train_model(
                 train_loader=train_loader,
                 val_loader=val_loader,
                 model_type=config['model']['model_type'],
@@ -151,7 +89,6 @@ def run_training_phase(config: Dict[str, Any], results_dir: Optional[Path] = Non
             # Save model and history
             torch.save({
                 'model_state': model.state_dict(),
-                'history': history,
                 'config': {
                     'model_type': config['model']['model_type'],
                     'hidden_dim': config['model']['hidden_dim'],
@@ -173,37 +110,27 @@ def run_training_phase(config: Dict[str, Any], results_dir: Optional[Path] = Non
             with open(run_dir / "robustness.json", 'w') as f:
                 json.dump(robustness_results, f, indent=4, default=json_serializer)
             
-            print(f"Run completed with validation accuracy: {history['val_accuracy'][-1]:.2f}%")
-    
     print(f"\n=== Training Phase Completed ===")
     print(f"Results saved to: {results_dir}")
     
     return results_dir
 
 def run_evaluation_phase(
-    config: Dict[str, Any], 
-    results_dir: Optional[Path] = None,
-    measure_mixed: bool = False
+    search_string: Optional[Path] = None,
+    results_dir: Optional[Path] = None
 ) -> Path:
     """Run evaluation phase.
     
     Args:
-        config: Experiment configuration
-        results_dir: Optional path to results directory
-        measure_mixed: Whether to use mixed clean/adversarial distribution
+        search_string: search string to find results directory
         
     Returns:
         Path to results directory
     """
     print("\n=== Starting Evaluation Phase ===\n")
+    config = get_default_config()
+    config, results_dir = get_config_and_results_dir(base_dir=Path(config['base_dir']), results_dir=results_dir, search_string=search_string)
     
-    # Determine results directory if not provided
-    if results_dir is None:
-        results_dir = find_latest_results_dir(config)
-        if results_dir is None:
-            raise ValueError("No results directory found. Please run training phase first.")
-    
-    print(f"Using results directory: {results_dir}")
     
     # Create dataloaders
     train_loader, val_loader = create_dataloaders(
@@ -218,7 +145,9 @@ def run_evaluation_phase(
     layer_name = 'relu' if config['model']['model_type'].lower() == 'mlp' else 'features.1'
     
     # Store overall results
-    feature_results = {}
+    clean_feature_results = {}
+    adversarial_feature_results = {}
+    mixed_feature_results = {}
     robustness_results = {}
     
     # Evaluate each epsilon
@@ -226,7 +155,9 @@ def run_evaluation_phase(
         print(f"\nEvaluating models trained with epsilon={epsilon}")
         
         eps_dir = results_dir / f"eps_{epsilon}"
-        feature_results[epsilon] = []
+        clean_feature_results[epsilon] = []
+        adversarial_feature_results[epsilon] = []
+        mixed_feature_results[epsilon] = []
         robustness_results[epsilon] = []
         
         # Evaluate each run
@@ -235,7 +166,6 @@ def run_evaluation_phase(
             eval_dir = run_dir / "evaluation"
             eval_dir.mkdir(exist_ok=True)
             
-            # try:
             # Load model
             model = load_model(
                 model_path=run_dir / "model.pt",
@@ -243,35 +173,24 @@ def run_evaluation_phase(
             )
             
             # Measure feature organization
-            if measure_mixed:
-                feature_metrics = evaluate_feature_organization(
-                    model=model,
-                    train_loader=train_loader,
-                    layer_name=layer_name,
-                    epsilon=epsilon,
-                    use_mixed_distribution=True,
-                    expansion_factor=config['sae']['expansion_factor'],
-                    l1_lambda=config['sae']['l1_lambda'],
-                    batch_size=config['sae']['batch_size'],
-                    learning_rate=config['sae']['learning_rate'],
-                    n_epochs=config['sae']['n_epochs'],
-                    save_dir=eval_dir
-                )
-                # Use the feature count from mixed SAE on mixed distribution
-                feature_count = feature_metrics['mixed']['mixed']['feature_count']
-            else:
-                feature_metrics = evaluate_feature_organization(
-                    model=model,
-                    train_loader=train_loader,
-                    layer_name=layer_name,
-                    expansion_factor=config['sae']['expansion_factor'],
-                    l1_lambda=config['sae']['l1_lambda'],
-                    batch_size=config['sae']['batch_size'],
-                    learning_rate=config['sae']['learning_rate'],
-                    n_epochs=config['sae']['n_epochs'],
-                    save_dir=eval_dir
-                )
-                feature_count = feature_metrics['feature_count']
+            epsilon = float(epsilon)
+            feature_metrics = measure_superposition_on_mixed_distribution(
+                model=model,
+                dataloader=train_loader,
+                layer_name=layer_name,
+                epsilon=epsilon,
+                expansion_factor=config['sae']['expansion_factor'],
+                l1_lambda=config['sae']['l1_lambda'],
+                batch_size=config['sae']['batch_size'],
+                learning_rate=config['sae']['learning_rate'],
+                n_epochs=config['sae']['n_epochs'],
+                save_dir=eval_dir
+            )
+            
+            # Extract feature counts
+            clean_count = feature_metrics['clean_feature_count']
+            adv_count = feature_metrics['adversarial_feature_count']
+            mixed_count = feature_metrics['mixed_feature_count']
             
             # Load robustness results
             with open(run_dir / "robustness.json", 'r') as f:
@@ -281,28 +200,33 @@ def run_evaluation_phase(
             avg_robustness = sum(float(v) for v in robustness.values()) / len(robustness)
             
             # Store results
-            feature_results[epsilon].append(feature_count)
+            clean_feature_results[epsilon].append(clean_count)
+            adversarial_feature_results[epsilon].append(adv_count)
+            mixed_feature_results[epsilon].append(mixed_count)
             robustness_results[epsilon].append(avg_robustness)
             
             # Save evaluation results
             with open(eval_dir / "results.json", 'w') as f:
                 json.dump({
-                    'feature_count': feature_count,
+                    'clean_feature_count': clean_count,
+                    'adversarial_feature_count': adv_count,
+                    'mixed_feature_count': mixed_count,
                     'robustness_score': avg_robustness,
                     **{f'accuracy_for_{eps}': robustness[str(eps)] for eps in config['adversarial']['test_epsilons']}
                 }, f, indent=4, default=json_serializer)
             
             print(f"Completed evaluation for run {run_idx+1}")
-            print(f"Feature Count: {feature_count:.2f}")
+            print(f"Clean Feature Count: {clean_count:.2f}")
+            print(f"Adversarial Feature Count: {adv_count:.2f}")
+            print(f"Mixed Feature Count: {mixed_count:.2f}")
             print(f"Average Robustness: {avg_robustness:.2f}%")
-            
-            # except Exception as e:
-            #     print(f"Error evaluating run {run_idx}: {e}")
     
     # Save combined results
     with open(results_dir / "evaluation_results.json", 'w') as f:
         json.dump({
-            'feature_count': {str(eps): values for eps, values in feature_results.items()},
+            'clean_feature_count': {str(eps): values for eps, values in clean_feature_results.items()},
+            'adversarial_feature_count': {str(eps): values for eps, values in adversarial_feature_results.items()},
+            'mixed_feature_count': {str(eps): values for eps, values in mixed_feature_results.items()},
             'robustness_score': {str(eps): values for eps, values in robustness_results.items()}
         }, f, indent=4, default=json_serializer)
     
@@ -312,14 +236,14 @@ def run_evaluation_phase(
     return results_dir
 
 def run_analysis_phase(
-    config: Dict[str, Any], 
+    search_string: Optional[Path] = None,
     results_dir: Optional[Path] = None,
     create_html_report: bool = False
 ) -> Path:
     """Run analysis phase.
     
     Args:
-        config: Experiment configuration
+        search_string: Optional search string to find results directory
         results_dir: Optional path to results directory
         create_html_report: Whether to create HTML report
         
@@ -327,13 +251,9 @@ def run_analysis_phase(
         Path to results directory
     """
     print("\n=== Starting Analysis Phase ===\n")
-    
-    # Determine results directory if not provided
-    if results_dir is None:
-        results_dir = find_latest_results_dir(config)
-        if results_dir is None:
-            raise ValueError("No results directory found. Please run training phase first.")
-    
+
+    config = get_default_config()
+    config, results_dir = get_config_and_results_dir(base_dir=Path(config['base_dir']), results_dir=results_dir, search_string=search_string)
     print(f"Using results directory: {results_dir}")
     
     # Load evaluation results
@@ -398,7 +318,6 @@ def run_analysis_phase(
 
 def run_all_phases(
     config: Dict[str, Any] = None,
-    measure_mixed: bool = False,
     create_html_report: bool = True
 ) -> Path:
     """Run all experiment phases sequentially.
@@ -424,10 +343,10 @@ def run_all_phases(
     results_dir = run_training_phase(config)
     
     # Run evaluation phase
-    run_evaluation_phase(config, results_dir, measure_mixed)
+    run_evaluation_phase(results_dir=results_dir)
     
     # Run analysis phase
-    run_analysis_phase(config, results_dir, create_html_report)
+    run_analysis_phase(results_dir=results_dir, create_html_report=create_html_report)
     
     return results_dir
 
@@ -468,26 +387,72 @@ def run_model_class_experiment(
                 'model': {'model_type': model_type},
                 'dataset': {'selected_classes': selected_classes}
             })
-            
-            # Run training phase only
+
+            # results_dir = run_all_phases(config=experiment_config)
             results_dir = run_training_phase(experiment_config)
+            try: 
+                run_evaluation_phase(results_dir=results_dir)
+                run_analysis_phase(results_dir=results_dir, create_html_report=True)
+            except Exception as e:
+                print(f"Error running all phases for {model_type} with {n_classes} classes: {e}")
             
             # Store result directory
             results[model_type][n_classes] = results_dir
     
     return results
 
+
+
+def evaluate_all_experiments(config: Optional[Dict[str, Any]] = None, base_dir: Optional[Path] = None, measure_mixed: bool = True):
+    """Evaluate all experiment models in the results directory.
+    
+    Args:
+        config: Experiment configuration
+        base_dir: Base directory containing experiment folders
+        measure_mixed: Whether to use mixed clean/adversarial distribution
+    """
+    # Get default config
+    if config is None:
+        config = get_default_config()
+    
+    if base_dir is None: 
+        base_dir = Path(config['base_dir'])
+    
+    print(f"\n=== Evaluating All Experiments in {base_dir} ===\n")
+    
+    # Find all experiment directories
+    experiment_dirs = [d for d in base_dir.glob("*") if d.is_dir()]
+    
+    for exp_dir in experiment_dirs:
+        try:
+            print(f"\nEvaluating experiment: {exp_dir.name}")
+            
+            # Load the experiment's config.json 
+            config_path = exp_dir / "config.json"
+            
+            with open(config_path, 'r') as f:
+                exp_config = json.load(f)
+            # Update the default config with the experiment's config
+            config = update_config(config, exp_config)
+            
+            # Run evaluation on this experiment directory
+            run_evaluation_phase(
+                config=config,
+                search_string=exp_dir,
+                measure_mixed=measure_mixed
+            )
+            
+            print(f"Completed evaluation for: {exp_dir.name}")
+        except Exception as e:
+            print(f"Error evaluating {exp_dir.name}: {str(e)}")
+    
+    print("\n=== All Evaluations Complete ===")
+ 
+
 # %%
 # Example usage
 if __name__ == "__main__":
     # Get configuration with testing mode for quick runs
-    # config = get_default_config(testing_mode=True)
-    
-    # Run specific phase (uncomment as needed)
-    # results_dir = run_training_phase(config)
-    # results_dir = run_evaluation_phase(config, measure_mixed=False)
-    # results_dir = run_evaluation_phase(config, measure_mixed=True)
-    # results_dir = run_analysis_phase(config, create_html_report=True)
     
     # Or run all phases
     # results_dir = run_all_phases(config, measure_mixed=False, create_html_report=True)
@@ -495,8 +460,55 @@ if __name__ == "__main__":
     # print(f"Experiment completed. Results in: {results_dir}")
 
     # Run model comparison experiment
-    results = run_model_class_experiment()
-    print(results)
+    # class_counts = [2, 3, 5, 10]
+    # results = run_model_class_experiment(
+    #     model_types=['mlp'],
+    #     class_counts=class_counts
+    # )
 
+    # Evaluate model comparison experiment
+
+    # config = get_default_config()
+    # config['model']['model_type'] = 'mlp'
+    # config['dataset']['selected_classes'] = tuple(range(2))
+    # config['training']['n_epochs'] = 200
+    # config['adversarial']['n_runs'] = 1
+    # config['adversarial']['train_epsilons'] = [0.2]
+    # config['adversarial']['test_epsilons'] = [0.0, 0.1, 0.2]
+    # config['sae']['expansion_factor'] = 4
+    # results_dir = run_training_phase(config)
+    # run_evaluation_phase(search_string="mlp_2-class")
+    run_analysis_phase(search_string="mlp_2-class")
+
+    # run through all subdirectories and rename "experiment.pt" to "model.pt"
+    # config = get_default_config()
+    # path = Path("2025-03-19_13-50_mlp_2-class")
+    # path = config[''] / path
+    
+    # Import os module which is needed for rename operation
+    # import os
+    # for exp_dir in path.glob("*"):
+    #     print(f"Processing experiment directory: {exp_dir}")
+    #     for sub_dir in exp_dir.glob("*"):
+    #         print(f"Processing subdirectory: {sub_dir}")
+    #         experiment_file = sub_dir / "experiment.pt"
+    #         if experiment_file.exists():
+    #             model_file = sub_dir / "model.pt"
+    #             print(f"Renaming {experiment_file} to {model_file}")
+    #             os.rename(experiment_file, model_file)
+    # Evaluate all experiments
+    # evaluate_all_experiments(measure_mixed=True)
+    # all_exps = ('mlp', 2), ('mlp', 3), ('mlp', 5), ('mlp', 10), ('cnn', 2), ('cnn', 3), ('cnn', 5), ('cnn', 10)
+    # all_exps = [('mlp', 3), ('mlp', 5), ('mlp', 10), ('cnn', 2), ('cnn', 3)]
+
+
+    # for model_type, n_classes in all_exps:
+    #     config = get_default_config()
+    #     config['model']['model_type'] = model_type
+    #     config['dataset']['selected_classes'] = tuple(range(n_classes))
+    #     results_dir = Path(f"{model_type}_{n_classes}-class")
+    #     run_evaluation_phase(config, results_dir=results_dir)
+    #     run_analysis_phase(config, results_dir=results_dir)
+            
 
 # %%

@@ -193,6 +193,145 @@ def plot_robustness_curve(
     
     return fig
 
+
+def plot_combined_feature_counts(
+    results: Dict[str, Dict[float, List[float]]],
+    title: str = 'Feature Counts vs Adversarial Training Strength',
+    save_path: Optional[Path] = None,
+    figsize: Tuple[int, int] = (10, 8)
+) -> plt.Figure:
+    """Plot all feature counts (clean, adversarial, mixed) on one plot.
+    
+    Args:
+        results: Dictionary with feature count results
+        title: Plot title
+        save_path: Path to save figure
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure
+    """
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Colors for different distributions
+    colors = {
+        'clean_feature_count': '#F0BE5E',         # Yellow
+        'adversarial_feature_count': '#94B9A3',   # Green
+        'mixed_feature_count': '#88A7B2',         # Blue
+    }
+    
+    # Labels for the legend
+    labels = {
+        'clean_feature_count': 'Clean Inputs',
+        'adversarial_feature_count': 'Adversarial Inputs',
+        'mixed_feature_count': 'Mixed Inputs'
+    }
+    
+    # Get set of all epsilons across all metrics
+    all_epsilons = set()
+    for metric in results:
+        if metric.endswith('_feature_count'):
+            all_epsilons.update(results[metric].keys())
+    
+    # Sort epsilons
+    all_epsilons = sorted(all_epsilons)
+    
+    # Plot each feature count metric
+    for metric_name in ['clean_feature_count', 'adversarial_feature_count', 'mixed_feature_count']:
+        if metric_name not in results:
+            continue
+            
+        metric_data = results[metric_name]
+        
+        # Calculate mean and std for each epsilon
+        epsilons = sorted(metric_data.keys())
+        means = [np.mean(metric_data[eps]) for eps in epsilons]
+        stds = [np.std(metric_data[eps]) for eps in epsilons]
+        
+        # Plot with error bars
+        ax.errorbar(
+            epsilons, means, yerr=stds, fmt='o-',
+            color=colors[metric_name], linewidth=2, capsize=5, markersize=8,
+            label=labels[metric_name]
+        )
+    
+    # Customize plot
+    ax.set_xlabel('Adversarial Training Strength (ε)', fontsize=14)
+    ax.set_ylabel('Effective Feature Count', fontsize=14)
+    ax.set_title(title, fontsize=16)
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=12)
+    
+    # Set tick parameters
+    ax.tick_params(labelsize=12)
+    
+    plt.tight_layout()
+    
+    # Save if path provided
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight')
+    
+    return fig
+
+
+def plot_feature_distribution_matrix(
+    results: Dict[str, Dict[float, List[float]]],
+    epsilon: float,
+    save_path: Optional[Path] = None,
+    figsize: Tuple[int, int] = (8, 6)
+) -> plt.Figure:
+    """Plot a heatmap of feature counts for a specific epsilon value.
+    
+    Args:
+        results: Dictionary with feature count results
+        epsilon: Epsilon value to visualize
+        save_path: Path to save figure
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure
+    """
+    # Get feature counts for this epsilon
+    labels = ['Clean', 'Adversarial', 'Mixed']
+    feature_counts = []
+    
+    for metric in ['clean_feature_count', 'adversarial_feature_count', 'mixed_feature_count']:
+        if metric in results and epsilon in results[metric]:
+            mean_count = np.mean(results[metric][epsilon])
+            feature_counts.append(mean_count)
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Create data matrix (just a 1D array in this case)
+    data = np.array(feature_counts).reshape(-1, 1)
+    
+    # Create heatmap
+    im = ax.imshow(data, cmap='YlGnBu')
+    
+    # Add colorbar
+    cbar = ax.figure.colorbar(im, ax=ax)
+    cbar.ax.set_ylabel('Feature Count', rotation=-90, va="bottom", fontsize=12)
+    
+    # Show all ticks and label them
+    ax.set_yticks(np.arange(len(labels)))
+    ax.set_yticklabels(labels, fontsize=12)
+    ax.set_xticks([])  # No x-ticks needed
+    
+    # Add feature count text in each cell
+    for i in range(len(labels)):
+        ax.text(0, i, f"{feature_counts[i]:.2f}", 
+                ha="center", va="center", color="black", fontsize=14)
+    
+    # Set title and adjust layout
+    ax.set_title(f'Feature Distribution (ε={epsilon})', fontsize=16)
+    fig.tight_layout()
+    
+    # Save if path provided
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight')
+    
+    return fig
 # %%
 def plot_feature_counts(
     results: Dict[float, List[float]],
@@ -349,6 +488,33 @@ def generate_plots(results: Dict, output_dir: Path) -> Dict[str, plt.Figure]:
             save_path=output_dir / "feature_vs_robustness.pdf"
         )
         figures['feature_vs_robustness'] = fig
+    
+    # Generate individual feature count plots
+    for metric in results:
+        if metric.endswith('_feature_count'):
+            metric_name = metric.replace('_feature_count', '')
+            fig = plot_feature_counts(
+                results[metric],
+                title=f"{metric_name.capitalize()} Feature Count vs Adversarial Training",
+                save_path=output_dir / f"{metric_name}_feature_count.pdf"
+            )
+            figures[f"{metric_name}_feature_count"] = fig
+    
+    # Generate combined feature count plot
+    fig = plot_combined_feature_counts(
+        results,
+        title="Feature Counts Across Input Distributions",
+        save_path=output_dir / "combined_feature_counts.pdf"
+    )
+    figures['combined_feature_counts'] = fig
+    
+    # Generate feature distribution matrix
+    fig = plot_feature_distribution_matrix(
+        results,
+        title="Feature Distribution Matrix",
+        save_path=output_dir / "feature_distribution_matrix.pdf"
+    )
+    figures['feature_distribution_matrix'] = fig
     
     # Individual test epsilon plots
     for key in results:

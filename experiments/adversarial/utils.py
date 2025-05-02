@@ -1,11 +1,126 @@
 """Utility functions for adversarial robustness experiments."""
 
+import os
 import json
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from datetime import datetime
+from typing import Dict, Optional, Any, Tuple
+
+def setup_results_dir(config: Dict[str, Any]) -> Path:
+    """Set up results directory with timestamp.
+    
+    Args:
+        config: Experiment configuration
+        
+    Returns:
+        Path to results directory
+    """
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    
+    # Determine class information for directory name
+    dataset_config = config['dataset']
+    model_type = config['model']['model_type']
+    
+    if dataset_config['selected_classes'] is not None:
+        class_info = "".join(map(str, dataset_config['selected_classes']))
+        n_classes = len(dataset_config['selected_classes'])
+    else:
+        class_info = "all"
+        n_classes = 10  # Default for MNIST/CIFAR
+    
+    # Create directory path
+    results_dir = Path(config['base_dir']) / f"{timestamp}_{model_type}_{n_classes}-class"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    
+    return results_dir
+
+def get_config_and_results_dir(base_dir: Path, results_dir: Optional[Path] = None, search_string: Optional[Path] = None) -> Tuple[Dict[str, Any], Path]:
+    """Get config and results directory.
+    
+    Args:
+        results_dir: Optional results directory
+        search_string: Optional search string to find results directory
+
+    Returns:
+        Tuple of config and results directory
+    """
+    if results_dir is None:
+        results_dir = find_results_dir(base_dir=base_dir, search_string=search_string)
+        config = load_config(results_dir)
+    print(f"Using results directory: {results_dir}")
+    return config, results_dir
+
+
+
+def find_results_dir(base_dir: Path, search_string: Optional[Path] = None) -> Path:
+    """Find results directory.
+    
+    Args:
+        search_string: Optional search string to find results directory
+
+    Returns:
+        Path to results directory
+    """
+    # Determine results directory if not provided
+    if search_string is None:
+        results_dir = find_latest_results_dir(base_dir)
+        print(f"Results directory: {results_dir}")
+        if results_dir is None:
+            raise ValueError("No results directory found. Please run training phase first.")
+    else: 
+        # the given results_dir is for example "mlp_2-class"
+        # we need to find a results directory that contains this
+        # so search for a directory that contains this string
+        results_dir = next((d for d in base_dir.glob("*") if search_string in d.name), None)
+        if results_dir is None:
+            raise ValueError(f"No results directory found containing {search_string}")
+    return results_dir
+
+def save_config(config: Dict[str, Any], results_dir: Path) -> None:
+    """Save configuration to file.
+    
+    Args:
+        config: Experiment configuration
+        results_dir: Directory to save configuration
+    """
+    # Create a JSON-serializable copy of the config
+    json_config = {
+        k: (str(v) if isinstance(v, torch.device) else v)
+        for k, v in config.items()
+    }
+    
+    # Save as JSON
+    with open(results_dir / "config.json", 'w') as f:
+        json.dump(json_config, f, indent=4, default=json_serializer)
+
+def load_config(results_dir: Path) -> Dict[str, Any]:
+    """Load configuration from file.
+    
+    Args:
+        results_dir: Directory to load configuration
+
+    Returns:
+        Configuration
+    """
+    with open(results_dir / "config.json", 'r') as f:
+        config = json.load(f)
+    return config
+
+def find_latest_results_dir(base_dir: Path) -> Optional[Path]:
+    """Find most recent results directory.
+    
+    Returns:
+        Path to latest results directory or None if not found
+    """
+    results_dirs = sorted(base_dir.glob("*"), key=os.path.getmtime)
+    
+    if not results_dirs:
+        print("No results directories found.")
+        return None
+    
+    return results_dirs[-1]
 
 def json_serializer(obj):
     """Serialize objects for JSON serialization."""
@@ -25,246 +140,3 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
-    
-def get_results_dir(experiment_name: str) -> Path:
-    """Get path to results directory."""
-    results_dir = Path("../../results") / experiment_name
-    results_dir.mkdir(parents=True, exist_ok=True)
-    return results_dir
-
-def visualize_adversarial_example(
-    model: torch.nn.Module,
-    dataset: torch.utils.data.Dataset,
-    idx: int,
-    epsilon: float = 0.1,
-    targeted: bool = False,
-    target_label: Optional[torch.Tensor] = None,
-    save_path: Optional[Union[str, Path]] = None
-) -> None:
-    """Visualize original image, perturbation, and adversarial example.
-    
-    Args:
-        model: Trained model
-        dataset: Dataset containing images
-        idx: Index of image to visualize
-        epsilon: Perturbation size
-        targeted: If True, optimize toward target_label
-        target_label: Label to target if targeted=True
-        save_path: Path to save figure
-    """
-    from training import generate_adversarial_example
-    
-    image, label = dataset[idx]
-    device = next(model.parameters()).device
-    
-    # Generate adversarial example
-    perturbed_image, pred, perturbation = generate_adversarial_example(
-        model, image, label, epsilon, targeted, target_label
-    )
-    
-    # Visualize
-    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-
-    fontsize = 14
-    
-    # Original image
-    axes[0].imshow(image.detach().cpu(), cmap='gray')
-    axes[0].set_title(f'Original\nLabel: {label.item()}', fontsize=fontsize)
-    axes[0].axis('off')
-    
-    # Perturbation
-    perturbation_plot = axes[1].imshow(
-        perturbation.detach().cpu(), cmap='RdBu', vmin=-epsilon, vmax=epsilon
-    )
-    axes[1].set_title(f'Perturbation\nε = {epsilon}', fontsize=fontsize)
-    axes[1].axis('off')
-    
-    # Adversarial example
-    axes[2].imshow(perturbed_image.detach().cpu(), cmap='gray')
-    axes[2].set_title(f'Adversarial\nPred: {int(pred.item())}', fontsize=fontsize)
-    axes[2].axis('off')
-    
-    plt.tight_layout()
-    plt.colorbar(perturbation_plot, ax=axes[1])
-    
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
-    
-    plt.show()
-
-def plot_robustness_curve(
-    results: Dict[float, List[float]],
-    title: str = 'Adversarial Robustness',
-    save_path: Optional[Union[str, Path]] = None
-) -> None:
-    """Plot robustness curve across different epsilon values.
-    
-    Args:
-        results: Dictionary mapping epsilon values to list of accuracies
-        title: Plot title
-        save_path: Path to save figure
-    """
-    plt.figure(figsize=(8, 6))
-    
-    # Colors
-    colors = ['#BA898A', '#F0BE5E', '#94B9A3', '#88A7B2', '#DDC6E1']
-    fontsize = 14
-    
-    # Calculate mean and std for each epsilon
-    epsilons = sorted(results.keys())
-    means = [np.mean(results[eps]) for eps in epsilons]
-    stds = [np.std(results[eps]) for eps in epsilons]
-    
-    # Plot
-    plt.errorbar(
-        epsilons, means, yerr=stds, fmt='o-',
-        color=colors[3], linewidth=2, capsize=5, markersize=8
-    )
-    
-    plt.xlabel('Perturbation Size (ε)', fontsize=fontsize)
-    plt.ylabel('Accuracy (%)', fontsize=fontsize)
-    plt.title(title, fontsize=fontsize)
-    plt.grid(True)
-    plt.xticks(fontsize=fontsize)
-    plt.yticks(fontsize=fontsize)
-    
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
-    
-    plt.show()
-
-def plot_feature_counts(
-    results: Dict[float, List[float]],
-    title: str = 'Feature Count vs Adversarial Training Strength',
-    save_path: Optional[Union[str, Path]] = None
-) -> None:
-    """Plot feature counts across different epsilon values.
-    
-    Args:
-        results: Dictionary mapping epsilon values to list of feature counts
-        title: Plot title
-        save_path: Path to save figure
-    """
-    plt.figure(figsize=(8, 6))
-    
-    # Colors
-    colors = ['#BA898A', '#F0BE5E', '#94B9A3', '#88A7B2', '#DDC6E1']
-    fontsize = 14
-    
-    # Calculate mean and std for each epsilon
-    epsilons = sorted(results.keys())
-    means = [np.mean(results[eps]) for eps in epsilons]
-    stds = [np.std(results[eps]) for eps in epsilons]
-    
-    # Plot
-    plt.errorbar(
-        epsilons, means, yerr=stds, fmt='o-',
-        color=colors[3], linewidth=2, capsize=5, markersize=8
-    )
-    
-    plt.xlabel('Adversarial Training Strength (ε)', fontsize=fontsize)
-    plt.ylabel('Effective Feature Count', fontsize=fontsize)
-    plt.title(title, fontsize=fontsize)
-    plt.grid(True)
-    plt.xticks(fontsize=fontsize)
-    plt.yticks(fontsize=fontsize)
-    
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
-    
-    plt.show()
-
-def plot_feature_vs_robustness(
-    feature_results: Dict[float, List[float]],
-    robustness_results: Dict[float, List[float]],
-    title: str = 'Feature Count vs Model Robustness',
-    save_path: Optional[Union[str, Path]] = None
-) -> None:
-    """Plot feature counts vs robustness.
-    
-    Args:
-        feature_results: Dictionary mapping epsilon values to list of feature counts
-        robustness_results: Dictionary mapping epsilon values to list of accuracies
-        title: Plot title
-        save_path: Path to save figure
-    """
-    plt.figure(figsize=(8, 6))
-    
-    # Colors
-    colors = ['#BA898A', '#F0BE5E', '#94B9A3', '#88A7B2', '#DDC6E1']
-    fontsize = 14
-    
-    # Calculate mean and std for each epsilon
-    epsilons = sorted(feature_results.keys())
-    feature_means = [np.mean(feature_results[eps]) for eps in epsilons]
-    feature_stds = [np.std(feature_results[eps]) for eps in epsilons]
-    robustness_means = [np.mean(robustness_results[eps]) for eps in epsilons]
-    robustness_stds = [np.std(robustness_results[eps]) for eps in epsilons]
-    
-    # Plot
-    plt.errorbar(
-        feature_means, robustness_means, 
-        xerr=feature_stds, yerr=robustness_stds,
-        fmt='.', capsize=5, color=colors[3], markersize=12
-    )
-    
-    # Add epsilon annotations
-    for i, eps in enumerate(epsilons):
-        plt.annotate(
-            f'ε={eps}', 
-            (feature_means[i], robustness_means[i]),
-            xytext=(8, -20), 
-            textcoords='offset points', 
-            color=colors[3], 
-            fontsize=fontsize
-        )
-    
-    plt.xlabel('Effective Feature Count', fontsize=fontsize)
-    plt.ylabel('Average Robustness', fontsize=fontsize)
-    plt.title(title, fontsize=fontsize)
-    plt.grid(True)
-    plt.xticks(fontsize=fontsize)
-    plt.yticks(fontsize=fontsize)
-    
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
-    
-    plt.show()
-
-def save_results_to_json(
-    results: Dict[str, Dict[float, List[float]]],
-    save_path: Union[str, Path]
-) -> None:
-    """Save results to JSON file.
-    
-    Args:
-        results: Dictionary mapping metric names to dictionaries mapping 
-                epsilon values to lists of results
-        save_path: Path to save JSON file
-    """
-    
-    # Create raw data structure
-    raw_data = []
-    
-    for eps in sorted(results['feature_count'].keys()):
-        for i in range(len(results['feature_count'][eps])):
-            row = {'epsilon': eps}
-            for metric in results:
-                row[f'{metric}'] = results[metric][eps][i]
-                
-            raw_data.append(row)
-    
-    # Calculate mean and std for each epsilon and metric
-    summary = []
-    for eps in sorted(results['feature_count'].keys()):
-        row = {'epsilon': eps}
-        for metric in results:
-            values = results[metric][eps]
-            row[f'{metric}_mean'] = np.mean(values)
-            row[f'{metric}_std'] = np.std(values)
-        
-        summary.append(row)
-    
-    # Save to JSON
-    with open(str(save_path), 'w') as f:
-        json.dump(summary, f, indent=4, default=json_serializer)

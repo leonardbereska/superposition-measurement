@@ -26,11 +26,11 @@ def get_default_config(testing_mode: bool = False) -> Dict[str, Any]:
         Configuration dictionary with all parameters
     """
     # Base directories
-    results_dir = "../../results/adversarial_robustness"
+    base_dir = "../../results/adversarial_robustness"
     data_dir = "../../data"
     
     # Create directories if they don't exist
-    os.makedirs(results_dir, exist_ok=True)
+    os.makedirs(base_dir, exist_ok=True)
     os.makedirs(data_dir, exist_ok=True)
     
     # Device configuration
@@ -69,7 +69,7 @@ def get_default_config(testing_mode: bool = False) -> Dict[str, Any]:
     # SAE configuration
     sae_config = {
         "expansion_factor": 2,
-        "n_epochs": 5 if testing_mode else 100,
+        "n_epochs": 5 if testing_mode else 800,  # early stopping usually around 500
         "learning_rate": 1e-3,
         "batch_size": 128,
         "l1_lambda": 0.1,
@@ -78,7 +78,7 @@ def get_default_config(testing_mode: bool = False) -> Dict[str, Any]:
     # Assemble complete configuration
     config = {
         "device": device,
-        "results_dir": results_dir,
+        "base_dir": base_dir,
         "data_dir": data_dir,
         "model": model_config,
         "dataset": dataset_config,
@@ -91,7 +91,7 @@ def get_default_config(testing_mode: bool = False) -> Dict[str, Any]:
     # Print basic information
     print(f"Using device: {device}")
     print(f"Data directory: {os.path.abspath(data_dir)}")
-    print(f"Results directory: {os.path.abspath(results_dir)}")
+    print(f"Base directory: {os.path.abspath(base_dir)}")
     print(f"Mode: {'TESTING' if testing_mode else 'FULL EXPERIMENT'}")
     
     return config

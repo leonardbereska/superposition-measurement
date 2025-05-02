@@ -10,11 +10,65 @@ import json
 import numpy as np
 import os
 
+from sae import train_sae, evaluate_sae, analyze_feature_statistics
 from models import create_model, NNsightModelWrapper
-from metrics import measure_superposition, measure_superposition_on_mixed_distribution
 from utils import json_serializer
 
-# %%
+def load_model(
+    model_path: Path,
+    device: Optional[torch.device] = None
+) -> nn.Module:
+    """Load a model from a saved state.
+    
+    Args:
+        model_path: Path to saved model
+        device: Device to load model onto
+        
+    Returns:
+        Loaded model
+    """
+    # Use default device if not provided
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Load state
+    state = torch.load(model_path, map_location=device)
+    
+    # Create model
+    if 'config' in state:
+        config = state['config']
+        
+        # Get model parameters
+        model_type = config.get('model_type', 'mlp')
+        hidden_dim = config.get('hidden_dim', 32)
+        image_size = config.get('image_size', 28)
+        
+        # Determine number of output classes from state dict
+        if 'model_state' in state:
+            output_dim = list(state['model_state'].items())[-1][1].size(0)
+        else:
+            # Default to binary classification
+            output_dim = 1
+        
+        # Create model
+        model = create_model(
+            model_type=model_type,
+            hidden_dim=hidden_dim,
+            image_size=image_size,
+            num_classes=output_dim,
+            use_nnsight=False
+        )
+        
+        # Load state dict
+        model.load_state_dict(state['model_state'])
+        
+        # Move to device
+        model = model.to(device)
+        
+        return model
+    else:
+        raise ValueError("Could not determine model configuration from saved state")
+
 def evaluate_model_performance(
     model: nn.Module, 
     dataloader: DataLoader, 
@@ -93,7 +147,6 @@ def evaluate_model_performance(
         
     return results
 
-# %%
 def generate_adversarial_example(
    model: nn.Module,
    image: torch.Tensor,
@@ -151,13 +204,111 @@ def generate_adversarial_example(
    
    return perturbed_image, pred, perturbation
 
-# %%
-def evaluate_feature_organization(
-    model: torch.nn.Module,
-    train_loader: torch.utils.data.DataLoader,
+# def evaluate_feature_organization(
+#     model: torch.nn.Module,
+#     train_loader: torch.utils.data.DataLoader,
+#     layer_name: str,
+#     use_mixed_distribution: bool = False,
+#     epsilon: float = 0.1,  # Only used for mixed distribution
+#     expansion_factor: int = 2,
+#     l1_lambda: float = 0.1,
+#     batch_size: int = 128,
+#     learning_rate: float = 1e-3,
+#     n_epochs: int = 300,
+#     save_dir: Optional[Path] = None,
+#     max_samples: int = 10000
+# ) -> Dict[str, Any]:
+#     """Measure feature organization in a trained model.
+    
+#     Args:
+#         model: Trained model to evaluate
+#         train_loader: DataLoader with training data
+#         layer_name: Layer name for activation extraction
+#         use_mixed_distribution: Whether to use mixed distribution
+#         epsilon: Perturbation size for mixed distribution
+#         expansion_factor: SAE expansion factor
+#         l1_lambda: L1 regularization strength
+#         batch_size: Batch size for SAE training
+#         learning_rate: Learning rate for SAE training
+#         n_epochs: Number of epochs for SAE training
+#         save_dir: Directory to save results
+#         max_samples: Maximum number of samples to use
+        
+#     Returns:
+#         Dictionary with feature organization metrics
+#     """
+#     if use_mixed_distribution:
+#         return measure_superposition_on_mixed_distribution(
+#             model=model,
+#             clean_loader=train_loader,
+#             layer_name=layer_name,
+#             epsilon=epsilon,
+#             expansion_factor=expansion_factor,
+#             l1_lambda=l1_lambda,
+#             batch_size=batch_size,
+#             learning_rate=learning_rate,
+#             n_epochs=n_epochs,
+#             save_dir=save_dir,
+#             max_samples=max_samples
+#         )
+#     else:
+#         return measure_superposition(
+#             model=model,
+#             data_loader=train_loader,
+#             layer_name=layer_name,
+#             expansion_factor=expansion_factor,
+#             l1_lambda=l1_lambda,
+#             batch_size=batch_size,
+#             learning_rate=learning_rate,
+#             n_epochs=n_epochs,
+#             save_dir=save_dir,
+#             max_samples=max_samples
+#         )
+
+
+def get_feature_distribution(activations: torch.Tensor) -> np.ndarray:
+    """Get distribution of activation magnitudes per feature.
+    
+    Args:
+        activations: Tensor of activations [batch_size, feature_dim]
+        
+    Returns:
+        Normalized distribution of feature importance
+    """
+    feature_norms = np.mean(np.abs(activations), axis=0)
+    p = feature_norms / feature_norms.sum()
+    return p
+
+def calculate_feature_metrics(p: np.ndarray) -> Dict[str, float]:
+    """Calculate entropy and feature count metrics from activation distribution.
+    
+    Args:
+        p: Normalized distribution of feature importance
+        
+    Returns:
+        Dictionary of metrics
+    """
+    # Add epsilon to avoid log(0)
+    p_safe = p + 1e-10
+    p_safe = p_safe / p_safe.sum()  # Renormalize
+    
+    # Calculate entropy
+    entropy = -np.sum(p_safe * np.log(p_safe))
+    
+    # Effective feature count (exponential of entropy)
+    feature_count = np.exp(entropy)
+    
+    # Additional metrics could be added here
+    return {
+        'entropy': entropy,
+        'feature_count': feature_count,
+    }
+
+def measure_superposition(
+    model: nn.Module,
+    data_loader: torch.utils.data.DataLoader,
     layer_name: str,
-    use_mixed_distribution: bool = False,
-    epsilon: float = 0.1,  # Only used for mixed distribution
+    sae_model=None,
     expansion_factor: int = 2,
     l1_lambda: float = 0.1,
     batch_size: int = 128,
@@ -165,15 +316,131 @@ def evaluate_feature_organization(
     n_epochs: int = 300,
     save_dir: Optional[Path] = None,
     max_samples: int = 10000
-) -> Dict[str, Any]:
-    """Measure feature organization in a trained model.
+) -> Dict[str, float]:
+    """Measure feature superposition in a model layer."""
+    device = next(model.parameters()).device
+
+    model_wrapper = NNsightModelWrapper(model)
+
+    # limiting the number of activations to extract to avoid memory issues
+    activations = model_wrapper.get_activations(data_loader, layer_name, max_activations=max_samples)
+
+    activations = activations.detach().cpu().contiguous()
+
+    # Check if the activations are from a convolutional layer
+    is_conv = activations.dim() == 4
+    
+    if is_conv:
+        # Reshape: [B, C, H, W] -> [B*H*W, C]
+        orig_shape = activations.shape
+        activations = activations.reshape(
+            orig_shape[0], orig_shape[1], -1).permute(0, 2, 1).reshape(-1, orig_shape[1])
+        
+        # Limit number of samples for SAE training if needed
+        if max_samples and len(activations) > max_samples:
+            train_activations = activations[:max_samples]
+        else:
+            train_activations = activations
+        
+        # Train SAE if not provided
+        if sae_model is None:
+            sae_model = train_sae(
+                train_activations, 
+                expansion_factor=expansion_factor, 
+                n_epochs=n_epochs, 
+                l1_lambda=l1_lambda, 
+                batch_size=batch_size, 
+                learning_rate=learning_rate,
+                device=device
+            )
+        
+        # Apply SAE to get activations
+        sae_acts, _ = sae_model(activations.to(device))
+        sae_acts = sae_acts.detach().cpu()
+        
+        # Reshape back: [B*H*W, D] -> [B, H*W, D] -> [B, D, H*W]
+        sae_acts = sae_acts.reshape(
+            orig_shape[0], 
+            -1,  # H*W
+            sae_model.dictionary_dim
+        ).permute(0, 2, 1)
+        
+        # Sum over spatial dimensions
+        sae_acts = sae_acts.sum(dim=2).detach().cpu().numpy()
+        
+    else:
+        # For fully connected layers, use the existing approach
+        if sae_model is None:
+            sae_model = train_sae(
+                activations, 
+                verbose=True,
+                expansion_factor=expansion_factor, 
+                n_epochs=n_epochs, 
+                l1_lambda=l1_lambda, 
+                batch_size=batch_size, 
+                learning_rate=learning_rate,
+                device=device
+            )
+        
+        # Get SAE features
+        sae_acts, _ = sae_model(activations.to(device))
+        sae_acts = sae_acts.detach().cpu().numpy()
+    
+    # Save SAE model if requested
+    if save_dir:
+        save_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save SAE model state dict
+        torch.save(sae_model.state_dict(), save_dir / f"sae_{layer_name}.pt")
+        
+        # Evaluate SAE and save statistics
+        sae_metrics = evaluate_sae(
+            sae=sae_model,
+            activations=activations,
+            l1_lambda=l1_lambda,
+            batch_size=batch_size,
+            device=device
+        )
+
+        sae_stats = analyze_feature_statistics(
+            sae=sae_model,
+            activations=activations,
+            device=device
+        )
+        
+        # Save statistics as JSON
+        with open(save_dir / f"sae_{layer_name}_metrics.json", 'w') as f:
+            json.dump({k: float(v) for k, v in sae_metrics.items()}, f, indent=4, default=json_serializer)
+        with open(save_dir / f"sae_{layer_name}_stats.json", 'w') as f:
+            json.dump(sae_stats, f, indent=4, default=json_serializer)
+    
+    # Calculate metrics
+    p = get_feature_distribution(sae_acts)
+    metrics = calculate_feature_metrics(p)
+    
+    return metrics
+
+def measure_superposition_on_mixed_distribution(
+    model: nn.Module,
+    dataloader: torch.utils.data.DataLoader,
+    layer_name: str,
+    epsilon: float = 0.1,
+    expansion_factor: int = 2,
+    l1_lambda: float = 0.1,
+    batch_size: int = 128,
+    learning_rate: float = 1e-3,
+    n_epochs: int = 300,
+    save_dir: Optional[Path] = None,
+    max_samples: int = 10000,
+    verbose: bool = True
+) -> Dict[str, float]:
+    """Measure feature organization across different input distributions.
     
     Args:
-        model: Trained model to evaluate
-        train_loader: DataLoader with training data
-        layer_name: Layer name for activation extraction
-        use_mixed_distribution: Whether to use mixed distribution
-        epsilon: Perturbation size for mixed distribution
+        model: Model to evaluate
+        dataloader: DataLoader with clean data
+        layer_name: Layer to extract activations from
+        epsilon: Perturbation size matching training epsilon
         expansion_factor: SAE expansion factor
         l1_lambda: L1 regularization strength
         batch_size: Batch size for SAE training
@@ -181,221 +448,214 @@ def evaluate_feature_organization(
         n_epochs: Number of epochs for SAE training
         save_dir: Directory to save results
         max_samples: Maximum number of samples to use
+        verbose: Whether to print progress
         
     Returns:
-        Dictionary with feature organization metrics
+        Dictionary with feature counts for clean, adversarial, and mixed distributions
     """
-    if use_mixed_distribution:
-        return measure_superposition_on_mixed_distribution(
-            model=model,
-            clean_loader=train_loader,
-            layer_name=layer_name,
-            epsilon=epsilon,
-            expansion_factor=expansion_factor,
-            l1_lambda=l1_lambda,
-            batch_size=batch_size,
-            learning_rate=learning_rate,
-            n_epochs=n_epochs,
-            save_dir=save_dir,
-            max_samples=max_samples
-        )
-    else:
-        return measure_superposition(
-            model=model,
-            data_loader=train_loader,
-            layer_name=layer_name,
-            expansion_factor=expansion_factor,
-            l1_lambda=l1_lambda,
-            batch_size=batch_size,
-            learning_rate=learning_rate,
-            n_epochs=n_epochs,
-            save_dir=save_dir,
-            max_samples=max_samples
-        )
-
-# %%
-def load_model(
-    model_path: Path,
-    device: Optional[torch.device] = None
-) -> nn.Module:
-    """Load a model from a saved state.
+    device = next(model.parameters()).device
+    model_wrapper = NNsightModelWrapper(model)
     
-    Args:
-        model_path: Path to saved model
-        device: Device to load model onto
-        
-    Returns:
-        Loaded model
-    """
-    # Use default device if not provided
-    if device is None:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Extract clean activations
+    clean_activations = model_wrapper.get_activations(
+        dataloader, layer_name, max_activations=max_samples
+    )
+    clean_activations = clean_activations.detach().cpu()
     
-    # Load state
-    state = torch.load(model_path, map_location=device)
+    # Generate adversarial examples and extract their activations
+    adv_activations = []
+    for inputs, targets in dataloader:
+        if len(adv_activations) >= max_samples:
+            break
+            
+        inputs, targets = inputs.to(device), targets.to(device)
+        
+        # Generate adversarial examples with FGSM
+        inputs.requires_grad = True
+        outputs = model(inputs)
+        
+        if outputs.size(-1) == 1:  # Binary classification
+            loss = nn.BCEWithLogitsLoss()(outputs.squeeze(), targets)
+        else:  # Multi-class classification
+            loss = nn.CrossEntropyLoss()(outputs, targets)
+        
+        model.zero_grad()
+        loss.backward()
+        
+        # FGSM attack
+        perturbed_inputs = inputs + epsilon * inputs.grad.sign()
+        perturbed_inputs = torch.clamp(perturbed_inputs, 0, 1)
+        
+        # Get activations for adversarial examples
+        with torch.no_grad():
+            adv_acts = model_wrapper.get_layer_output(perturbed_inputs, layer_name)
+            adv_activations.append(adv_acts.cpu())
     
-    # Create model
-    if 'config' in state:
-        config = state['config']
-        
-        # Get model parameters
-        model_type = config.get('model_type', 'mlp')
-        hidden_dim = config.get('hidden_dim', 32)
-        image_size = config.get('image_size', 28)
-        
-        # Determine number of output classes from state dict
-        if 'model_state' in state:
-            output_dim = list(state['model_state'].items())[-1][1].size(0)
-        else:
-            # Default to binary classification
-            output_dim = 1
-        
-        # Create model
-        model = create_model(
-            model_type=model_type,
-            hidden_dim=hidden_dim,
-            image_size=image_size,
-            num_classes=output_dim,
-            use_nnsight=False
-        )
-        
-        # Load state dict
-        model.load_state_dict(state['model_state'])
-        
-        # Move to device
-        model = model.to(device)
-        
-        return model
-    else:
-        raise ValueError("Could not determine model configuration from saved state")
-
-# %%
-def evaluate_all_models_in_directory(
-    results_dir: Path,
-    train_loader: DataLoader,
-    val_loader: DataLoader,
-    layer_name: str,
-    test_epsilons: List[float],
-    sae_config: Dict[str, Any],
-    device: torch.device,
-    measure_mixed: bool = False
-) -> Dict[str, Dict[float, List[float]]]:
-    """Evaluate all models in a results directory.
+    adv_activations = torch.cat(adv_activations[:max_samples//len(adv_activations[0])], dim=0)
     
-    Args:
-        results_dir: Path to results directory
-        train_loader: DataLoader with training data
-        val_loader: DataLoader with validation data
-        layer_name: Layer name for activation extraction
-        test_epsilons: List of epsilon values to test
-        sae_config: SAE configuration
-        device: Device to use
-        measure_mixed: Whether to use mixed distribution
-        
-    Returns:
-        Dictionary with evaluation results
-    """
-    # Initialize results
-    results = {
-        'feature_count': {},
-        'robustness_score': {},
+    # Create mixed dataset (50% clean, 50% adversarial)
+    min_samples = min(len(clean_activations), len(adv_activations), max_samples // 2)
+    mixed_activations = torch.cat([
+        clean_activations[:min_samples],
+        adv_activations[:min_samples]
+    ], dim=0)
+    
+    # Dictionary to store results
+    results = {}
+    
+    # Define distributions to evaluate
+    distributions = {
+        "clean": clean_activations,
+        "adversarial": adv_activations,
+        "mixed": mixed_activations
     }
     
-    for test_eps in test_epsilons:
-        results[f'accuracy_for_{test_eps}'] = {}
-    
-    # Process each epsilon directory
-    for eps_dir in results_dir.glob("eps_*"):
-        try:
-            epsilon = float(eps_dir.name.split("_")[1])
-            
-            # Initialize lists for this epsilon
-            for metric in results:
-                results[metric][epsilon] = []
-            
-            # Process each run directory
-            for run_dir in eps_dir.glob("run_*"):
-                try:
-                    # Create evaluation directory
-                    eval_dir = run_dir / "evaluation"
-                    eval_dir.mkdir(exist_ok=True)
-                    
-                    # Load model
-                    model_path = run_dir / "model.pt"
-                    model = load_model(model_path, device)
-                    
-                    # Evaluate feature organization
-                    if measure_mixed:
-                        # Use mixed distribution
-                        feature_metrics = evaluate_feature_organization(
-                            model=model,
-                            train_loader=train_loader,
-                            layer_name=layer_name,
-                            use_mixed_distribution=True,
-                            epsilon=epsilon,
-                            expansion_factor=sae_config['expansion_factor'],
-                            l1_lambda=sae_config['l1_lambda'],
-                            batch_size=sae_config['batch_size'],
-                            learning_rate=sae_config['learning_rate'],
-                            n_epochs=sae_config['n_epochs'],
-                            save_dir=eval_dir
-                        )
-                        # Use the feature count from mixed SAE on mixed distribution
-                        feature_count = feature_metrics['mixed']['mixed']['feature_count']
-                    else:
-                        # Use standard distribution
-                        feature_metrics = evaluate_feature_organization(
-                            model=model,
-                            train_loader=train_loader,
-                            layer_name=layer_name,
-                            expansion_factor=sae_config['expansion_factor'],
-                            l1_lambda=sae_config['l1_lambda'],
-                            batch_size=sae_config['batch_size'],
-                            learning_rate=sae_config['learning_rate'],
-                            n_epochs=sae_config['n_epochs'],
-                            save_dir=eval_dir
-                        )
-                        feature_count = feature_metrics['feature_count']
-                    
-                    # Evaluate robustness
-                    robustness = evaluate_model_performance(
-                        model=model,
-                        dataloader=val_loader,
-                        epsilons=test_epsilons,
-                        device=device
-                    )
-                    
-                    # Calculate average robustness
-                    avg_robustness = sum(float(v) for v in robustness.values()) / len(robustness)
-                    
-                    # Save results
-                    with open(eval_dir / "results.json", 'w') as f:
-                        json.dump({
-                            'feature_count': feature_count,
-                            'robustness_score': avg_robustness,
-                            **{f'accuracy_for_{eps}': robustness[str(eps)] for eps in test_epsilons}
-                        }, f, indent=4, default=json_serializer)
-                    
-                    # Store results
-                    results['feature_count'][epsilon].append(feature_count)
-                    results['robustness_score'][epsilon].append(avg_robustness)
-                    for test_eps in test_epsilons:
-                        results[f'accuracy_for_{test_eps}'][epsilon].append(float(robustness[str(test_eps)]))
-                
-                except Exception as e:
-                    print(f"Error evaluating run in {run_dir}: {e}")
+    # For each distribution, train and evaluate an SAE
+    for dist_name, activations in distributions.items():
+        if verbose:
+            print(f"Analyzing {dist_name} distribution...")
         
-        except Exception as e:
-            print(f"Error processing directory {eps_dir}: {e}")
-    
-    # Save combined results
-    with open(results_dir / "evaluation_results.json", 'w') as f:
-        json.dump({
-            'feature_count': {str(eps): values for eps, values in results['feature_count'].items()},
-            'robustness_score': {str(eps): values for eps, values in results['robustness_score'].items()},
-            **{key: {str(eps): values for eps, values in values_dict.items()} 
-               for key, values_dict in results.items() 
-               if key.startswith('accuracy_for_')}
-        }, f, indent=4, default=json_serializer)
+        # Train SAE on this distribution
+        sae = train_sae(
+            activations,
+            expansion_factor=expansion_factor, 
+            n_epochs=n_epochs, 
+            l1_lambda=l1_lambda, 
+            batch_size=batch_size, 
+            learning_rate=learning_rate,
+            device=device,
+            verbose=verbose
+        )
+        
+        # Save SAE model if requested
+        if save_dir:
+            save_dir.mkdir(parents=True, exist_ok=True)
+            torch.save(sae.state_dict(), save_dir / f"sae_{layer_name}_{dist_name}.pt")
+        
+        # Evaluate SAE on the same distribution it was trained on
+        sae_acts, _ = sae(activations.to(device))
+        
+        # Calculate feature distribution and metrics
+        p = get_feature_distribution(sae_acts.detach().cpu().numpy())
+        metrics = calculate_feature_metrics(p)
+        
+        # Store feature count
+        results[dist_name+"_feature_count"] = metrics["feature_count"]
+        
+        if verbose:
+            print(f"  Feature count: {metrics['feature_count']:.2f}")
     
     return results
+
+# def measure_superposition_on_mixed_distribution(
+#     model: nn.Module,
+#     dataloader: torch.utils.data.DataLoader,
+#     layer_name: str,
+#     epsilon: float = 0.1,
+#     expansion_factor: int = 2,
+#     l1_lambda: float = 0.1,
+#     batch_size: int = 128,
+#     learning_rate: float = 1e-3,
+#     n_epochs: int = 300,
+#     save_dir: Optional[Path] = None,
+#     max_samples: int = 10000,
+#     verbose: bool = True
+# ) -> Dict[str, Dict[str, Dict[str, float]]]:
+#     """Measure superposition using SAEs trained on different distributions."""
+
+#     device = next(model.parameters()).device
+#     model_wrapper = NNsightModelWrapper(model)
+    
+#     # Get clean activations
+#     clean_loader = dataloader
+#     clean_activations = model_wrapper.get_activations(clean_loader, layer_name, max_activations=max_samples)
+#     clean_activations = clean_activations.detach().cpu()
+    
+#     # Generate adversarial examples and get their activations
+#     adv_activations = []
+#     for inputs, targets in clean_loader:
+#         inputs, targets = inputs.to(device), targets.to(device)
+        
+#         # Generate adversarial examples with FGSM
+#         inputs.requires_grad = True
+#         outputs = model(inputs)
+        
+#         if outputs.size(-1) == 1:  # Binary classification
+#             loss = nn.BCEWithLogitsLoss()(outputs.squeeze(), targets)
+#         else:  # Multi-class classification
+#             loss = nn.CrossEntropyLoss()(outputs, targets)
+        
+#         model.zero_grad()
+#         loss.backward()
+        
+#         # FGSM attack
+#         perturbed_inputs = inputs + epsilon * inputs.grad.sign()
+#         perturbed_inputs = torch.clamp(perturbed_inputs, 0, 1)
+        
+#         # Get activations for adversarial examples
+#         with torch.no_grad():
+#             adv_acts = model_wrapper.get_layer_output(perturbed_inputs, layer_name)
+#             adv_activations.append(adv_acts.cpu())
+    
+#     adv_activations = torch.cat(adv_activations, dim=0)
+    
+#     # Create mixed dataset (50% clean, 50% adversarial)
+#     min_samples = min(len(clean_activations), len(adv_activations), max_samples // 2)
+#     mixed_activations = torch.cat([
+#         clean_activations[:min_samples],
+#         adv_activations[:min_samples]
+#     ], dim=0)
+    
+#     # Train SAEs and evaluate feature metrics
+#     results = {}
+    
+#     # Define all activation distributions
+#     distributions = {
+#         "clean": clean_activations,
+#         "adversarial": adv_activations,
+#         "mixed": mixed_activations
+#     }
+    
+#     # For each distribution, train an SAE and evaluate it on all distributions
+#     for train_dist_name, train_activations in distributions.items():
+#         # Train SAE on this distribution
+#         sae = train_sae(
+#             train_activations,
+#             verbose=verbose,
+#             expansion_factor=expansion_factor, 
+#             n_epochs=n_epochs, 
+#             l1_lambda=l1_lambda, 
+#             batch_size=batch_size, 
+#             learning_rate=learning_rate,
+#             device=device
+#         )
+        
+#         # Save SAE model if requested
+#         if save_dir:
+#             save_dir.mkdir(parents=True, exist_ok=True)
+#             torch.save(sae.state_dict(), save_dir / f"sae_{layer_name}_{train_dist_name}.pt")
+        
+#         # Evaluate this SAE on each distribution
+#         metrics = {}
+#         for eval_dist_name, eval_activations in distributions.items():
+#             if verbose:
+#                 print(f"Evaluating SAE trained on {train_dist_name} distribution on {eval_dist_name} data...")
+            
+#             # Get SAE activations for this distribution
+#             sae_acts, _ = sae(eval_activations.to(device))
+            
+#             # Calculate feature distribution and metrics
+#             p = get_feature_distribution(sae_acts.detach().cpu().numpy())
+#             metrics[eval_dist_name] = calculate_feature_metrics(p)
+            
+#             if verbose:
+#                 feature_count = metrics[eval_dist_name]['feature_count']
+#                 print(f"  Feature count: {feature_count:.2f}")
+        
+#         # Store metrics for this SAE
+#         results[train_dist_name] = metrics
+    
+#     return results
+
+# %%
+# %%

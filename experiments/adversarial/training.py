@@ -212,10 +212,9 @@ def train_model(
     learning_rate: float = 1e-3,
     epsilon: float = 0.0,
     alpha: float = 0.5,
-    patience: int = 10,
     verbose: bool = True,
     device: Optional[torch.device] = None
-) -> Tuple[nn.Module, Dict[str, List[float]]]:
+) -> nn.Module:
     """Train a model with optional adversarial training.
     
     Args:
@@ -228,7 +227,6 @@ def train_model(
         learning_rate: Learning rate
         epsilon: Perturbation size (0.0 for standard training)
         alpha: Weight for clean vs adversarial loss
-        patience: Early stopping patience (0 to disable)
         verbose: Whether to print progress
         device: Device to use
         
@@ -261,19 +259,6 @@ def train_model(
     # Create criterion based on output dimension
     criterion = nn.BCEWithLogitsLoss() if output_dim == 1 else nn.CrossEntropyLoss()
     
-    # Training history
-    history = {
-        'train_loss': [],
-        'train_accuracy': [],
-        'val_loss': [],
-        'val_accuracy': []
-    }
-    
-    # Early stopping variables
-    best_val_loss = float('inf')
-    best_epoch = 0
-    best_state_dict = None
-    
     # Training loop
     for epoch in range(n_epochs):
         # Train for one epoch
@@ -281,52 +266,32 @@ def train_model(
             model, train_loader, optimizer, criterion, epsilon, alpha
         )
         
-        # Evaluate on training set
-        train_metrics = evaluate_model(model, train_loader, criterion)
-        
-        # Log training metrics
-        history['train_loss'].append(train_stats.get('loss', 0.0))
-        history['train_accuracy'].append(train_metrics['accuracy'])
-        
-        # Evaluate on validation set if provided
-        if val_loader is not None:
-            val_metrics = evaluate_model(model, val_loader, criterion)
-            history['val_loss'].append(val_metrics['loss'])
-            history['val_accuracy'].append(val_metrics['accuracy'])
-            
-            # Early stopping
-            if patience > 0:
-                if val_metrics['loss'] < best_val_loss:
-                    best_val_loss = val_metrics['loss']
-                    best_epoch = epoch
-                    best_state_dict = model.state_dict().copy()
-                elif epoch - best_epoch >= patience:
-                    if verbose:
-                        print(f"Early stopping at epoch {epoch}")
-                    model.load_state_dict(best_state_dict)
-                    break
-        else:
-            # No validation set, use training metrics
-            history['val_loss'].append(train_metrics.get('loss', 0.0))
-            history['val_accuracy'].append(train_metrics['accuracy'])
-        
-        # Print progress
+        # Only evaluate when we're going to print progress
         if verbose and (epoch % max(1, n_epochs // 10) == 0 or epoch == n_epochs - 1):
-            log_str = f"Epoch {epoch+1}/{n_epochs}"
-            log_str += f" - Loss: {train_stats.get('loss', 0):.4f}"
-            log_str += f" - Accuracy: {train_metrics['accuracy']:.2f}%"
+            # Evaluate on training set
+            train_metrics = evaluate_model(model, train_loader, criterion)
             
+            # Evaluate on validation set if provided
             if val_loader is not None:
+                val_metrics = evaluate_model(model, val_loader, criterion)
+                
+                # Print progress
+                log_str = f"Epoch {epoch+1}/{n_epochs}"
+                log_str += f" - Loss: {train_stats.get('loss', 0):.4f}"
+                log_str += f" - Accuracy: {train_metrics['accuracy']:.2f}%"
                 log_str += f" - Val Loss: {val_metrics['loss']:.4f}"
                 log_str += f" - Val Accuracy: {val_metrics['accuracy']:.2f}%"
+            else:
+                # Print progress without validation metrics
+                log_str = f"Epoch {epoch+1}/{n_epochs}"
+                log_str += f" - Loss: {train_stats.get('loss', 0):.4f}"
+                if 'adv_loss' in train_stats:
+                    log_str += f" - Adv Loss: {train_stats.get('adv_loss', 0):.4f}"
+                log_str += f" - Accuracy: {train_metrics['accuracy']:.2f}%"
                 
             print(log_str)
     
-    # Load best model if early stopping was used
-    if patience > 0 and best_state_dict is not None:
-        model.load_state_dict(best_state_dict)
-    
-    return model, history
+    return model 
 
 # %%
 def evaluate_model_performance(
