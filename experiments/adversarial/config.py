@@ -56,7 +56,7 @@ def get_default_config(testing_mode: bool = False) -> Dict[str, Any]:
         "batch_size": 64,
         "learning_rate": 1e-3,
         # Use shorter epochs in testing mode
-        "n_epochs": 5 if testing_mode else 100,
+        "n_epochs": 5 if testing_mode else 100,  # early stopping seemed to make results less reliable
     }
     
     # Adversarial training configuration

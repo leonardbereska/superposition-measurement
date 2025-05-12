@@ -298,7 +298,7 @@ def run_analysis_phase(
     
     # Generate plots
     print("Generating plots...")
-    generate_plots(processed_results, plots_dir)
+    generate_plots(processed_results, plots_dir, results_dir)
     
     # Create summary
     print("Creating summary...")
@@ -478,7 +478,13 @@ if __name__ == "__main__":
     # config['sae']['expansion_factor'] = 4
     # results_dir = run_training_phase(config)
     # run_evaluation_phase(search_string="mlp_2-class")
+    # run_evaluation_phase(search_string="mlp_3-class")
+    # run_evaluation_phase(search_string="mlp_5-class")
+    # run_evaluation_phase(search_string="mlp_10-class")
     run_analysis_phase(search_string="mlp_2-class")
+    run_analysis_phase(search_string="mlp_3-class")
+    run_analysis_phase(search_string="mlp_5-class")
+    run_analysis_phase(search_string="mlp_10-class")
 
     # run through all subdirectories and rename "experiment.pt" to "model.pt"
     # config = get_default_config()

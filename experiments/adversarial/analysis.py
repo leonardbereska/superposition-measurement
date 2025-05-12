@@ -10,6 +10,8 @@ from typing import Dict, List, Optional, Union, Tuple, Any
 import pandas as pd
 from datetime import datetime
 
+from config import get_default_config
+from utils import ScientificPlotStyle
 # %%
 def load_results(results_dir: Path) -> Dict:
     """Load experiment results from a directory.
@@ -150,8 +152,8 @@ def plot_robustness_curve(
     results: Dict[float, List[float]],
     title: str = 'Adversarial Robustness',
     save_path: Optional[Path] = None,
-    figsize: Tuple[int, int] = (8, 6),
-    color: str = '#88A7B2'
+    figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE,
+    color_idx: int = 0
 ) -> plt.Figure:
     """Plot robustness curve across different epsilon values.
     
@@ -160,7 +162,7 @@ def plot_robustness_curve(
         title: Plot title
         save_path: Path to save figure
         figsize: Figure size
-        color: Line color
+        color_idx: Index for color selection from ScientificPlotStyle
         
     Returns:
         Matplotlib figure
@@ -172,24 +174,28 @@ def plot_robustness_curve(
     means = [np.mean(results[eps]) for eps in epsilons]
     stds = [np.std(results[eps]) for eps in epsilons]
     
+    # Get style parameters
+    style_kwargs = ScientificPlotStyle.errorbar_kwargs(color_idx)
+    
     # Plot
     ax.errorbar(
-        epsilons, means, yerr=stds, fmt='o-',
-        color=color, linewidth=2, capsize=5, markersize=8
+        epsilons, means, yerr=stds,
+        **style_kwargs
     )
     
-    ax.set_xlabel('Perturbation Size (ε)', fontsize=14)
-    ax.set_ylabel('Accuracy (%)', fontsize=14)
-    ax.set_title(title, fontsize=16)
-    ax.grid(True, alpha=0.3)
-    
-    # Set tick parameters
-    ax.tick_params(labelsize=12)
+    # Apply scientific plot styling
+    ScientificPlotStyle.apply_axis_style(
+        ax=ax,
+        title=title,
+        xlabel='Perturbation Size (ε)',
+        ylabel='Accuracy (%)',
+        legend=False
+    )
     
     plt.tight_layout()
     
     if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
     
     return fig
 
@@ -198,7 +204,7 @@ def plot_combined_feature_counts(
     results: Dict[str, Dict[float, List[float]]],
     title: str = 'Feature Counts vs Adversarial Training Strength',
     save_path: Optional[Path] = None,
-    figsize: Tuple[int, int] = (10, 8)
+    figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE
 ) -> plt.Figure:
     """Plot all feature counts (clean, adversarial, mixed) on one plot.
     
@@ -212,13 +218,6 @@ def plot_combined_feature_counts(
         Matplotlib figure
     """
     fig, ax = plt.subplots(figsize=figsize)
-    
-    # Colors for different distributions
-    colors = {
-        'clean_feature_count': '#F0BE5E',         # Yellow
-        'adversarial_feature_count': '#94B9A3',   # Green
-        'mixed_feature_count': '#88A7B2',         # Blue
-    }
     
     # Labels for the legend
     labels = {
@@ -237,7 +236,7 @@ def plot_combined_feature_counts(
     all_epsilons = sorted(all_epsilons)
     
     # Plot each feature count metric
-    for metric_name in ['clean_feature_count', 'adversarial_feature_count', 'mixed_feature_count']:
+    for i, metric_name in enumerate(['clean_feature_count', 'adversarial_feature_count', 'mixed_feature_count']):
         if metric_name not in results:
             continue
             
@@ -248,28 +247,26 @@ def plot_combined_feature_counts(
         means = [np.mean(metric_data[eps]) for eps in epsilons]
         stds = [np.std(metric_data[eps]) for eps in epsilons]
         
-        # Plot with error bars
+        # Plot with error bars using ScientificPlotStyle
         ax.errorbar(
-            epsilons, means, yerr=stds, fmt='o-',
-            color=colors[metric_name], linewidth=2, capsize=5, markersize=8,
-            label=labels[metric_name]
+            epsilons, means, yerr=stds,
+            label=labels[metric_name],
+            **ScientificPlotStyle.errorbar_kwargs(i)
         )
     
-    # Customize plot
-    ax.set_xlabel('Adversarial Training Strength (ε)', fontsize=14)
-    ax.set_ylabel('Effective Feature Count', fontsize=14)
-    ax.set_title(title, fontsize=16)
-    ax.grid(True, alpha=0.3)
-    ax.legend(fontsize=12)
-    
-    # Set tick parameters
-    ax.tick_params(labelsize=12)
+    # Apply scientific plot styling
+    ScientificPlotStyle.apply_axis_style(
+        ax=ax,
+        title=title,
+        xlabel='Adversarial Training Strength (ε)',
+        ylabel='Effective Feature Count'
+    )
     
     plt.tight_layout()
     
     # Save if path provided
     if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
     
     return fig
 
@@ -277,6 +274,7 @@ def plot_combined_feature_counts(
 def plot_feature_distribution_matrix(
     results: Dict[str, Dict[float, List[float]]],
     epsilon: float,
+    title: str = 'Feature Distribution Matrix',
     save_path: Optional[Path] = None,
     figsize: Tuple[int, int] = (8, 6)
 ) -> plt.Figure:
@@ -386,8 +384,8 @@ def plot_feature_vs_robustness(
     robustness_results: Dict[float, List[float]],
     title: str = 'Feature Count vs Model Robustness',
     save_path: Optional[Path] = None,
-    figsize: Tuple[int, int] = (8, 6),
-    color: str = '#88A7B2',
+    figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE,
+    color_idx: int = 0,
     add_annotations: bool = True
 ) -> plt.Figure:
     """Plot feature counts vs robustness.
@@ -398,7 +396,7 @@ def plot_feature_vs_robustness(
         title: Plot title
         save_path: Path to save figure
         figsize: Figure size
-        color: Point color
+        color_idx: Index for color selection from ScientificPlotStyle
         add_annotations: Whether to add epsilon annotations
         
     Returns:
@@ -413,11 +411,18 @@ def plot_feature_vs_robustness(
     robustness_means = [np.mean(robustness_results[eps]) for eps in epsilons]
     robustness_stds = [np.std(robustness_results[eps]) for eps in epsilons]
     
+    # Get style parameters
+    style_kwargs = ScientificPlotStyle.errorbar_kwargs(color_idx)
+    
     # Plot
     ax.errorbar(
         feature_means, robustness_means, 
         xerr=feature_stds, yerr=robustness_stds,
-        fmt='.', capsize=5, color=color, markersize=12
+        fmt='.', capsize=ScientificPlotStyle.CAPSIZE, 
+        markersize=ScientificPlotStyle.MARKER_SIZE,
+        color=style_kwargs['color'],
+        elinewidth=style_kwargs['linewidth'],
+        capthick=ScientificPlotStyle.CAPTHICK
     )
     
     # Add epsilon annotations
@@ -426,29 +431,30 @@ def plot_feature_vs_robustness(
             ax.annotate(
                 f'ε={eps}', 
                 (feature_means[i], robustness_means[i]),
-                xytext=(8, -20), 
+                xytext=(10, -25), 
                 textcoords='offset points', 
-                color=color, 
-                fontsize=12
+                color=style_kwargs['color'], 
+                fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND
             )
     
-    ax.set_xlabel('Effective Feature Count', fontsize=14)
-    ax.set_ylabel('Average Robustness', fontsize=14)
-    ax.set_title(title, fontsize=16)
-    ax.grid(True, alpha=0.3)
-    
-    # Set tick parameters
-    ax.tick_params(labelsize=12)
+    # Apply scientific plot styling
+    ScientificPlotStyle.apply_axis_style(
+        ax=ax,
+        title=title,
+        xlabel='Effective Feature Count',
+        ylabel='Average Robustness',
+        legend=False
+    )
     
     plt.tight_layout()
     
     if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
     
     return fig
 
 # %%
-def generate_plots(results: Dict, output_dir: Path) -> Dict[str, plt.Figure]:
+def generate_plots(results: Dict, output_dir: Path, results_dir: Path) -> Dict[str, plt.Figure]:
     """Generate analysis plots for results.
     
     Args:
@@ -460,61 +466,73 @@ def generate_plots(results: Dict, output_dir: Path) -> Dict[str, plt.Figure]:
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     figures = {}
+
+    # load metadata
+    metadata = load_metadata(results_dir)
     
     # Feature count plot
-    if 'feature_count' in results:
-        fig = plot_feature_counts(
-            results['feature_count'],
-            title="Feature Count vs Adversarial Training Strength",
-            save_path=output_dir / "feature_count.pdf"
-        )
-        figures['feature_count'] = fig
-    
+    # if 'feature_count' in results:
+    #     fig = plot_feature_counts(
+    #         results['feature_count'],
+    #         title="Feature Count vs Adversarial Training Strength",
+    #         save_path=output_dir / "feature_count.pdf"
+    #     )
+    #     figures['feature_count'] = fig
+
+    model_type = metadata['model']['model_type']
+    n_classes = len(list(metadata['dataset']['selected_classes']))
+    experiment_name = f"{model_type.upper()} {n_classes}-class"
     # Robustness curve
     if 'robustness_score' in results:
+        name = "robustness"
         fig = plot_robustness_curve(
             results['robustness_score'],
-            title="Model Robustness vs Training Strength",
-            save_path=output_dir / "robustness.pdf"
+            title=f"Model Robustness {experiment_name}",
+            save_path=output_dir / f"{name}.pdf"
         )
-        figures['robustness'] = fig
+        figures[name] = fig
     
     # Feature vs robustness
+    name = "feature_vs_robustness"
     if 'feature_count' in results and 'robustness_score' in results:
         fig = plot_feature_vs_robustness(
             results['feature_count'],
             results['robustness_score'],
-            title="Feature Count vs Model Robustness",
-            save_path=output_dir / "feature_vs_robustness.pdf"
+            title=f"Feature Count vs Model Robustness {experiment_name}",
+            save_path=output_dir / f"{name}.pdf"
         )
-        figures['feature_vs_robustness'] = fig
+        figures[name] = fig
     
     # Generate individual feature count plots
-    for metric in results:
-        if metric.endswith('_feature_count'):
-            metric_name = metric.replace('_feature_count', '')
-            fig = plot_feature_counts(
-                results[metric],
-                title=f"{metric_name.capitalize()} Feature Count vs Adversarial Training",
-                save_path=output_dir / f"{metric_name}_feature_count.pdf"
-            )
-            figures[f"{metric_name}_feature_count"] = fig
+    # for metric in results:
+    #     if metric.endswith('_feature_count'):
+    #         metric_name = metric.replace('_feature_count', '')
+    #         fig = plot_feature_counts(
+    #             results[metric],
+    #             title=f"{metric_name.capitalize()} Feature Count vs Adversarial Training",
+    #             save_path=output_dir / f"{metric_name}_feature_count.pdf"
+    #         )
+    #         figures[f"{metric_name}_feature_count"] = fig
     
     # Generate combined feature count plot
+    name = "feature_counts"
+    n_classes = len(list(metadata['dataset']['selected_classes']))
     fig = plot_combined_feature_counts(
         results,
-        title="Feature Counts Across Input Distributions",
-        save_path=output_dir / "combined_feature_counts.pdf"
+        title=f"Feature Counts {experiment_name}",
+        save_path=output_dir / f"{name}.pdf"
     )
-    figures['combined_feature_counts'] = fig
+    figures[name] = fig
     
     # Generate feature distribution matrix
-    fig = plot_feature_distribution_matrix(
-        results,
-        title="Feature Distribution Matrix",
-        save_path=output_dir / "feature_distribution_matrix.pdf"
-    )
-    figures['feature_distribution_matrix'] = fig
+    # for epsilon in get_default_config()['adversarial']['test_epsilons']:
+    #     fig = plot_feature_distribution_matrix(
+    #         results,
+    #         epsilon=epsilon,
+    #         title="Feature Distribution Matrix",
+    #         save_path=output_dir / f"feature_distribution_matrix_{epsilon}.pdf"
+    #     )
+    #     figures[f"feature_distribution_matrix_{epsilon}"] = fig
     
     # Individual test epsilon plots
     for key in results:

@@ -13,11 +13,14 @@ conda activate superposition
 conda install pytorch torchvision -y  # for cpu
 
 # Install core data science packages
-conda install numpy matplotlib tqdm ipykernel -y
+conda install numpy matplotlib tqdm ipykernel jupyter -y
 
 # Install Hugging Face datasets
 pip install datasets
 
 # Install nnsight
 pip install nnsight
+
+# Install dictionary learning
+pip install dictionary-learning
 

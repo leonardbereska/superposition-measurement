@@ -392,8 +392,12 @@ def compute_feature_norms(sae, activations):
 def calculate_feature_count(feature_norms):
     """Calculate entropy-based feature count."""
     # Normalize to get probability distribution
-    p = feature_norms / feature_norms.sum()
+    # Handle the case where all feature norms are zero
+    if feature_norms.sum() == 0:
+        # If all features are inactive, return 0 feature count
+        return 0
     
+    p = feature_norms / feature_norms.sum()
     # Avoid log(0) issues
     eps = 1e-10
     entropy = -torch.sum(p * torch.log(p + eps))
