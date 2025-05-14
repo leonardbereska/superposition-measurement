@@ -518,7 +518,7 @@ def measure_superposition_on_mixed_distribution(
     # For each distribution, train and evaluate an SAE
     for dist_name, activations in distributions.items():
         if verbose:
-            print(f"Analyzing {dist_name} distribution...")
+            print(f"Evaluating {dist_name} distribution...")
         
         if is_conv:
             # Reshape: [B, C, H, W] -> [B*H*W, C]
