@@ -267,7 +267,7 @@ def train_model(
         )
         
         # Only evaluate when we're going to print progress
-        if verbose and (epoch % max(1, n_epochs // 10) == 0 or epoch == n_epochs - 1):
+        if verbose and (epoch % max(1, n_epochs // 5) == 0 or epoch == n_epochs - 1):
             # Evaluate on training set
             train_metrics = evaluate_model(model, train_loader, criterion)
             

@@ -1,7 +1,7 @@
 # Install PyTorch with CUDA support
 # Modify cuda version as needed (11.8, 12.1, etc.)
-# conda install pytorch torchvision pytorch-cuda=12.1 -c pytorch -c nvidia -y
-conda install pytorch torchvision -y  # for cpu
+conda install pytorch torchvision pytorch-cuda=12.2 -c pytorch -c nvidia -y
+# conda install pytorch torchvision -y  # for cpu
 
 # Install core data science packages
 conda install numpy matplotlib tqdm ipykernel jupyter -y

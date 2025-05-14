@@ -328,7 +328,7 @@ def run_model_class_experiment(
         model_types: List of model types to test ('mlp', 'cnn')
         class_counts: List of class counts to test
         base_config: Base configuration (uses default if None)
-        
+        testing_mode: Whether to run in testing mode
     Returns:
         Dictionary mapping model types to dictionaries mapping class counts to result directories
     """
@@ -440,14 +440,28 @@ def quick_test(model_type: str = 'cnn'):
 
 # %%
 if __name__ == "__main__":
+    # cuda
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     # Run quick test
     # quick_test(model_type='cnn')
     # run_evaluation_phase(search_string="cnn_2-class")
     # run_analysis_phase(search_string="cnn_2-class")
     
     # Run model comparison experiment
-    model_types = ['cnn', 'mlp']
-    class_counts = [2, 3, 5, 10]
-    run_model_class_experiment(model_types, class_counts, testing_mode=True)
+    # model_types = ['mlp', 'cnn']
+    # class_counts = [2, 3, 5, 10]
+    # run_model_class_experiment(model_types, class_counts, testing_mode=False)
+
+    # Run mlp experiment
+    config = get_default_config(testing_mode=False)
+    config['model']['model_type'] = 'mlp'
+    config['model']['hidden_dim'] = 32 
+    config['training']['n_epochs'] = 20
+    config['adversarial']['train_epsilons'] = [0.1]
+    config['adversarial']['n_runs'] = 1
+    results_dir = run_training_phase(config)
+    run_evaluation_phase(results_dir=results_dir)
+    run_analysis_phase(results_dir=results_dir)
     
 # %%

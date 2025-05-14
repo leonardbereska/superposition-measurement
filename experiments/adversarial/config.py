@@ -53,10 +53,10 @@ def get_default_config(testing_mode: bool = False) -> Dict[str, Any]:
     
     # Training configuration
     training_config = {
-        "batch_size": 64,
+        "batch_size": 128,
         "learning_rate": 1e-3,
         # Use shorter epochs in testing mode
-        "n_epochs": 5 if testing_mode else 100,  # early stopping seemed to make results less reliable
+        "n_epochs": 5 if testing_mode else 20,  # early stopping seemed to make results less reliable
     }
     
     # Adversarial training configuration
@@ -69,7 +69,7 @@ def get_default_config(testing_mode: bool = False) -> Dict[str, Any]:
     # SAE configuration
     sae_config = {
         "expansion_factor": 4,  # NOTE: is this making a difference?
-        "n_epochs": 5 if testing_mode else 800,  # early stopping usually around 500
+        "n_epochs": 5 if testing_mode else 100,  # early stopping usually around 500
         "learning_rate": 1e-3,
         "batch_size": 128,
         "l1_lambda": 0.1,
