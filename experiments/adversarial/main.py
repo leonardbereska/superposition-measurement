@@ -15,7 +15,7 @@ os.chdir(script_dir)
 
 # Import configuration, datasets, utils
 from config import get_default_config, update_config
-from datasets import create_dataloaders
+from datasets_adversarial import create_dataloaders
 from utils import json_serializer, setup_results_dir, find_results_dir, save_config, get_config_and_results_dir
 
 # Import components for different phases 
@@ -316,44 +316,11 @@ def run_analysis_phase(
     
     return results_dir
 
-def run_all_phases(
-    config: Dict[str, Any] = None,
-    create_html_report: bool = True
-) -> Path:
-    """Run all experiment phases sequentially.
-    
-    Args:
-        config: Optional custom configuration
-        measure_mixed: Whether to use mixed distribution in evaluation
-        create_html_report: Whether to create HTML report
-        
-    Returns:
-        Path to results directory
-    """
-    # Use default config if not provided
-    if config is None:
-        config = get_default_config()
-    
-    # Set random seed
-    torch.manual_seed(42)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(42)
-    
-    # Run training phase
-    results_dir = run_training_phase(config)
-    
-    # Run evaluation phase
-    run_evaluation_phase(results_dir=results_dir)
-    
-    # Run analysis phase
-    run_analysis_phase(results_dir=results_dir, create_html_report=create_html_report)
-    
-    return results_dir
-
 def run_model_class_experiment(
     model_types: List[str] = ['mlp', 'cnn'],
     class_counts: List[int] = [2, 3, 5, 10],
-    base_config: Optional[Dict[str, Any]] = None
+    base_config: Optional[Dict[str, Any]] = None,
+    testing_mode: bool = False 
 ) -> Dict[str, Dict[int, Path]]:
     """Run training phase across model types and class counts.
     
@@ -367,7 +334,7 @@ def run_model_class_experiment(
     """
     # Get base configuration if not provided
     if base_config is None:
-        base_config = get_default_config()
+        base_config = get_default_config(testing_mode=testing_mode)
     
     # Store result directories
     results = {model_type: {} for model_type in model_types}
@@ -388,11 +355,10 @@ def run_model_class_experiment(
                 'dataset': {'selected_classes': selected_classes}
             })
 
-            # results_dir = run_all_phases(config=experiment_config)
             results_dir = run_training_phase(experiment_config)
             try: 
                 run_evaluation_phase(results_dir=results_dir)
-                run_analysis_phase(results_dir=results_dir, create_html_report=True)
+                run_analysis_phase(results_dir=results_dir)
             except Exception as e:
                 print(f"Error running all phases for {model_type} with {n_classes} classes: {e}")
             
@@ -400,8 +366,6 @@ def run_model_class_experiment(
             results[model_type][n_classes] = results_dir
     
     return results
-
-
 
 def evaluate_all_experiments(config: Optional[Dict[str, Any]] = None, base_dir: Optional[Path] = None, measure_mixed: bool = True):
     """Evaluate all experiment models in the results directory.
@@ -448,73 +412,42 @@ def evaluate_all_experiments(config: Optional[Dict[str, Any]] = None, base_dir: 
     
     print("\n=== All Evaluations Complete ===")
  
+def quick_test(model_type: str = 'cnn'):
+    # Quick test configuration
+    config = get_default_config(testing_mode=True)
+    
+    # Run a single training experiment with minimal settings
+    print("Running quick test with minimal settings...")
+    
+    # Customize config for quick test
+    config['model']['model_type'] = model_type
+    config['model']['hidden_dim'] = 16  # Smaller model
+    config['training']['n_epochs'] = 2  # Fewer epochs
+    config['adversarial']['train_epsilons'] = [0.0, 0.1]  # Fewer epsilon values
+    config['adversarial']['test_epsilons'] = [0.0, 0.1]  # Fewer test epsilon values
+    config['adversarial']['n_runs'] = 1  # Single run
+    
+    # Run training phase
+    results_dir = run_training_phase(config)
+    
+    # Run evaluation on the trained model
+    run_evaluation_phase(results_dir=results_dir)
+    
+    # Generate analysis plots
+    run_analysis_phase(results_dir=results_dir)
+    
+    print(f"Quick test completed. Results in: {results_dir}")
 
 # %%
-# Example usage
 if __name__ == "__main__":
-    # Get configuration with testing mode for quick runs
+    # Run quick test
+    # quick_test(model_type='cnn')
+    # run_evaluation_phase(search_string="cnn_2-class")
+    # run_analysis_phase(search_string="cnn_2-class")
     
-    # Or run all phases
-    # results_dir = run_all_phases(config, measure_mixed=False, create_html_report=True)
-    
-    # print(f"Experiment completed. Results in: {results_dir}")
-
     # Run model comparison experiment
-    # class_counts = [2, 3, 5, 10]
-    # results = run_model_class_experiment(
-    #     model_types=['mlp'],
-    #     class_counts=class_counts
-    # )
-
-    # Evaluate model comparison experiment
-
-    # config = get_default_config()
-    # config['model']['model_type'] = 'mlp'
-    # config['dataset']['selected_classes'] = tuple(range(2))
-    # config['training']['n_epochs'] = 200
-    # config['adversarial']['n_runs'] = 1
-    # config['adversarial']['train_epsilons'] = [0.2]
-    # config['adversarial']['test_epsilons'] = [0.0, 0.1, 0.2]
-    # config['sae']['expansion_factor'] = 4
-    # results_dir = run_training_phase(config)
-    # run_evaluation_phase(search_string="mlp_2-class")
-    # run_evaluation_phase(search_string="mlp_3-class")
-    # run_evaluation_phase(search_string="mlp_5-class")
-    # run_evaluation_phase(search_string="mlp_10-class")
-    run_analysis_phase(search_string="mlp_2-class")
-    run_analysis_phase(search_string="mlp_3-class")
-    run_analysis_phase(search_string="mlp_5-class")
-    run_analysis_phase(search_string="mlp_10-class")
-
-    # run through all subdirectories and rename "experiment.pt" to "model.pt"
-    # config = get_default_config()
-    # path = Path("2025-03-19_13-50_mlp_2-class")
-    # path = config[''] / path
+    model_types = ['cnn', 'mlp']
+    class_counts = [2, 3, 5, 10]
+    run_model_class_experiment(model_types, class_counts, testing_mode=True)
     
-    # Import os module which is needed for rename operation
-    # import os
-    # for exp_dir in path.glob("*"):
-    #     print(f"Processing experiment directory: {exp_dir}")
-    #     for sub_dir in exp_dir.glob("*"):
-    #         print(f"Processing subdirectory: {sub_dir}")
-    #         experiment_file = sub_dir / "experiment.pt"
-    #         if experiment_file.exists():
-    #             model_file = sub_dir / "model.pt"
-    #             print(f"Renaming {experiment_file} to {model_file}")
-    #             os.rename(experiment_file, model_file)
-    # Evaluate all experiments
-    # evaluate_all_experiments(measure_mixed=True)
-    # all_exps = ('mlp', 2), ('mlp', 3), ('mlp', 5), ('mlp', 10), ('cnn', 2), ('cnn', 3), ('cnn', 5), ('cnn', 10)
-    # all_exps = [('mlp', 3), ('mlp', 5), ('mlp', 10), ('cnn', 2), ('cnn', 3)]
-
-
-    # for model_type, n_classes in all_exps:
-    #     config = get_default_config()
-    #     config['model']['model_type'] = model_type
-    #     config['dataset']['selected_classes'] = tuple(range(n_classes))
-    #     results_dir = Path(f"{model_type}_{n_classes}-class")
-    #     run_evaluation_phase(config, results_dir=results_dir)
-    #     run_analysis_phase(config, results_dir=results_dir)
-            
-
 # %%

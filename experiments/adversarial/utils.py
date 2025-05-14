@@ -98,7 +98,7 @@ def get_config_and_results_dir(base_dir: Path, results_dir: Optional[Path] = Non
     """
     if results_dir is None:
         results_dir = find_results_dir(base_dir=base_dir, search_string=search_string)
-        config = load_config(results_dir)
+    config = load_config(results_dir)
     print(f"Using results directory: {results_dir}")
     return config, results_dir
 

@@ -462,10 +462,13 @@ def measure_superposition_on_mixed_distribution(
     )
     clean_activations = clean_activations.detach().cpu()
     
+    # Check if the activations are from a convolutional layer
+    is_conv = clean_activations.dim() == 4
+    
     # Generate adversarial examples and extract their activations
     adv_activations = []
     for inputs, targets in dataloader:
-        if len(adv_activations) >= max_samples:
+        if len(adv_activations) * inputs.size(0) >= max_samples:
             break
             
         inputs, targets = inputs.to(device), targets.to(device)
@@ -491,7 +494,9 @@ def measure_superposition_on_mixed_distribution(
             adv_acts = model_wrapper.get_layer_output(perturbed_inputs, layer_name)
             adv_activations.append(adv_acts.cpu())
     
-    adv_activations = torch.cat(adv_activations[:max_samples//len(adv_activations[0])], dim=0)
+    adv_activations = torch.cat(adv_activations, dim=0)
+    if len(adv_activations) > max_samples:
+        adv_activations = adv_activations[:max_samples]
     
     # Create mixed dataset (50% clean, 50% adversarial)
     min_samples = min(len(clean_activations), len(adv_activations), max_samples // 2)
@@ -515,28 +520,74 @@ def measure_superposition_on_mixed_distribution(
         if verbose:
             print(f"Analyzing {dist_name} distribution...")
         
-        # Train SAE on this distribution
-        sae = train_sae(
-            activations,
-            expansion_factor=expansion_factor, 
-            n_epochs=n_epochs, 
-            l1_lambda=l1_lambda, 
-            batch_size=batch_size, 
-            learning_rate=learning_rate,
-            device=device,
-            verbose=verbose
-        )
-        
-        # Save SAE model if requested
-        if save_dir:
-            save_dir.mkdir(parents=True, exist_ok=True)
-            torch.save(sae.state_dict(), save_dir / f"sae_{layer_name}_{dist_name}.pt")
-        
-        # Evaluate SAE on the same distribution it was trained on
-        sae_acts, _ = sae(activations.to(device))
+        if is_conv:
+            # Reshape: [B, C, H, W] -> [B*H*W, C]
+            orig_shape = activations.shape
+            reshaped_activations = activations.reshape(
+                orig_shape[0], orig_shape[1], -1).permute(0, 2, 1).reshape(-1, orig_shape[1])
+            
+            # Limit number of samples for SAE training if needed
+            if max_samples and len(reshaped_activations) > max_samples:
+                train_activations = reshaped_activations[:max_samples]
+            else:
+                train_activations = reshaped_activations
+            
+            # Train SAE on this distribution
+            sae = train_sae(
+                train_activations,
+                expansion_factor=expansion_factor, 
+                n_epochs=n_epochs, 
+                l1_lambda=l1_lambda, 
+                batch_size=batch_size, 
+                learning_rate=learning_rate,
+                device=device,
+                verbose=verbose
+            )
+            
+            # Save SAE model if requested
+            if save_dir:
+                save_dir.mkdir(parents=True, exist_ok=True)
+                torch.save(sae.state_dict(), save_dir / f"sae_{layer_name}_{dist_name}.pt")
+            
+            # Apply SAE to get activations
+            sae_acts, _ = sae(reshaped_activations.to(device))
+            sae_acts = sae_acts.detach().cpu()
+            
+            # Reshape back: [B*H*W, D] -> [B, H*W, D] -> [B, D, H*W]
+            sae_acts = sae_acts.reshape(
+                orig_shape[0], 
+                -1,  # H*W
+                sae.dictionary_dim
+            ).permute(0, 2, 1)
+            
+            # Sum over spatial dimensions
+            sae_acts = sae_acts.sum(dim=2).detach().cpu().numpy()
+            
+        else:
+            # For fully connected layers, use the existing approach
+            # Train SAE on this distribution
+            sae = train_sae(
+                activations,
+                expansion_factor=expansion_factor, 
+                n_epochs=n_epochs, 
+                l1_lambda=l1_lambda, 
+                batch_size=batch_size, 
+                learning_rate=learning_rate,
+                device=device,
+                verbose=verbose
+            )
+            
+            # Save SAE model if requested
+            if save_dir:
+                save_dir.mkdir(parents=True, exist_ok=True)
+                torch.save(sae.state_dict(), save_dir / f"sae_{layer_name}_{dist_name}.pt")
+            
+            # Evaluate SAE on the same distribution it was trained on
+            sae_acts, _ = sae(activations.to(device))
+            sae_acts = sae_acts.detach().cpu().numpy()
         
         # Calculate feature distribution and metrics
-        p = get_feature_distribution(sae_acts.detach().cpu().numpy())
+        p = get_feature_distribution(sae_acts)
         metrics = calculate_feature_metrics(p)
         
         # Store feature count

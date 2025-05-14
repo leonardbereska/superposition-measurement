@@ -67,10 +67,10 @@ layers = list(saes.keys())
 dataset_name = "monology/pile-uncopyrighted"
 subset_name = "default"
 max_length = 512
-n_samples = 2000
+n_samples = 20000
 
 # Load and process dataset for multiple seeds
-n_seeds = 5
+n_seeds = 3
 seeds = list(range(n_seeds))
 all_feature_counts = {}  # Store results for each seed
 

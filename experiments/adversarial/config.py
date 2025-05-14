@@ -68,7 +68,7 @@ def get_default_config(testing_mode: bool = False) -> Dict[str, Any]:
     
     # SAE configuration
     sae_config = {
-        "expansion_factor": 2,
+        "expansion_factor": 4,  # NOTE: is this making a difference?
         "n_epochs": 5 if testing_mode else 800,  # early stopping usually around 500
         "learning_rate": 1e-3,
         "batch_size": 128,
