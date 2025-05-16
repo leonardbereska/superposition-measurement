@@ -6,7 +6,7 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Union
-
+import torch
 import os
 # change working directory to the directory of the script
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,7 +17,12 @@ from config import (
     MODEL_CONFIG, DATASET_CONFIG, TRAINING_CONFIG, 
     ADVERSARIAL_CONFIG, RESULTS_DIR, DEVICE, DATA_DIR, SAE_CONFIG
 )
+Dev = torch.device("cuda" if torch.cuda.is_available() else 
+                    "mps" if torch.backends.mps.is_available() else 
+                    "cpu")
+print(Dev)
 from datasets import MNISTDataset
+#from datasetsCifar import CIFAR10Dataset
 from metrics import measure_superposition
 from training import SuperpositionExperiment, evaluate_adversarial_robustness
 from utils import (
@@ -65,14 +70,14 @@ def run_experiment(
     # Create datasets
     train_dataset = MNISTDataset(
         target_size=image_size,
-        train=True,
-        binary_digits=binary_digits,
+        train=True, 
+        binary_digits=None, #binary_digits
         root=DATA_DIR
     )
     test_dataset = MNISTDataset(
         target_size=image_size,
         train=False,
-        binary_digits=binary_digits,
+        binary_digits=None, #binary_digits
         root=DATA_DIR
     )
     
@@ -87,6 +92,7 @@ def run_experiment(
         model_type=model_type,
         hidden_dim=hidden_dim,
         image_size=image_size,
+        epsilon=epsilon, #Added
         device=DEVICE
     )
     
@@ -195,7 +201,7 @@ def run_superposition_study(
         for run in range(n_runs):
             print(f"Run {run+1}/{n_runs}")
             
-            # Run experiment
+            # Run experiment (pass noise to SAW here)
             run_results = run_experiment(
                 epsilon=eps,
                 run_idx=run,

@@ -119,7 +119,7 @@ class SAETrainer:
         }
         return total_loss, loss_dict
 
-    def train_epoch(self, dataloader: torch.utils.data.DataLoader) -> Dict[str, float]:
+    def train_epoch(self, dataloader: torch.utils.data.DataLoader, epsilon: float = 0.0) -> Dict[str, float]:
         """Train for one epoch."""
         self.model.train()
         epoch_losses = {
@@ -129,14 +129,55 @@ class SAETrainer:
         }
         
         for batch in dataloader:
+            
+            batch = batch.to(self.device)
+            batch.requires_grad = True
+            # self.optimizer.zero_grad()
+            # loss, loss_dict = self.compute_loss(batch)
+            # loss.backward()
+            
+            # === Forward and compute loss for FGSM ===
+            activations, reconstructed = self.model(batch)
+            recon_loss = F.mse_loss(reconstructed, batch)
+            sparsity_loss = self.l1_lambda * activations.abs().mean()
+            total_loss = recon_loss + sparsity_loss
+            total_loss.backward()
+            epsilon = 0.0
+            # === FGSM perturbation ===
+            grad_sign = batch.grad.sign()
+            perturbed_batch = batch + epsilon * grad_sign
+            perturbed_batch = torch.clamp(perturbed_batch, 0.0, 1.0)
+
+            
+            # === Re-run model on perturbed input ===
             self.optimizer.zero_grad()
-            loss, loss_dict = self.compute_loss(batch)
+            activations_adv, reconstructed_adv = self.model(perturbed_batch.detach())
+            recon_loss = F.mse_loss(reconstructed_adv, batch)
+            sparsity_loss = self.l1_lambda * activations_adv.abs().mean()
+            loss = recon_loss + sparsity_loss
             loss.backward()
             self.optimizer.step()
             
-            for k, v in loss_dict.items():
-                epoch_losses[k] += v
+            epoch_losses['total_loss'] += loss.item()
+            epoch_losses['reconstruction_loss'] += recon_loss.item()
+            epoch_losses['sparsity_loss'] += sparsity_loss.item()
         
+            #  # === FGSM Perturbation ===
+            # with torch.no_grad():
+            #     grad_sign = batch.grad.sign()
+            #     perturbed_batch = batch + epsilon * grad_sign
+            #     perturbed_batch = torch.clamp(perturbed_batch, 0.0, 1.0)  # keep in valid range
+            
+            # # Recompute loss with perturbed input
+            # perturbed_batch = perturbed_batch.detach()  # Stop gradient from flowing further
+            # loss, loss_dict = self.compute_loss(perturbed_batch)
+            # loss.backward()
+            # self.optimizer.step()
+            
+            
+            # for k, v in loss_dict.items():
+            #     epoch_losses[k] += v
+
         # Average losses
         for k in epoch_losses:
             epoch_losses[k] /= len(dataloader)
@@ -161,7 +202,7 @@ class SAETrainer:
         }
         
         for epoch in range(self.n_epochs):
-            epoch_losses = self.train_epoch(dataloader)
+            epoch_losses = self.train_epoch(dataloader, 0.1)
             
             # Update history
             for k, v in epoch_losses.items():

@@ -12,7 +12,7 @@ class NNsightModelWrapper:
         self.model = NNsight(model)
         self.device = device or next(model.parameters()).device
         self._base_model = model  # Store reference to original model
-    
+    #max_activation = number of samples 
     def get_activations(self, dataloader, layer_name, max_activations=10000):
         """Extract activations using nnsight tracing.
         
@@ -80,7 +80,8 @@ class NNsightModelWrapper:
 
 class MLP(nn.Module):
     """Simple MLP classifier."""
-    
+    #Still for a binary class
+    #Question: If i want to do multiclass do I just change this part ?
     def __init__(self, hidden_dim=32, image_size=28, num_classes=1):
         super().__init__()
         self.flatten = nn.Flatten()
@@ -88,7 +89,7 @@ class MLP(nn.Module):
         # Define layers
         self.fc1 = nn.Linear(image_size * image_size, hidden_dim)
         self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(hidden_dim, num_classes)
+        self.fc2 = nn.Linear(hidden_dim, num_classes) #Shouldnt we have a sigmoid value
         
     def forward(self, x):
         x = self.flatten(x)
@@ -101,12 +102,13 @@ class MLP(nn.Module):
 class CNN(nn.Module):
     """Simple CNN classifier."""
     
-    def __init__(self, image_size=28, num_classes=1):
+    def __init__(self, image_size=28, num_classes=1): #For cifar 10 Image_size = 32, num classes = 10
         super().__init__()
         
         # Feature extraction layers
+        #Change channels 1 --> 3
         self.features = nn.Sequential(
-            nn.Conv2d(1, 16, kernel_size=3, padding=1),
+            nn.Conv2d(1, 16, kernel_size=3, padding=1), #Number of conv chanels should be 3 for CIFAR10
             nn.ReLU(),
             nn.MaxPool2d(2),
             nn.Conv2d(16, 32, kernel_size=3, padding=1),
@@ -127,6 +129,7 @@ class CNN(nn.Module):
         
     def forward(self, x):
         # Add channel dimension if missing
+        
         if x.dim() == 3:
             x = x.unsqueeze(1)
             
@@ -213,7 +216,7 @@ if __name__ == "__main__":
     mlp = create_model('mlp', hidden_dim=32, image_size=28, num_classes=1)
     explore_model_structure(mlp)
 
-    cnn = create_model('cnn', image_size=28, num_classes=1)
+    cnn = create_model('cnn', image_size=28, num_classes=10)
     explore_model_structure(cnn)
     
     # Test with a more complex model

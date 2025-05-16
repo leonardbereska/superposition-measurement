@@ -1,0 +1,2826 @@
+Current working directory: c:\Users\danie\Documents\SuperpositionSAE\superposition-measurement\experiments\adversarial robustness
+Using device: cuda
+Data directory: c:\Users\danie\Documents\SuperpositionSAE\superposition-measurement\data
+Results directory: c:\Users\danie\Documents\SuperpositionSAE\superposition-measurement\results\adversarial_robustness
+
+
+cuda
+c:\Users\danie\anaconda3\envs\smooth2\lib\site-packages\tqdm\auto.py:21: TqdmWarning: IProgress not found. Please update jupyter and ipywidgets. See https://ipywidgets.readthedocs.io/en/stable/user_install.html
+  from .autonotebook import tqdm as notebook_tqdm
+Running experiments for epsilon=0.0
+Run 1/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.2388
+Val accuracy: 97.76%
+Adversarial accuracies:
+ε=0.000: 97.8%
+ε=0.020: 96.4%
+ε=0.040: 94.4%
+ε=0.060: 92.1%
+ε=0.080: 88.2%
+ε=0.100: 83.2%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0170
+Val accuracy: 98.98%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.1%
+ε=0.040: 96.6%
+ε=0.060: 94.4%
+ε=0.080: 90.5%
+ε=0.100: 85.5%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0054
+Val accuracy: 98.84%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 97.9%
+ε=0.040: 96.2%
+ε=0.060: 93.4%
+ε=0.080: 89.1%
+ε=0.100: 84.5%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0034
+Val accuracy: 99.09%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.3%
+ε=0.040: 96.7%
+ε=0.060: 94.1%
+ε=0.080: 90.5%
+ε=0.100: 86.3%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0038
+Val accuracy: 99.08%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.1%
+ε=0.040: 96.3%
+ε=0.060: 93.4%
+ε=0.080: 89.6%
+ε=0.100: 85.2%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 2.02e-02, Reconstruction: 9.64e-03, Sparsity: 1.05e-02
+Epoch 11/50 - Total Loss: 4.37e-03, Reconstruction: 3.35e-04, Sparsity: 4.03e-03
+Epoch 21/50 - Total Loss: 3.43e-03, Reconstruction: 1.88e-04, Sparsity: 3.24e-03
+Epoch 31/50 - Total Loss: 2.75e-03, Reconstruction: 1.59e-04, Sparsity: 2.59e-03
+Epoch 41/50 - Total Loss: 2.48e-03, Reconstruction: 1.35e-04, Sparsity: 2.34e-03
+Feature Count: 11.62
+Robustness Score: 86.05
+----------------------------------------
+Run 2/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.2171
+Val accuracy: 98.05%
+Adversarial accuracies:
+ε=0.000: 98.0%
+ε=0.020: 96.8%
+ε=0.040: 94.9%
+ε=0.060: 92.3%
+ε=0.080: 88.5%
+ε=0.100: 83.2%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0155
+Val accuracy: 98.86%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.7%
+ε=0.040: 95.8%
+ε=0.060: 92.9%
+ε=0.080: 88.2%
+ε=0.100: 82.3%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0058
+Val accuracy: 99.07%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 97.9%
+ε=0.040: 95.8%
+ε=0.060: 92.4%
+ε=0.080: 87.7%
+ε=0.100: 81.1%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0021
+Val accuracy: 99.13%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.1%
+ε=0.040: 96.0%
+ε=0.060: 93.0%
+ε=0.080: 88.8%
+ε=0.100: 84.1%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0034
+Val accuracy: 99.07%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 97.9%
+ε=0.040: 95.7%
+ε=0.060: 92.7%
+ε=0.080: 89.0%
+ε=0.100: 84.5%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 2.56e-02, Reconstruction: 1.21e-02, Sparsity: 1.35e-02
+Epoch 11/50 - Total Loss: 6.22e-03, Reconstruction: 4.91e-04, Sparsity: 5.73e-03
+Epoch 21/50 - Total Loss: 4.65e-03, Reconstruction: 2.79e-04, Sparsity: 4.37e-03
+Epoch 31/50 - Total Loss: 3.92e-03, Reconstruction: 2.09e-04, Sparsity: 3.71e-03
+Epoch 41/50 - Total Loss: 3.53e-03, Reconstruction: 1.88e-04, Sparsity: 3.34e-03
+Feature Count: 9.17
+Robustness Score: 84.97
+----------------------------------------
+Run 3/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.2086
+Val accuracy: 97.81%
+Adversarial accuracies:
+ε=0.000: 97.8%
+ε=0.020: 96.7%
+ε=0.040: 95.0%
+ε=0.060: 92.6%
+ε=0.080: 89.1%
+ε=0.100: 83.9%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0160
+Val accuracy: 99.07%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.2%
+ε=0.040: 96.5%
+ε=0.060: 94.0%
+ε=0.080: 90.2%
+ε=0.100: 85.3%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0061
+Val accuracy: 98.92%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.8%
+ε=0.040: 96.0%
+ε=0.060: 93.2%
+ε=0.080: 89.3%
+ε=0.100: 84.2%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0047
+Val accuracy: 98.76%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 97.2%
+ε=0.040: 94.8%
+ε=0.060: 91.4%
+ε=0.080: 86.8%
+ε=0.100: 82.0%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0022
+Val accuracy: 99.00%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 97.8%
+ε=0.040: 95.5%
+ε=0.060: 92.5%
+ε=0.080: 88.6%
+ε=0.100: 84.4%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 2.71e-02, Reconstruction: 1.60e-02, Sparsity: 1.12e-02
+Epoch 11/50 - Total Loss: 5.35e-03, Reconstruction: 4.63e-04, Sparsity: 4.89e-03
+Epoch 21/50 - Total Loss: 4.18e-03, Reconstruction: 2.73e-04, Sparsity: 3.91e-03
+Epoch 31/50 - Total Loss: 3.70e-03, Reconstruction: 2.35e-04, Sparsity: 3.46e-03
+Epoch 41/50 - Total Loss: 3.27e-03, Reconstruction: 1.84e-04, Sparsity: 3.09e-03
+Feature Count: 10.50
+Robustness Score: 87.40
+----------------------------------------
+Run 4/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.2087
+Val accuracy: 97.75%
+Adversarial accuracies:
+ε=0.000: 97.8%
+ε=0.020: 96.3%
+ε=0.040: 94.3%
+ε=0.060: 91.3%
+ε=0.080: 87.6%
+ε=0.100: 82.8%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0164
+Val accuracy: 98.93%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 98.1%
+ε=0.040: 96.7%
+ε=0.060: 94.1%
+ε=0.080: 90.2%
+ε=0.100: 84.9%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0062
+Val accuracy: 99.06%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 97.9%
+ε=0.040: 96.2%
+ε=0.060: 93.3%
+ε=0.080: 88.8%
+ε=0.100: 83.3%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0038
+Val accuracy: 98.82%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 97.6%
+ε=0.040: 95.7%
+ε=0.060: 92.8%
+ε=0.080: 88.9%
+ε=0.100: 83.5%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0027
+Val accuracy: 99.15%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.0%
+ε=0.040: 96.2%
+ε=0.060: 93.3%
+ε=0.080: 89.8%
+ε=0.100: 86.2%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 2.72e-02, Reconstruction: 1.55e-02, Sparsity: 1.17e-02
+Epoch 11/50 - Total Loss: 6.23e-03, Reconstruction: 4.76e-04, Sparsity: 5.75e-03
+Epoch 21/50 - Total Loss: 5.00e-03, Reconstruction: 3.49e-04, Sparsity: 4.65e-03
+Epoch 31/50 - Total Loss: 4.31e-03, Reconstruction: 3.23e-04, Sparsity: 3.98e-03
+Epoch 41/50 - Total Loss: 4.04e-03, Reconstruction: 3.07e-04, Sparsity: 3.74e-03
+Feature Count: 9.31
+Robustness Score: 86.74
+----------------------------------------
+Run 5/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.2252
+Val accuracy: 97.84%
+Adversarial accuracies:
+ε=0.000: 97.8%
+ε=0.020: 96.4%
+ε=0.040: 94.5%
+ε=0.060: 91.6%
+ε=0.080: 87.1%
+ε=0.100: 80.8%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0162
+Val accuracy: 98.99%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.1%
+ε=0.040: 96.5%
+ε=0.060: 93.9%
+ε=0.080: 90.1%
+ε=0.100: 84.4%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0069
+Val accuracy: 99.11%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.2%
+ε=0.040: 96.6%
+ε=0.060: 93.6%
+ε=0.080: 89.0%
+ε=0.100: 83.0%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0035
+Val accuracy: 98.99%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 97.8%
+ε=0.040: 96.0%
+ε=0.060: 93.1%
+ε=0.080: 88.8%
+ε=0.100: 84.5%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0029
+Val accuracy: 99.09%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.0%
+ε=0.040: 96.1%
+ε=0.060: 93.3%
+ε=0.080: 89.8%
+ε=0.100: 86.0%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.29e-02, Reconstruction: 1.75e-02, Sparsity: 1.54e-02
+Epoch 11/50 - Total Loss: 7.16e-03, Reconstruction: 5.48e-04, Sparsity: 6.61e-03
+Epoch 21/50 - Total Loss: 5.97e-03, Reconstruction: 4.39e-04, Sparsity: 5.53e-03
+Epoch 31/50 - Total Loss: 5.22e-03, Reconstruction: 4.01e-04, Sparsity: 4.82e-03
+Epoch 41/50 - Total Loss: 4.75e-03, Reconstruction: 3.71e-04, Sparsity: 4.38e-03
+Feature Count: 10.81
+Robustness Score: 85.84
+----------------------------------------
+Running experiments for epsilon=0.05
+Run 1/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.2776
+Val accuracy: 98.08%
+Adversarial accuracies:
+ε=0.000: 98.1%
+ε=0.020: 97.2%
+ε=0.040: 96.1%
+ε=0.060: 94.5%
+ε=0.080: 92.3%
+ε=0.100: 89.2%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0392
+Val accuracy: 99.08%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.4%
+ε=0.040: 97.5%
+ε=0.060: 96.4%
+ε=0.080: 94.7%
+ε=0.100: 92.3%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0174
+Val accuracy: 99.21%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.5%
+ε=0.040: 97.8%
+ε=0.060: 96.8%
+ε=0.080: 95.4%
+ε=0.100: 93.5%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0103
+Val accuracy: 99.13%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.6%
+ε=0.040: 97.8%
+ε=0.060: 96.8%
+ε=0.080: 95.3%
+ε=0.100: 93.4%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0089
+Val accuracy: 99.26%
+Adversarial accuracies:
+ε=0.000: 99.3%
+ε=0.020: 98.7%
+ε=0.040: 98.0%
+ε=0.060: 97.1%
+ε=0.080: 95.6%
+ε=0.100: 93.8%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.11e-02, Reconstruction: 1.83e-02, Sparsity: 1.29e-02
+Epoch 11/50 - Total Loss: 6.74e-03, Reconstruction: 4.90e-04, Sparsity: 6.25e-03
+Epoch 21/50 - Total Loss: 5.30e-03, Reconstruction: 3.18e-04, Sparsity: 4.98e-03
+Epoch 31/50 - Total Loss: 4.70e-03, Reconstruction: 3.11e-04, Sparsity: 4.39e-03
+Epoch 41/50 - Total Loss: 4.29e-03, Reconstruction: 2.97e-04, Sparsity: 3.99e-03
+Feature Count: 9.94
+Robustness Score: 93.53
+----------------------------------------
+Run 2/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.2903
+Val accuracy: 98.10%
+Adversarial accuracies:
+ε=0.000: 98.1%
+ε=0.020: 97.2%
+ε=0.040: 95.8%
+ε=0.060: 94.2%
+ε=0.080: 91.6%
+ε=0.100: 88.4%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0371
+Val accuracy: 99.11%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.3%
+ε=0.040: 97.4%
+ε=0.060: 96.2%
+ε=0.080: 94.5%
+ε=0.100: 92.3%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0160
+Val accuracy: 99.16%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.7%
+ε=0.040: 97.8%
+ε=0.060: 96.6%
+ε=0.080: 95.1%
+ε=0.100: 93.0%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0116
+Val accuracy: 99.15%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.5%
+ε=0.040: 98.0%
+ε=0.060: 96.9%
+ε=0.080: 95.7%
+ε=0.100: 93.9%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0054
+Val accuracy: 99.15%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.8%
+ε=0.040: 98.0%
+ε=0.060: 97.1%
+ε=0.080: 95.8%
+ε=0.100: 94.0%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.48e-02, Reconstruction: 2.05e-02, Sparsity: 1.43e-02
+Epoch 11/50 - Total Loss: 7.16e-03, Reconstruction: 4.96e-04, Sparsity: 6.67e-03
+Epoch 21/50 - Total Loss: 5.66e-03, Reconstruction: 3.76e-04, Sparsity: 5.28e-03
+Epoch 31/50 - Total Loss: 4.94e-03, Reconstruction: 3.36e-04, Sparsity: 4.61e-03
+Epoch 41/50 - Total Loss: 4.68e-03, Reconstruction: 3.27e-04, Sparsity: 4.36e-03
+Feature Count: 9.81
+Robustness Score: 93.31
+----------------------------------------
+Run 3/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.3196
+Val accuracy: 97.57%
+Adversarial accuracies:
+ε=0.000: 97.6%
+ε=0.020: 96.4%
+ε=0.040: 94.6%
+ε=0.060: 92.5%
+ε=0.080: 89.3%
+ε=0.100: 84.8%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0384
+Val accuracy: 98.84%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 98.3%
+ε=0.040: 97.3%
+ε=0.060: 95.9%
+ε=0.080: 94.2%
+ε=0.100: 91.6%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0186
+Val accuracy: 99.25%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.7%
+ε=0.040: 97.9%
+ε=0.060: 96.7%
+ε=0.080: 95.1%
+ε=0.100: 92.5%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0107
+Val accuracy: 99.13%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.5%
+ε=0.040: 97.8%
+ε=0.060: 96.7%
+ε=0.080: 95.3%
+ε=0.100: 93.4%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0057
+Val accuracy: 99.28%
+Adversarial accuracies:
+ε=0.000: 99.3%
+ε=0.020: 98.7%
+ε=0.040: 98.0%
+ε=0.060: 97.0%
+ε=0.080: 95.6%
+ε=0.100: 94.0%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.55e-02, Reconstruction: 1.99e-02, Sparsity: 1.56e-02
+Epoch 11/50 - Total Loss: 7.82e-03, Reconstruction: 5.29e-04, Sparsity: 7.29e-03
+Epoch 21/50 - Total Loss: 6.12e-03, Reconstruction: 4.07e-04, Sparsity: 5.71e-03
+Epoch 31/50 - Total Loss: 5.53e-03, Reconstruction: 3.66e-04, Sparsity: 5.16e-03
+Epoch 41/50 - Total Loss: 5.31e-03, Reconstruction: 3.68e-04, Sparsity: 4.94e-03
+Feature Count: 9.52
+Robustness Score: 92.78
+----------------------------------------
+Run 4/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.2760
+Val accuracy: 98.33%
+Adversarial accuracies:
+ε=0.000: 98.3%
+ε=0.020: 97.5%
+ε=0.040: 96.2%
+ε=0.060: 94.6%
+ε=0.080: 92.1%
+ε=0.100: 88.6%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0351
+Val accuracy: 99.10%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.5%
+ε=0.040: 97.5%
+ε=0.060: 96.2%
+ε=0.080: 94.8%
+ε=0.100: 92.9%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0150
+Val accuracy: 99.15%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.7%
+ε=0.040: 98.0%
+ε=0.060: 97.0%
+ε=0.080: 95.5%
+ε=0.100: 93.5%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0086
+Val accuracy: 99.27%
+Adversarial accuracies:
+ε=0.000: 99.3%
+ε=0.020: 98.7%
+ε=0.040: 97.9%
+ε=0.060: 97.1%
+ε=0.080: 95.4%
+ε=0.100: 93.5%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0071
+Val accuracy: 99.38%
+Adversarial accuracies:
+ε=0.000: 99.4%
+ε=0.020: 98.8%
+ε=0.040: 98.2%
+ε=0.060: 97.2%
+ε=0.080: 96.0%
+ε=0.100: 94.2%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.32e-02, Reconstruction: 1.91e-02, Sparsity: 1.41e-02
+Epoch 11/50 - Total Loss: 7.72e-03, Reconstruction: 4.52e-04, Sparsity: 7.27e-03
+Epoch 21/50 - Total Loss: 5.84e-03, Reconstruction: 3.16e-04, Sparsity: 5.52e-03
+Epoch 31/50 - Total Loss: 5.14e-03, Reconstruction: 3.33e-04, Sparsity: 4.81e-03
+Epoch 41/50 - Total Loss: 4.78e-03, Reconstruction: 3.51e-04, Sparsity: 4.42e-03
+Feature Count: 9.67
+Robustness Score: 94.21
+----------------------------------------
+Run 5/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.2954
+Val accuracy: 97.67%
+Adversarial accuracies:
+ε=0.000: 97.7%
+ε=0.020: 96.6%
+ε=0.040: 95.3%
+ε=0.060: 93.4%
+ε=0.080: 90.6%
+ε=0.100: 87.2%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0380
+Val accuracy: 99.11%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.5%
+ε=0.040: 97.7%
+ε=0.060: 96.4%
+ε=0.080: 94.9%
+ε=0.100: 92.7%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0166
+Val accuracy: 99.09%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.6%
+ε=0.040: 97.9%
+ε=0.060: 96.7%
+ε=0.080: 95.2%
+ε=0.100: 93.0%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0108
+Val accuracy: 99.07%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.5%
+ε=0.040: 97.6%
+ε=0.060: 96.5%
+ε=0.080: 95.0%
+ε=0.100: 93.2%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0064
+Val accuracy: 99.12%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.6%
+ε=0.040: 97.9%
+ε=0.060: 96.9%
+ε=0.080: 95.6%
+ε=0.100: 93.7%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.73e-02, Reconstruction: 2.35e-02, Sparsity: 1.37e-02
+Epoch 11/50 - Total Loss: 7.77e-03, Reconstruction: 5.78e-04, Sparsity: 7.19e-03
+Epoch 21/50 - Total Loss: 6.16e-03, Reconstruction: 4.63e-04, Sparsity: 5.69e-03
+Epoch 31/50 - Total Loss: 5.65e-03, Reconstruction: 4.44e-04, Sparsity: 5.20e-03
+Epoch 41/50 - Total Loss: 5.20e-03, Reconstruction: 4.27e-04, Sparsity: 4.78e-03
+Feature Count: 10.77
+Robustness Score: 94.04
+----------------------------------------
+Running experiments for epsilon=0.1
+Run 1/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.3514
+Val accuracy: 97.92%
+Adversarial accuracies:
+ε=0.000: 97.9%
+ε=0.020: 97.0%
+ε=0.040: 96.0%
+ε=0.060: 94.8%
+ε=0.080: 93.3%
+ε=0.100: 91.6%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0655
+Val accuracy: 99.05%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.6%
+ε=0.040: 98.2%
+ε=0.060: 97.4%
+ε=0.080: 96.7%
+ε=0.100: 95.5%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0359
+Val accuracy: 99.19%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.8%
+ε=0.040: 98.3%
+ε=0.060: 97.7%
+ε=0.080: 97.1%
+ε=0.100: 96.0%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0206
+Val accuracy: 99.25%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.8%
+ε=0.040: 98.3%
+ε=0.060: 97.9%
+ε=0.080: 97.3%
+ε=0.100: 96.5%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0109
+Val accuracy: 99.06%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.7%
+ε=0.040: 98.4%
+ε=0.060: 98.0%
+ε=0.080: 97.6%
+ε=0.100: 96.9%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.31e-02, Reconstruction: 1.79e-02, Sparsity: 1.52e-02
+Epoch 11/50 - Total Loss: 6.54e-03, Reconstruction: 5.27e-04, Sparsity: 6.02e-03
+Epoch 21/50 - Total Loss: 5.34e-03, Reconstruction: 3.96e-04, Sparsity: 4.95e-03
+Epoch 31/50 - Total Loss: 4.76e-03, Reconstruction: 3.44e-04, Sparsity: 4.41e-03
+Epoch 41/50 - Total Loss: 4.51e-03, Reconstruction: 3.10e-04, Sparsity: 4.20e-03
+Feature Count: 10.90
+Robustness Score: 98.19
+----------------------------------------
+Run 2/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.3578
+Val accuracy: 98.24%
+Adversarial accuracies:
+ε=0.000: 98.2%
+ε=0.020: 97.6%
+ε=0.040: 96.7%
+ε=0.060: 95.4%
+ε=0.080: 93.9%
+ε=0.100: 92.0%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0574
+Val accuracy: 99.13%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.8%
+ε=0.040: 98.3%
+ε=0.060: 97.6%
+ε=0.080: 96.9%
+ε=0.100: 96.0%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0345
+Val accuracy: 99.15%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.8%
+ε=0.040: 98.3%
+ε=0.060: 97.7%
+ε=0.080: 96.8%
+ε=0.100: 95.8%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0219
+Val accuracy: 99.26%
+Adversarial accuracies:
+ε=0.000: 99.3%
+ε=0.020: 98.9%
+ε=0.040: 98.5%
+ε=0.060: 98.0%
+ε=0.080: 97.3%
+ε=0.100: 96.3%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0157
+Val accuracy: 99.29%
+Adversarial accuracies:
+ε=0.000: 99.3%
+ε=0.020: 98.8%
+ε=0.040: 98.3%
+ε=0.060: 97.7%
+ε=0.080: 97.1%
+ε=0.100: 96.3%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 4.70e-02, Reconstruction: 3.08e-02, Sparsity: 1.61e-02
+Epoch 11/50 - Total Loss: 9.40e-03, Reconstruction: 7.64e-04, Sparsity: 8.64e-03
+Epoch 21/50 - Total Loss: 7.35e-03, Reconstruction: 6.83e-04, Sparsity: 6.66e-03
+Epoch 31/50 - Total Loss: 6.54e-03, Reconstruction: 5.71e-04, Sparsity: 5.96e-03
+Epoch 41/50 - Total Loss: 6.21e-03, Reconstruction: 5.72e-04, Sparsity: 5.63e-03
+Feature Count: 7.78
+Robustness Score: 96.23
+----------------------------------------
+Run 3/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.3663
+Val accuracy: 98.07%
+Adversarial accuracies:
+ε=0.000: 98.1%
+ε=0.020: 97.3%
+ε=0.040: 96.1%
+ε=0.060: 94.9%
+ε=0.080: 93.3%
+ε=0.100: 91.3%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0657
+Val accuracy: 99.02%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.6%
+ε=0.040: 98.2%
+ε=0.060: 97.5%
+ε=0.080: 96.6%
+ε=0.100: 95.2%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0398
+Val accuracy: 99.05%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.5%
+ε=0.040: 98.0%
+ε=0.060: 97.4%
+ε=0.080: 96.7%
+ε=0.100: 95.7%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0190
+Val accuracy: 99.17%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.8%
+ε=0.040: 98.2%
+ε=0.060: 97.5%
+ε=0.080: 96.8%
+ε=0.100: 95.8%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0178
+Val accuracy: 99.21%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.9%
+ε=0.040: 98.5%
+ε=0.060: 98.2%
+ε=0.080: 97.8%
+ε=0.100: 97.3%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 4.16e-02, Reconstruction: 2.62e-02, Sparsity: 1.55e-02
+Epoch 11/50 - Total Loss: 7.74e-03, Reconstruction: 4.26e-04, Sparsity: 7.32e-03
+Epoch 21/50 - Total Loss: 6.14e-03, Reconstruction: 3.86e-04, Sparsity: 5.76e-03
+Epoch 31/50 - Total Loss: 5.25e-03, Reconstruction: 3.35e-04, Sparsity: 4.92e-03
+Epoch 41/50 - Total Loss: 5.03e-03, Reconstruction: 3.15e-04, Sparsity: 4.71e-03
+Feature Count: 8.95
+Robustness Score: 94.82
+----------------------------------------
+Run 4/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.3429
+Val accuracy: 98.13%
+Adversarial accuracies:
+ε=0.000: 98.1%
+ε=0.020: 97.3%
+ε=0.040: 96.4%
+ε=0.060: 95.2%
+ε=0.080: 93.8%
+ε=0.100: 91.9%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0620
+Val accuracy: 99.12%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.8%
+ε=0.040: 98.2%
+ε=0.060: 97.5%
+ε=0.080: 96.7%
+ε=0.100: 95.7%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0322
+Val accuracy: 99.17%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.7%
+ε=0.040: 98.2%
+ε=0.060: 97.7%
+ε=0.080: 96.9%
+ε=0.100: 96.0%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0258
+Val accuracy: 99.20%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.8%
+ε=0.040: 98.3%
+ε=0.060: 97.9%
+ε=0.080: 97.2%
+ε=0.100: 96.2%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0133
+Val accuracy: 99.32%
+Adversarial accuracies:
+ε=0.000: 99.3%
+ε=0.020: 99.0%
+ε=0.040: 98.7%
+ε=0.060: 98.2%
+ε=0.080: 97.6%
+ε=0.100: 96.7%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.48e-02, Reconstruction: 1.86e-02, Sparsity: 1.62e-02
+Epoch 11/50 - Total Loss: 8.46e-03, Reconstruction: 5.78e-04, Sparsity: 7.89e-03
+Epoch 21/50 - Total Loss: 7.04e-03, Reconstruction: 5.26e-04, Sparsity: 6.51e-03
+Epoch 31/50 - Total Loss: 6.34e-03, Reconstruction: 5.08e-04, Sparsity: 5.83e-03
+Epoch 41/50 - Total Loss: 5.86e-03, Reconstruction: 4.10e-04, Sparsity: 5.45e-03
+Feature Count: 10.59
+Robustness Score: 96.85
+----------------------------------------
+Run 5/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.3640
+Val accuracy: 98.15%
+Adversarial accuracies:
+ε=0.000: 98.2%
+ε=0.020: 97.2%
+ε=0.040: 96.2%
+ε=0.060: 94.9%
+ε=0.080: 93.0%
+ε=0.100: 90.7%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0658
+Val accuracy: 99.02%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.6%
+ε=0.040: 97.9%
+ε=0.060: 97.2%
+ε=0.080: 96.2%
+ε=0.100: 95.0%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0375
+Val accuracy: 99.25%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.7%
+ε=0.040: 98.2%
+ε=0.060: 97.6%
+ε=0.080: 96.8%
+ε=0.100: 95.6%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0214
+Val accuracy: 99.22%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.7%
+ε=0.040: 98.1%
+ε=0.060: 97.5%
+ε=0.080: 96.6%
+ε=0.100: 95.7%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0154
+Val accuracy: 99.21%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.9%
+ε=0.040: 98.4%
+ε=0.060: 97.8%
+ε=0.080: 97.1%
+ε=0.100: 96.1%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.73e-02, Reconstruction: 2.46e-02, Sparsity: 1.27e-02
+Epoch 11/50 - Total Loss: 7.67e-03, Reconstruction: 5.60e-04, Sparsity: 7.11e-03
+Epoch 21/50 - Total Loss: 6.11e-03, Reconstruction: 4.13e-04, Sparsity: 5.70e-03
+Epoch 31/50 - Total Loss: 5.60e-03, Reconstruction: 3.62e-04, Sparsity: 5.23e-03
+Epoch 41/50 - Total Loss: 5.21e-03, Reconstruction: 3.41e-04, Sparsity: 4.87e-03
+Feature Count: 10.09
+Robustness Score: 95.34
+----------------------------------------
+Running experiments for epsilon=0.15
+Run 1/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.4682
+Val accuracy: 97.77%
+Adversarial accuracies:
+ε=0.000: 97.8%
+ε=0.020: 97.0%
+ε=0.040: 95.8%
+ε=0.060: 94.6%
+ε=0.080: 93.3%
+ε=0.100: 91.5%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0850
+Val accuracy: 99.12%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.5%
+ε=0.040: 97.8%
+ε=0.060: 97.2%
+ε=0.080: 96.7%
+ε=0.100: 96.2%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0327
+Val accuracy: 99.09%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.7%
+ε=0.040: 98.4%
+ε=0.060: 98.3%
+ε=0.080: 98.3%
+ε=0.100: 98.3%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0288
+Val accuracy: 99.16%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.7%
+ε=0.040: 98.4%
+ε=0.060: 98.2%
+ε=0.080: 97.9%
+ε=0.100: 97.7%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0145
+Val accuracy: 99.18%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.7%
+ε=0.040: 98.4%
+ε=0.060: 98.2%
+ε=0.080: 98.3%
+ε=0.100: 98.4%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 8.59e-02, Reconstruction: 6.71e-02, Sparsity: 1.88e-02
+Epoch 11/50 - Total Loss: 1.24e-02, Reconstruction: 6.66e-04, Sparsity: 1.18e-02
+Epoch 21/50 - Total Loss: 1.07e-02, Reconstruction: 4.98e-04, Sparsity: 1.02e-02
+Epoch 31/50 - Total Loss: 9.05e-03, Reconstruction: 4.56e-04, Sparsity: 8.59e-03
+Epoch 41/50 - Total Loss: 7.91e-03, Reconstruction: 4.89e-04, Sparsity: 7.42e-03
+Feature Count: 9.43
+Robustness Score: 98.11
+----------------------------------------
+Run 2/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.4818
+Val accuracy: 97.56%
+Adversarial accuracies:
+ε=0.000: 97.6%
+ε=0.020: 96.8%
+ε=0.040: 95.8%
+ε=0.060: 94.8%
+ε=0.080: 93.5%
+ε=0.100: 91.9%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0442
+Val accuracy: 98.97%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.5%
+ε=0.040: 98.2%
+ε=0.060: 98.2%
+ε=0.080: 98.3%
+ε=0.100: 98.4%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0623
+Val accuracy: 99.14%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.8%
+ε=0.040: 98.3%
+ε=0.060: 97.9%
+ε=0.080: 97.7%
+ε=0.100: 97.5%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0217
+Val accuracy: 98.86%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.9%
+ε=0.040: 96.6%
+ε=0.060: 94.5%
+ε=0.080: 90.9%
+ε=0.100: 85.6%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0598
+Val accuracy: 99.05%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.5%
+ε=0.040: 97.8%
+ε=0.060: 96.8%
+ε=0.080: 95.7%
+ε=0.100: 94.5%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 5.44e-02, Reconstruction: 3.92e-02, Sparsity: 1.51e-02
+Epoch 11/50 - Total Loss: 8.39e-03, Reconstruction: 5.76e-04, Sparsity: 7.81e-03
+Epoch 21/50 - Total Loss: 6.84e-03, Reconstruction: 4.40e-04, Sparsity: 6.40e-03
+Epoch 31/50 - Total Loss: 5.84e-03, Reconstruction: 3.86e-04, Sparsity: 5.46e-03
+Epoch 41/50 - Total Loss: 5.53e-03, Reconstruction: 3.75e-04, Sparsity: 5.16e-03
+Feature Count: 9.31
+Robustness Score: 98.57
+----------------------------------------
+Run 3/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.4774
+Val accuracy: 98.21%
+Adversarial accuracies:
+ε=0.000: 98.2%
+ε=0.020: 97.3%
+ε=0.040: 96.5%
+ε=0.060: 95.4%
+ε=0.080: 94.1%
+ε=0.100: 92.2%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0967
+Val accuracy: 99.08%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.6%
+ε=0.040: 98.1%
+ε=0.060: 97.6%
+ε=0.080: 96.9%
+ε=0.100: 96.2%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0239
+Val accuracy: 99.12%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.7%
+ε=0.040: 98.4%
+ε=0.060: 98.1%
+ε=0.080: 97.8%
+ε=0.100: 97.7%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0126
+Val accuracy: 99.05%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.5%
+ε=0.040: 98.3%
+ε=0.060: 98.2%
+ε=0.080: 98.0%
+ε=0.100: 97.9%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0035
+Val accuracy: 98.97%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.5%
+ε=0.040: 98.2%
+ε=0.060: 98.2%
+ε=0.080: 98.4%
+ε=0.100: 98.6%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 2.81e-02, Reconstruction: 1.45e-02, Sparsity: 1.36e-02
+Epoch 11/50 - Total Loss: 7.04e-03, Reconstruction: 5.11e-04, Sparsity: 6.52e-03
+Epoch 21/50 - Total Loss: 5.74e-03, Reconstruction: 3.58e-04, Sparsity: 5.38e-03
+Epoch 31/50 - Total Loss: 4.92e-03, Reconstruction: 2.89e-04, Sparsity: 4.63e-03
+Epoch 41/50 - Total Loss: 4.50e-03, Reconstruction: 2.51e-04, Sparsity: 4.25e-03
+Feature Count: 11.35
+Robustness Score: 98.50
+----------------------------------------
+Run 4/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.4360
+Val accuracy: 98.15%
+Adversarial accuracies:
+ε=0.000: 98.2%
+ε=0.020: 97.4%
+ε=0.040: 96.6%
+ε=0.060: 95.9%
+ε=0.080: 94.6%
+ε=0.100: 93.2%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0768
+Val accuracy: 98.84%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 98.2%
+ε=0.040: 97.5%
+ε=0.060: 96.7%
+ε=0.080: 96.1%
+ε=0.100: 95.8%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0556
+Val accuracy: 99.10%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.7%
+ε=0.040: 98.1%
+ε=0.060: 97.5%
+ε=0.080: 97.2%
+ε=0.100: 97.2%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0147
+Val accuracy: 99.06%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.8%
+ε=0.040: 98.2%
+ε=0.060: 97.9%
+ε=0.080: 97.7%
+ε=0.100: 98.0%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0127
+Val accuracy: 99.21%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.7%
+ε=0.040: 98.0%
+ε=0.060: 97.1%
+ε=0.080: 96.2%
+ε=0.100: 96.3%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 4.41e-02, Reconstruction: 2.88e-02, Sparsity: 1.53e-02
+Epoch 11/50 - Total Loss: 1.01e-02, Reconstruction: 6.59e-04, Sparsity: 9.41e-03
+Epoch 21/50 - Total Loss: 8.19e-03, Reconstruction: 4.85e-04, Sparsity: 7.70e-03
+Epoch 31/50 - Total Loss: 6.81e-03, Reconstruction: 4.24e-04, Sparsity: 6.39e-03
+Epoch 41/50 - Total Loss: 6.37e-03, Reconstruction: 4.09e-04, Sparsity: 5.96e-03
+Feature Count: 9.63
+Robustness Score: 98.61
+----------------------------------------
+Run 5/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.4854
+Val accuracy: 98.05%
+Adversarial accuracies:
+ε=0.000: 98.0%
+ε=0.020: 97.2%
+ε=0.040: 96.5%
+ε=0.060: 95.5%
+ε=0.080: 94.2%
+ε=0.100: 92.5%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0331
+Val accuracy: 99.14%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.6%
+ε=0.040: 98.3%
+ε=0.060: 98.5%
+ε=0.080: 98.7%
+ε=0.100: 98.7%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0848
+Val accuracy: 99.15%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.8%
+ε=0.040: 98.3%
+ε=0.060: 97.8%
+ε=0.080: 97.3%
+ε=0.100: 96.7%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0324
+Val accuracy: 99.07%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.7%
+ε=0.040: 98.4%
+ε=0.060: 98.1%
+ε=0.080: 97.6%
+ε=0.100: 97.3%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0360
+Val accuracy: 99.15%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.6%
+ε=0.040: 98.2%
+ε=0.060: 97.8%
+ε=0.080: 97.5%
+ε=0.100: 97.0%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 6.31e-02, Reconstruction: 4.50e-02, Sparsity: 1.81e-02
+Epoch 11/50 - Total Loss: 1.05e-02, Reconstruction: 5.84e-04, Sparsity: 9.90e-03
+Epoch 21/50 - Total Loss: 8.33e-03, Reconstruction: 4.69e-04, Sparsity: 7.87e-03
+Epoch 31/50 - Total Loss: 7.16e-03, Reconstruction: 4.12e-04, Sparsity: 6.75e-03
+Epoch 41/50 - Total Loss: 6.48e-03, Reconstruction: 4.06e-04, Sparsity: 6.07e-03
+Feature Count: 9.87
+Robustness Score: 98.56
+----------------------------------------
+Running experiments for epsilon=0.2
+Run 1/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.5302
+Val accuracy: 97.68%
+Adversarial accuracies:
+ε=0.000: 97.7%
+ε=0.020: 97.0%
+ε=0.040: 96.2%
+ε=0.060: 95.1%
+ε=0.080: 93.9%
+ε=0.100: 92.7%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0492
+Val accuracy: 98.81%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 98.1%
+ε=0.040: 97.2%
+ε=0.060: 96.3%
+ε=0.080: 95.4%
+ε=0.100: 95.6%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0254
+Val accuracy: 99.01%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.3%
+ε=0.040: 97.3%
+ε=0.060: 96.7%
+ε=0.080: 96.5%
+ε=0.100: 96.2%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0158
+Val accuracy: 99.06%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.1%
+ε=0.040: 96.7%
+ε=0.060: 95.0%
+ε=0.080: 92.5%
+ε=0.100: 91.4%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0110
+Val accuracy: 99.00%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.3%
+ε=0.040: 97.4%
+ε=0.060: 96.3%
+ε=0.080: 95.4%
+ε=0.100: 95.4%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 4.58e-02, Reconstruction: 3.10e-02, Sparsity: 1.49e-02
+Epoch 11/50 - Total Loss: 7.71e-03, Reconstruction: 8.29e-04, Sparsity: 6.88e-03
+Epoch 21/50 - Total Loss: 6.33e-03, Reconstruction: 5.38e-04, Sparsity: 5.79e-03
+Epoch 31/50 - Total Loss: 5.50e-03, Reconstruction: 4.18e-04, Sparsity: 5.09e-03
+Epoch 41/50 - Total Loss: 5.06e-03, Reconstruction: 3.75e-04, Sparsity: 4.68e-03
+Feature Count: 9.98
+Robustness Score: 97.94
+----------------------------------------
+Run 2/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.5448
+Val accuracy: 97.96%
+Adversarial accuracies:
+ε=0.000: 98.0%
+ε=0.020: 97.2%
+ε=0.040: 96.6%
+ε=0.060: 95.7%
+ε=0.080: 94.6%
+ε=0.100: 93.5%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.1182
+Val accuracy: 99.16%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.7%
+ε=0.040: 98.3%
+ε=0.060: 97.6%
+ε=0.080: 97.0%
+ε=0.100: 96.4%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0313
+Val accuracy: 99.15%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.7%
+ε=0.040: 98.3%
+ε=0.060: 98.0%
+ε=0.080: 97.8%
+ε=0.100: 97.6%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0142
+Val accuracy: 98.93%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 98.5%
+ε=0.040: 98.0%
+ε=0.060: 97.7%
+ε=0.080: 97.5%
+ε=0.100: 98.0%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0151
+Val accuracy: 99.14%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.7%
+ε=0.040: 98.2%
+ε=0.060: 97.9%
+ε=0.080: 97.7%
+ε=0.100: 97.8%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 4.38e-02, Reconstruction: 2.91e-02, Sparsity: 1.47e-02
+Epoch 11/50 - Total Loss: 8.13e-03, Reconstruction: 6.21e-04, Sparsity: 7.51e-03
+Epoch 21/50 - Total Loss: 6.59e-03, Reconstruction: 5.02e-04, Sparsity: 6.09e-03
+Epoch 31/50 - Total Loss: 5.62e-03, Reconstruction: 4.48e-04, Sparsity: 5.17e-03
+Epoch 41/50 - Total Loss: 5.13e-03, Reconstruction: 4.44e-04, Sparsity: 4.69e-03
+Feature Count: 10.61
+Robustness Score: 98.30
+----------------------------------------
+Run 3/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.5607
+Val accuracy: 97.82%
+Adversarial accuracies:
+ε=0.000: 97.8%
+ε=0.020: 97.2%
+ε=0.040: 96.2%
+ε=0.060: 95.4%
+ε=0.080: 94.2%
+ε=0.100: 93.0%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0589
+Val accuracy: 98.85%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 98.4%
+ε=0.040: 97.9%
+ε=0.060: 97.7%
+ε=0.080: 97.5%
+ε=0.100: 97.4%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0132
+Val accuracy: 98.90%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 98.0%
+ε=0.040: 97.2%
+ε=0.060: 95.9%
+ε=0.080: 94.8%
+ε=0.100: 95.0%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0093
+Val accuracy: 99.01%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.4%
+ε=0.040: 97.8%
+ε=0.060: 97.3%
+ε=0.080: 96.8%
+ε=0.100: 96.6%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0097
+Val accuracy: 99.19%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.6%
+ε=0.040: 98.0%
+ε=0.060: 97.1%
+ε=0.080: 96.2%
+ε=0.100: 95.5%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 4.09e-02, Reconstruction: 2.43e-02, Sparsity: 1.66e-02
+Epoch 11/50 - Total Loss: 9.47e-03, Reconstruction: 7.13e-04, Sparsity: 8.75e-03
+Epoch 21/50 - Total Loss: 7.47e-03, Reconstruction: 4.80e-04, Sparsity: 6.99e-03
+Epoch 31/50 - Total Loss: 6.52e-03, Reconstruction: 4.37e-04, Sparsity: 6.08e-03
+Epoch 41/50 - Total Loss: 5.88e-03, Reconstruction: 3.93e-04, Sparsity: 5.49e-03
+Feature Count: 9.32
+Robustness Score: 97.97
+----------------------------------------
+Run 4/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.6057
+Val accuracy: 97.69%
+Adversarial accuracies:
+ε=0.000: 97.7%
+ε=0.020: 96.8%
+ε=0.040: 96.1%
+ε=0.060: 95.0%
+ε=0.080: 93.8%
+ε=0.100: 92.5%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0342
+Val accuracy: 98.84%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 98.5%
+ε=0.040: 98.1%
+ε=0.060: 98.0%
+ε=0.080: 97.9%
+ε=0.100: 98.1%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0149
+Val accuracy: 98.68%
+Adversarial accuracies:
+ε=0.000: 98.7%
+ε=0.020: 98.2%
+ε=0.040: 97.8%
+ε=0.060: 97.8%
+ε=0.080: 98.0%
+ε=0.100: 98.3%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0092
+Val accuracy: 99.00%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.3%
+ε=0.040: 97.9%
+ε=0.060: 97.6%
+ε=0.080: 97.5%
+ε=0.100: 97.7%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0367
+Val accuracy: 99.07%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.5%
+ε=0.040: 98.0%
+ε=0.060: 97.8%
+ε=0.080: 97.7%
+ε=0.100: 97.7%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 4.69e-02, Reconstruction: 2.91e-02, Sparsity: 1.78e-02
+Epoch 11/50 - Total Loss: 1.04e-02, Reconstruction: 8.13e-04, Sparsity: 9.60e-03
+Epoch 21/50 - Total Loss: 8.29e-03, Reconstruction: 7.11e-04, Sparsity: 7.58e-03
+Epoch 31/50 - Total Loss: 7.14e-03, Reconstruction: 5.80e-04, Sparsity: 6.56e-03
+Epoch 41/50 - Total Loss: 6.69e-03, Reconstruction: 5.49e-04, Sparsity: 6.14e-03
+Feature Count: 9.51
+Robustness Score: 98.14
+----------------------------------------
+Run 5/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.5355
+Val accuracy: 97.50%
+Adversarial accuracies:
+ε=0.000: 97.5%
+ε=0.020: 96.5%
+ε=0.040: 95.4%
+ε=0.060: 93.9%
+ε=0.080: 92.4%
+ε=0.100: 91.2%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0251
+Val accuracy: 98.64%
+Adversarial accuracies:
+ε=0.000: 98.6%
+ε=0.020: 97.9%
+ε=0.040: 96.7%
+ε=0.060: 95.5%
+ε=0.080: 94.1%
+ε=0.100: 93.3%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0058
+Val accuracy: 98.99%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.3%
+ε=0.040: 97.6%
+ε=0.060: 96.8%
+ε=0.080: 96.3%
+ε=0.100: 96.2%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0523
+Val accuracy: 98.93%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 98.3%
+ε=0.040: 97.5%
+ε=0.060: 96.6%
+ε=0.080: 95.7%
+ε=0.100: 94.9%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0131
+Val accuracy: 99.06%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.4%
+ε=0.040: 97.8%
+ε=0.060: 97.5%
+ε=0.080: 97.5%
+ε=0.100: 97.7%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 4.59e-02, Reconstruction: 2.93e-02, Sparsity: 1.66e-02
+Epoch 11/50 - Total Loss: 1.01e-02, Reconstruction: 8.71e-04, Sparsity: 9.23e-03
+Epoch 21/50 - Total Loss: 8.33e-03, Reconstruction: 6.91e-04, Sparsity: 7.64e-03
+Epoch 31/50 - Total Loss: 7.40e-03, Reconstruction: 5.84e-04, Sparsity: 6.82e-03
+Epoch 41/50 - Total Loss: 7.01e-03, Reconstruction: 5.12e-04, Sparsity: 6.49e-03
+Feature Count: 10.59
+Robustness Score: 98.31
+----------------------------------------
+
+Current working directory: c:\Users\danie\Documents\SuperpositionSAE\superposition-measurement\experiments\adversarial robustness
+Using device: cuda
+Data directory: c:\Users\danie\Documents\SuperpositionSAE\superposition-measurement\data
+Results directory: c:\Users\danie\Documents\SuperpositionSAE\superposition-measurement\results\adversarial_robustness
+
+
+cuda
+c:\Users\danie\anaconda3\envs\smooth2\lib\site-packages\tqdm\auto.py:21: TqdmWarning: IProgress not found. Please update jupyter and ipywidgets. See https://ipywidgets.readthedocs.io/en/stable/user_install.html
+  from .autonotebook import tqdm as notebook_tqdm
+Running experiments for epsilon=0.3
+Run 1/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.5976
+Val accuracy: 97.25%
+Adversarial accuracies:
+ε=0.000: 97.2%
+ε=0.020: 96.2%
+ε=0.040: 94.7%
+ε=0.060: 91.4%
+ε=0.080: 86.6%
+ε=0.100: 80.7%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0464
+Val accuracy: 98.83%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 97.9%
+ε=0.040: 95.6%
+ε=0.060: 90.7%
+ε=0.080: 82.7%
+ε=0.100: 72.6%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0198
+Val accuracy: 98.95%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.0%
+ε=0.040: 96.9%
+ε=0.060: 95.3%
+ε=0.080: 93.0%
+ε=0.100: 91.0%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0620
+Val accuracy: 98.83%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 98.0%
+ε=0.040: 96.8%
+ε=0.060: 95.3%
+ε=0.080: 93.8%
+ε=0.100: 92.0%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0382
+Val accuracy: 99.01%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.0%
+ε=0.040: 97.1%
+ε=0.060: 96.1%
+ε=0.080: 95.2%
+ε=0.100: 94.2%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.25e-02, Reconstruction: 1.68e-02, Sparsity: 1.57e-02
+Epoch 11/50 - Total Loss: 7.40e-03, Reconstruction: 5.88e-04, Sparsity: 6.81e-03
+Epoch 21/50 - Total Loss: 6.09e-03, Reconstruction: 4.78e-04, Sparsity: 5.61e-03
+Epoch 31/50 - Total Loss: 5.52e-03, Reconstruction: 4.42e-04, Sparsity: 5.08e-03
+Epoch 41/50 - Total Loss: 5.07e-03, Reconstruction: 3.98e-04, Sparsity: 4.68e-03
+Feature Count: 11.26
+Robustness Score: 77.86
+----------------------------------------
+Run 2/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.7162
+Val accuracy: 97.62%
+Adversarial accuracies:
+ε=0.000: 97.6%
+ε=0.020: 95.7%
+ε=0.040: 92.2%
+ε=0.060: 89.2%
+ε=0.080: 88.1%
+ε=0.100: 87.9%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0271
+Val accuracy: 98.74%
+Adversarial accuracies:
+ε=0.000: 98.7%
+ε=0.020: 97.6%
+ε=0.040: 95.7%
+ε=0.060: 94.2%
+ε=0.080: 94.0%
+ε=0.100: 94.9%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0240
+Val accuracy: 99.04%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.0%
+ε=0.040: 96.3%
+ε=0.060: 95.1%
+ε=0.080: 95.0%
+ε=0.100: 95.1%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0160
+Val accuracy: 98.82%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 97.6%
+ε=0.040: 96.2%
+ε=0.060: 95.6%
+ε=0.080: 95.5%
+ε=0.100: 95.7%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0089
+Val accuracy: 98.85%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 97.8%
+ε=0.040: 96.2%
+ε=0.060: 95.5%
+ε=0.080: 95.7%
+ε=0.100: 96.3%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 2.80e-02, Reconstruction: 1.50e-02, Sparsity: 1.30e-02
+Epoch 11/50 - Total Loss: 5.85e-03, Reconstruction: 4.43e-04, Sparsity: 5.40e-03
+Epoch 21/50 - Total Loss: 4.87e-03, Reconstruction: 3.39e-04, Sparsity: 4.53e-03
+Epoch 31/50 - Total Loss: 4.33e-03, Reconstruction: 3.16e-04, Sparsity: 4.01e-03
+Epoch 41/50 - Total Loss: 3.87e-03, Reconstruction: 2.85e-04, Sparsity: 3.58e-03
+Feature Count: 12.33
+Robustness Score: 80.40
+----------------------------------------
+Run 3/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.7887
+Val accuracy: 97.62%
+Adversarial accuracies:
+ε=0.000: 97.6%
+ε=0.020: 96.8%
+ε=0.040: 96.0%
+ε=0.060: 94.9%
+ε=0.080: 93.6%
+ε=0.100: 91.8%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0311
+Val accuracy: 98.94%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 98.2%
+ε=0.040: 97.1%
+ε=0.060: 95.5%
+ε=0.080: 93.3%
+ε=0.100: 90.9%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0521
+Val accuracy: 99.07%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.2%
+ε=0.040: 97.3%
+ε=0.060: 96.2%
+ε=0.080: 94.8%
+ε=0.100: 93.3%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0460
+Val accuracy: 99.12%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.2%
+ε=0.040: 97.0%
+ε=0.060: 95.5%
+ε=0.080: 93.8%
+ε=0.100: 92.3%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0535
+Val accuracy: 98.98%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.2%
+ε=0.040: 97.2%
+ε=0.060: 96.1%
+ε=0.080: 94.8%
+ε=0.100: 93.9%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.60e-02, Reconstruction: 2.11e-02, Sparsity: 1.49e-02
+Epoch 11/50 - Total Loss: 8.25e-03, Reconstruction: 7.62e-04, Sparsity: 7.49e-03
+Epoch 21/50 - Total Loss: 6.73e-03, Reconstruction: 5.50e-04, Sparsity: 6.18e-03
+Epoch 31/50 - Total Loss: 5.84e-03, Reconstruction: 4.68e-04, Sparsity: 5.37e-03
+Epoch 41/50 - Total Loss: 5.45e-03, Reconstruction: 4.41e-04, Sparsity: 5.01e-03
+Feature Count: 12.04
+Robustness Score: 70.65
+----------------------------------------
+Run 4/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.7338
+Val accuracy: 97.69%
+Adversarial accuracies:
+ε=0.000: 97.7%
+ε=0.020: 96.7%
+ε=0.040: 95.5%
+ε=0.060: 93.9%
+ε=0.080: 92.5%
+ε=0.100: 90.6%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0426
+Val accuracy: 98.95%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.0%
+ε=0.040: 97.1%
+ε=0.060: 96.0%
+ε=0.080: 94.8%
+ε=0.100: 93.7%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0385
+Val accuracy: 98.79%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 97.7%
+ε=0.040: 96.5%
+ε=0.060: 95.0%
+ε=0.080: 93.7%
+ε=0.100: 92.5%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0205
+Val accuracy: 99.01%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.0%
+ε=0.040: 96.9%
+ε=0.060: 95.6%
+ε=0.080: 94.1%
+ε=0.100: 93.1%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0273
+Val accuracy: 98.94%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 98.0%
+ε=0.040: 96.9%
+ε=0.060: 95.5%
+ε=0.080: 94.4%
+ε=0.100: 93.7%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 4.30e-02, Reconstruction: 2.74e-02, Sparsity: 1.56e-02
+Epoch 11/50 - Total Loss: 8.29e-03, Reconstruction: 5.79e-04, Sparsity: 7.71e-03
+Epoch 21/50 - Total Loss: 6.85e-03, Reconstruction: 4.39e-04, Sparsity: 6.41e-03
+Epoch 31/50 - Total Loss: 5.63e-03, Reconstruction: 4.14e-04, Sparsity: 5.21e-03
+Epoch 41/50 - Total Loss: 5.07e-03, Reconstruction: 3.63e-04, Sparsity: 4.71e-03
+Feature Count: 10.93
+Robustness Score: 69.06
+----------------------------------------
+Run 5/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.8140
+Val accuracy: 97.77%
+Adversarial accuracies:
+ε=0.000: 97.8%
+ε=0.020: 97.0%
+ε=0.040: 96.0%
+ε=0.060: 94.7%
+ε=0.080: 93.6%
+ε=0.100: 92.0%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0560
+Val accuracy: 98.96%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.2%
+ε=0.040: 97.5%
+ε=0.060: 96.5%
+ε=0.080: 95.7%
+ε=0.100: 95.2%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0242
+Val accuracy: 98.94%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 98.1%
+ε=0.040: 97.1%
+ε=0.060: 96.4%
+ε=0.080: 95.8%
+ε=0.100: 95.7%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0248
+Val accuracy: 98.93%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.9%
+ε=0.040: 96.7%
+ε=0.060: 95.3%
+ε=0.080: 93.9%
+ε=0.100: 92.8%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0268
+Val accuracy: 99.10%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.5%
+ε=0.040: 97.5%
+ε=0.060: 96.4%
+ε=0.080: 95.5%
+ε=0.100: 94.6%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 4.25e-02, Reconstruction: 2.62e-02, Sparsity: 1.63e-02
+Epoch 11/50 - Total Loss: 9.68e-03, Reconstruction: 6.12e-04, Sparsity: 9.07e-03
+Epoch 21/50 - Total Loss: 7.66e-03, Reconstruction: 5.09e-04, Sparsity: 7.15e-03
+Epoch 31/50 - Total Loss: 6.67e-03, Reconstruction: 5.50e-04, Sparsity: 6.12e-03
+Epoch 41/50 - Total Loss: 6.14e-03, Reconstruction: 4.58e-04, Sparsity: 5.68e-03
+Feature Count: 9.66
+Robustness Score: 69.82
+----------------------------------------
+Running experiments for epsilon=0.4
+Run 1/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.7927
+Val accuracy: 97.98%
+Adversarial accuracies:
+ε=0.000: 98.0%
+ε=0.020: 96.8%
+ε=0.040: 95.0%
+ε=0.060: 92.3%
+ε=0.080: 88.5%
+ε=0.100: 83.7%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0441
+Val accuracy: 98.86%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.7%
+ε=0.040: 96.0%
+ε=0.060: 93.6%
+ε=0.080: 90.7%
+ε=0.100: 88.1%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0356
+Val accuracy: 98.90%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.9%
+ε=0.040: 96.3%
+ε=0.060: 94.3%
+ε=0.080: 91.8%
+ε=0.100: 88.6%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0456
+Val accuracy: 98.83%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 97.7%
+ε=0.040: 96.2%
+ε=0.060: 93.9%
+ε=0.080: 90.8%
+ε=0.100: 87.5%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0307
+Val accuracy: 99.11%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.1%
+ε=0.040: 97.1%
+ε=0.060: 95.3%
+ε=0.080: 93.2%
+ε=0.100: 90.8%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 2.70e-02, Reconstruction: 1.15e-02, Sparsity: 1.55e-02
+Epoch 11/50 - Total Loss: 6.33e-03, Reconstruction: 5.32e-04, Sparsity: 5.80e-03
+Epoch 21/50 - Total Loss: 4.78e-03, Reconstruction: 3.70e-04, Sparsity: 4.41e-03
+Epoch 31/50 - Total Loss: 4.29e-03, Reconstruction: 3.47e-04, Sparsity: 3.94e-03
+Epoch 41/50 - Total Loss: 4.01e-03, Reconstruction: 3.24e-04, Sparsity: 3.69e-03
+Feature Count: 11.30
+Robustness Score: 86.97
+----------------------------------------
+Run 2/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.7106
+Val accuracy: 97.81%
+Adversarial accuracies:
+ε=0.000: 97.8%
+ε=0.020: 96.7%
+ε=0.040: 95.2%
+ε=0.060: 93.3%
+ε=0.080: 90.6%
+ε=0.100: 87.1%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0555
+Val accuracy: 98.85%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 97.6%
+ε=0.040: 96.1%
+ε=0.060: 93.9%
+ε=0.080: 91.1%
+ε=0.100: 87.9%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0318
+Val accuracy: 98.95%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.1%
+ε=0.040: 97.0%
+ε=0.060: 95.3%
+ε=0.080: 93.2%
+ε=0.100: 90.9%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0342
+Val accuracy: 99.00%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.1%
+ε=0.040: 96.7%
+ε=0.060: 94.8%
+ε=0.080: 92.7%
+ε=0.100: 90.1%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0441
+Val accuracy: 99.08%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.0%
+ε=0.040: 96.8%
+ε=0.060: 95.2%
+ε=0.080: 93.5%
+ε=0.100: 91.6%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 2.52e-02, Reconstruction: 1.42e-02, Sparsity: 1.11e-02
+Epoch 11/50 - Total Loss: 5.40e-03, Reconstruction: 4.77e-04, Sparsity: 4.93e-03
+Epoch 21/50 - Total Loss: 4.44e-03, Reconstruction: 3.34e-04, Sparsity: 4.11e-03
+Epoch 31/50 - Total Loss: 3.87e-03, Reconstruction: 2.75e-04, Sparsity: 3.60e-03
+Epoch 41/50 - Total Loss: 3.60e-03, Reconstruction: 2.54e-04, Sparsity: 3.34e-03
+Feature Count: 12.67
+Robustness Score: 82.00
+----------------------------------------
+Run 3/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.7620
+Val accuracy: 97.30%
+Adversarial accuracies:
+ε=0.000: 97.3%
+ε=0.020: 95.8%
+ε=0.040: 93.5%
+ε=0.060: 89.6%
+ε=0.080: 84.6%
+ε=0.100: 78.5%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0662
+Val accuracy: 98.92%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.9%
+ε=0.040: 96.6%
+ε=0.060: 94.8%
+ε=0.080: 92.2%
+ε=0.100: 89.3%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0358
+Val accuracy: 98.91%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 98.0%
+ε=0.040: 96.9%
+ε=0.060: 95.0%
+ε=0.080: 92.7%
+ε=0.100: 89.8%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0478
+Val accuracy: 98.66%
+Adversarial accuracies:
+ε=0.000: 98.7%
+ε=0.020: 97.5%
+ε=0.040: 95.9%
+ε=0.060: 93.9%
+ε=0.080: 91.4%
+ε=0.100: 88.5%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0485
+Val accuracy: 99.00%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.1%
+ε=0.040: 96.7%
+ε=0.060: 95.0%
+ε=0.080: 93.2%
+ε=0.100: 91.1%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 2.74e-02, Reconstruction: 1.36e-02, Sparsity: 1.38e-02
+Epoch 11/50 - Total Loss: 5.89e-03, Reconstruction: 5.09e-04, Sparsity: 5.39e-03
+Epoch 21/50 - Total Loss: 4.95e-03, Reconstruction: 3.95e-04, Sparsity: 4.55e-03
+Epoch 31/50 - Total Loss: 4.46e-03, Reconstruction: 3.52e-04, Sparsity: 4.11e-03
+Epoch 41/50 - Total Loss: 4.21e-03, Reconstruction: 3.31e-04, Sparsity: 3.88e-03
+Feature Count: 11.87
+Robustness Score: 85.39
+----------------------------------------
+Run 4/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.8112
+Val accuracy: 97.40%
+Adversarial accuracies:
+ε=0.000: 97.4%
+ε=0.020: 96.3%
+ε=0.040: 94.5%
+ε=0.060: 91.8%
+ε=0.080: 88.9%
+ε=0.100: 85.2%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0729
+Val accuracy: 98.74%
+Adversarial accuracies:
+ε=0.000: 98.7%
+ε=0.020: 97.7%
+ε=0.040: 96.4%
+ε=0.060: 94.5%
+ε=0.080: 91.9%
+ε=0.100: 88.7%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0454
+Val accuracy: 99.03%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 97.9%
+ε=0.040: 96.5%
+ε=0.060: 94.7%
+ε=0.080: 92.1%
+ε=0.100: 89.0%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0671
+Val accuracy: 98.79%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 97.8%
+ε=0.040: 96.6%
+ε=0.060: 95.2%
+ε=0.080: 93.2%
+ε=0.100: 91.0%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0216
+Val accuracy: 98.94%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 98.0%
+ε=0.040: 96.9%
+ε=0.060: 95.3%
+ε=0.080: 93.3%
+ε=0.100: 91.0%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.38e-02, Reconstruction: 2.02e-02, Sparsity: 1.35e-02
+Epoch 11/50 - Total Loss: 7.61e-03, Reconstruction: 7.34e-04, Sparsity: 6.87e-03
+Epoch 21/50 - Total Loss: 6.10e-03, Reconstruction: 5.19e-04, Sparsity: 5.58e-03
+Epoch 31/50 - Total Loss: 5.45e-03, Reconstruction: 4.41e-04, Sparsity: 5.01e-03
+Epoch 41/50 - Total Loss: 5.07e-03, Reconstruction: 4.15e-04, Sparsity: 4.65e-03
+Feature Count: 10.84
+Robustness Score: 83.48
+----------------------------------------
+Run 5/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.6223
+Val accuracy: 97.42%
+Adversarial accuracies:
+ε=0.000: 97.4%
+ε=0.020: 95.9%
+ε=0.040: 93.3%
+ε=0.060: 89.9%
+ε=0.080: 85.1%
+ε=0.100: 78.8%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0617
+Val accuracy: 98.94%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 98.1%
+ε=0.040: 96.5%
+ε=0.060: 94.5%
+ε=0.080: 92.0%
+ε=0.100: 89.1%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0432
+Val accuracy: 98.75%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 97.5%
+ε=0.040: 95.8%
+ε=0.060: 93.2%
+ε=0.080: 89.9%
+ε=0.100: 86.1%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0329
+Val accuracy: 99.07%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.1%
+ε=0.040: 96.4%
+ε=0.060: 94.2%
+ε=0.080: 91.0%
+ε=0.100: 87.9%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0365
+Val accuracy: 98.97%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 97.8%
+ε=0.040: 96.4%
+ε=0.060: 93.9%
+ε=0.080: 91.1%
+ε=0.100: 87.6%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.53e-02, Reconstruction: 2.20e-02, Sparsity: 1.32e-02
+Epoch 11/50 - Total Loss: 8.35e-03, Reconstruction: 6.09e-04, Sparsity: 7.74e-03
+Epoch 21/50 - Total Loss: 6.47e-03, Reconstruction: 4.33e-04, Sparsity: 6.03e-03
+Epoch 31/50 - Total Loss: 5.67e-03, Reconstruction: 4.02e-04, Sparsity: 5.27e-03
+Epoch 41/50 - Total Loss: 5.35e-03, Reconstruction: 3.78e-04, Sparsity: 4.97e-03
+Feature Count: 11.16
+Robustness Score: 87.80
+----------------------------------------
+Running experiments for epsilon=0.5
+Run 1/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.6583
+Val accuracy: 96.83%
+Adversarial accuracies:
+ε=0.000: 96.8%
+ε=0.020: 95.4%
+ε=0.040: 93.3%
+ε=0.060: 90.5%
+ε=0.080: 86.9%
+ε=0.100: 82.3%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0723
+Val accuracy: 98.92%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 98.1%
+ε=0.040: 96.8%
+ε=0.060: 94.9%
+ε=0.080: 92.4%
+ε=0.100: 89.2%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0547
+Val accuracy: 98.85%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 97.8%
+ε=0.040: 96.3%
+ε=0.060: 94.2%
+ε=0.080: 91.0%
+ε=0.100: 87.1%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0574
+Val accuracy: 98.94%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.7%
+ε=0.040: 96.1%
+ε=0.060: 93.4%
+ε=0.080: 89.7%
+ε=0.100: 85.1%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0431
+Val accuracy: 98.90%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.7%
+ε=0.040: 95.9%
+ε=0.060: 93.4%
+ε=0.080: 90.1%
+ε=0.100: 86.0%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 2.31e-02, Reconstruction: 1.13e-02, Sparsity: 1.18e-02
+Epoch 11/50 - Total Loss: 4.95e-03, Reconstruction: 3.82e-04, Sparsity: 4.56e-03
+Epoch 21/50 - Total Loss: 3.84e-03, Reconstruction: 2.41e-04, Sparsity: 3.59e-03
+Epoch 31/50 - Total Loss: 3.51e-03, Reconstruction: 2.23e-04, Sparsity: 3.28e-03
+Epoch 41/50 - Total Loss: 3.30e-03, Reconstruction: 2.18e-04, Sparsity: 3.08e-03
+Feature Count: 10.70
+Robustness Score: 90.78
+----------------------------------------
+Run 2/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.6961
+Val accuracy: 96.91%
+Adversarial accuracies:
+ε=0.000: 96.9%
+ε=0.020: 95.3%
+ε=0.040: 93.3%
+ε=0.060: 91.0%
+ε=0.080: 88.2%
+ε=0.100: 85.0%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0779
+Val accuracy: 98.77%
+Adversarial accuracies:
+ε=0.000: 98.8%
+ε=0.020: 97.5%
+ε=0.040: 95.6%
+ε=0.060: 92.5%
+ε=0.080: 88.5%
+ε=0.100: 83.6%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0497
+Val accuracy: 98.88%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.5%
+ε=0.040: 95.3%
+ε=0.060: 92.4%
+ε=0.080: 87.8%
+ε=0.100: 81.5%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0395
+Val accuracy: 99.11%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 97.6%
+ε=0.040: 95.6%
+ε=0.060: 92.5%
+ε=0.080: 88.2%
+ε=0.100: 82.9%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0341
+Val accuracy: 99.12%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 97.9%
+ε=0.040: 95.6%
+ε=0.060: 92.7%
+ε=0.080: 88.6%
+ε=0.100: 83.8%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 4.04e-02, Reconstruction: 2.35e-02, Sparsity: 1.69e-02
+Epoch 11/50 - Total Loss: 9.78e-03, Reconstruction: 6.89e-04, Sparsity: 9.10e-03
+Epoch 21/50 - Total Loss: 7.94e-03, Reconstruction: 6.77e-04, Sparsity: 7.26e-03
+Epoch 31/50 - Total Loss: 7.11e-03, Reconstruction: 6.60e-04, Sparsity: 6.45e-03
+Epoch 41/50 - Total Loss: 6.29e-03, Reconstruction: 6.55e-04, Sparsity: 5.64e-03
+Feature Count: 9.11
+Robustness Score: 86.59
+----------------------------------------
+Run 3/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.7407
+Val accuracy: 97.46%
+Adversarial accuracies:
+ε=0.000: 97.5%
+ε=0.020: 95.7%
+ε=0.040: 93.4%
+ε=0.060: 90.6%
+ε=0.080: 86.8%
+ε=0.100: 82.4%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0918
+Val accuracy: 98.86%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.6%
+ε=0.040: 96.2%
+ε=0.060: 93.8%
+ε=0.080: 90.0%
+ε=0.100: 85.1%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0592
+Val accuracy: 98.88%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.6%
+ε=0.040: 95.8%
+ε=0.060: 92.8%
+ε=0.080: 89.2%
+ε=0.100: 83.8%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0451
+Val accuracy: 98.91%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.6%
+ε=0.040: 95.3%
+ε=0.060: 92.1%
+ε=0.080: 87.8%
+ε=0.100: 82.5%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0416
+Val accuracy: 98.94%
+Adversarial accuracies:
+ε=0.000: 98.9%
+ε=0.020: 97.2%
+ε=0.040: 95.0%
+ε=0.060: 91.6%
+ε=0.080: 86.8%
+ε=0.100: 81.5%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.11e-02, Reconstruction: 1.61e-02, Sparsity: 1.49e-02
+Epoch 11/50 - Total Loss: 7.05e-03, Reconstruction: 6.53e-04, Sparsity: 6.39e-03
+Epoch 21/50 - Total Loss: 5.88e-03, Reconstruction: 5.63e-04, Sparsity: 5.31e-03
+Epoch 31/50 - Total Loss: 5.27e-03, Reconstruction: 5.50e-04, Sparsity: 4.72e-03
+Epoch 41/50 - Total Loss: 4.87e-03, Reconstruction: 5.10e-04, Sparsity: 4.36e-03
+Feature Count: 10.25
+Robustness Score: 85.23
+----------------------------------------
+Run 4/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.6317
+Val accuracy: 97.73%
+Adversarial accuracies:
+ε=0.000: 97.7%
+ε=0.020: 96.7%
+ε=0.040: 95.3%
+ε=0.060: 93.0%
+ε=0.080: 89.8%
+ε=0.100: 86.0%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0782
+Val accuracy: 99.04%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.0%
+ε=0.040: 96.7%
+ε=0.060: 94.7%
+ε=0.080: 91.8%
+ε=0.100: 88.2%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0532
+Val accuracy: 99.10%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.2%
+ε=0.040: 96.7%
+ε=0.060: 94.8%
+ε=0.080: 92.2%
+ε=0.100: 88.7%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0418
+Val accuracy: 99.01%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 97.8%
+ε=0.040: 96.0%
+ε=0.060: 93.6%
+ε=0.080: 90.5%
+ε=0.100: 86.6%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0298
+Val accuracy: 99.02%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 97.9%
+ε=0.040: 96.0%
+ε=0.060: 93.4%
+ε=0.080: 90.1%
+ε=0.100: 86.1%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 3.33e-02, Reconstruction: 2.10e-02, Sparsity: 1.23e-02
+Epoch 11/50 - Total Loss: 6.12e-03, Reconstruction: 4.63e-04, Sparsity: 5.66e-03
+Epoch 21/50 - Total Loss: 4.94e-03, Reconstruction: 4.07e-04, Sparsity: 4.54e-03
+Epoch 31/50 - Total Loss: 4.27e-03, Reconstruction: 3.48e-04, Sparsity: 3.93e-03
+Epoch 41/50 - Total Loss: 3.88e-03, Reconstruction: 3.42e-04, Sparsity: 3.54e-03
+Feature Count: 10.20
+Robustness Score: 87.22
+----------------------------------------
+Run 5/5
+Initializing CNN classifier over 10 classes
+Multi-class classification
+Epoch 0/30
+Train loss: 0.6494
+Val accuracy: 97.64%
+Adversarial accuracies:
+ε=0.000: 97.6%
+ε=0.020: 96.2%
+ε=0.040: 94.2%
+ε=0.060: 91.3%
+ε=0.080: 87.4%
+ε=0.100: 82.7%
+----------------------------------------
+Epoch 6/30
+Train loss: 0.0364
+Val accuracy: 99.05%
+Adversarial accuracies:
+ε=0.000: 99.0%
+ε=0.020: 98.1%
+ε=0.040: 97.0%
+ε=0.060: 95.1%
+ε=0.080: 92.5%
+ε=0.100: 89.2%
+----------------------------------------
+Epoch 12/30
+Train loss: 0.0627
+Val accuracy: 99.11%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.2%
+ε=0.040: 96.8%
+ε=0.060: 94.7%
+ε=0.080: 91.5%
+ε=0.100: 87.2%
+----------------------------------------
+Epoch 18/30
+Train loss: 0.0468
+Val accuracy: 99.10%
+Adversarial accuracies:
+ε=0.000: 99.1%
+ε=0.020: 98.2%
+ε=0.040: 96.6%
+ε=0.060: 94.0%
+ε=0.080: 90.9%
+ε=0.100: 87.1%
+----------------------------------------
+Epoch 24/30
+Train loss: 0.0340
+Val accuracy: 99.15%
+Adversarial accuracies:
+ε=0.000: 99.2%
+ε=0.020: 98.0%
+ε=0.040: 96.5%
+ε=0.060: 94.2%
+ε=0.080: 91.1%
+ε=0.100: 86.9%
+----------------------------------------
+Activations shape: torch.Size([9984, 16, 28, 28])
+Activations type: <class 'torch.Tensor'>
+Train activations shape: torch.Size([10000, 16])
+Training SAE on activations with shape torch.Size([10000, 16])...
+Epoch 1/50 - Total Loss: 2.92e-02, Reconstruction: 1.64e-02, Sparsity: 1.28e-02
+Epoch 11/50 - Total Loss: 6.32e-03, Reconstruction: 5.22e-04, Sparsity: 5.80e-03
+Epoch 21/50 - Total Loss: 4.84e-03, Reconstruction: 3.39e-04, Sparsity: 4.50e-03
+Epoch 31/50 - Total Loss: 4.25e-03, Reconstruction: 3.05e-04, Sparsity: 3.94e-03
+Epoch 41/50 - Total Loss: 3.89e-03, Reconstruction: 2.56e-04, Sparsity: 3.64e-03
+Feature Count: 11.31
+Robustness Score: 90.45

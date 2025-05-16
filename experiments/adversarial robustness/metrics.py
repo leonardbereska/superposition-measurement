@@ -62,7 +62,7 @@ def measure_superposition(
     """Measure feature superposition in a model layer."""
     device = next(model.parameters()).device
 
-    model = NNsightModelWrapper(model)
+    model = NNsightModelWrapper(model)  
 
     # limiting the number of activations to extract to avoid memory issues
     activations = model.get_activations(data_loader, layer_name, max_activations=max_samples)
@@ -87,7 +87,7 @@ def measure_superposition(
             train_activations = activations_reshaped
         print(f"Train activations shape: {train_activations.shape}")
         
-        # Train SAE if not provided
+        # Train SAE if not provided (Here is where you want to pass epsilon probably?)
         if sae_model is None:
             from sae import train_sae
             sae_model = train_sae(
@@ -151,12 +151,13 @@ if __name__ == "__main__":
     # Test the measure_superposition function with a CNN model
     from models import CNN
     from datasets import MNISTDataset
+    #from datasets import CIFAR10Dataset
     from torch.utils.data import DataLoader
     
     def test_cnn_superposition():
         # Create model and data loader
-        model = CNN(28, 10)
-        data_loader = DataLoader(MNISTDataset(28, 10), batch_size=128, shuffle=True)
+        model = CNN(28, 10) #Here you are using the CNN with 10 classes for MNIST
+        data_loader = DataLoader(MNISTDataset(28, 10), batch_size=128, shuffle=True) #Change to (32,10) for cifar
         
         # Get convolutional feature activations (shape: [B, C, H, W])
         orig_activations = model.get_activations(data_loader, "conv_features")

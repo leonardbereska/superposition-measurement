@@ -11,7 +11,7 @@ class MNISTDataset(Dataset):
     
     def __init__(
         self, 
-        target_size=28,
+        target_size=28, #Is target size input size ?
         train=True,
         root='../../data',
         download=True,

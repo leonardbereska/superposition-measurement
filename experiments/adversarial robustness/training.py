@@ -31,7 +31,9 @@ def train_step(model: nn.Module,
     optimizer.zero_grad()
     
     outputs = model(inputs)
-    loss = criterion(outputs.squeeze(), targets)
+    loss = criterion(outputs.squeeze(), targets)# for cifar
+    #loss = criterion(outputs, targets)
+    
     
     loss.backward()
     optimizer.step()
@@ -66,18 +68,41 @@ def adversarial_train_step(model: nn.Module,
     clean_outputs = model(inputs)
     clean_loss = criterion(clean_outputs.squeeze(), targets)
     
+    
+    
     # Generate adversarial examples
     inputs.requires_grad = True
     adv_outputs = model(inputs)
     adv_loss = criterion(adv_outputs.squeeze(), targets)
     adv_loss.backward()
     
-    # FGSM
-    perturbation = epsilon * inputs.grad.sign()
-    adv_inputs = torch.clamp(inputs + perturbation, 0, 1)
+    # PGD parameters
+    pgd_steps = 10
+    alpha_step = epsilon / pgd_steps  # step size per iteration
+    adv_inputs = inputs.clone().detach().to(inputs.device)
+    adv_inputs.requires_grad = True
+    
+    # Save the original inputs for projection
+    original_inputs = inputs.detach()
+    
+    # PGD loop
+    for _ in range(pgd_steps):
+        adv_outputs = model(adv_inputs)
+        adv_loss = criterion(adv_outputs.squeeze(), targets)
+        adv_inputs.grad = None  # Clear any previous gradients
+        adv_loss.backward()
+        
+        # Gradient step
+        adv_inputs = adv_inputs + alpha_step * adv_inputs.grad.sign()
+        
+        # Project: clamp to epsilon-ball and [0,1] pixel range
+        perturbation = torch.clamp(adv_inputs - original_inputs, min=-epsilon, max=epsilon)
+        adv_inputs = torch.clamp(original_inputs + perturbation, min=0.0, max=1.0).detach()
+        adv_inputs.requires_grad = True
+    
     
     # Calculate adversarial loss
-    inputs.requires_grad = False
+    #inputs.requires_grad = False
     adv_outputs = model(adv_inputs)
     adv_loss = criterion(adv_outputs.squeeze(), targets)
     
@@ -231,26 +256,57 @@ def evaluate_adversarial_robustness(model: nn.Module,
                         total += batch_size
                         continue
            
-            # Generate adversarial examples with FGSM
-            inputs.requires_grad = True
-            outputs = model(inputs)
+            # # Generate adversarial examples with FGSM
+            # inputs.requires_grad = True
+            # outputs = model(inputs)
             
-            if outputs.size(-1) == 1:  # Binary classification
-               loss = nn.BCEWithLogitsLoss()(outputs.squeeze(), targets)
-            else:  # Multi-class classification
-               loss = nn.CrossEntropyLoss()(outputs, targets)
+            # --- PGD Attack ---
+            pgd_steps = 10
+            alpha = eps / pgd_steps  # step size per iteration
+            
+            
+            # Initialize adversarial examples with clean inputs
+            adv_inputs = inputs.clone().detach().requires_grad_(True)
+        
+        
+        
+            for _ in range(pgd_steps):
+                outputs = model(adv_inputs)
+                if outputs.size(-1) == 1:
+                    loss = nn.BCEWithLogitsLoss()(outputs.squeeze(), targets)
+                else:
+                    loss = nn.CrossEntropyLoss()(outputs, targets)
+
+                model.zero_grad()
+                if adv_inputs.grad is not None:
+                    adv_inputs.grad.zero_()
+                loss.backward()
+
+                # Gradient ascent step
+                adv_inputs = adv_inputs + alpha * adv_inputs.grad.sign()
+
+                # Project back to epsilon ball around original input
+                perturbation = torch.clamp(adv_inputs - inputs, min=-eps, max=eps)
+                adv_inputs = torch.clamp(inputs + perturbation, 0, 1).detach()
+                adv_inputs.requires_grad = True
+
+
+            # if outputs.size(-1) == 1:  # Binary classification
+            #    loss = nn.BCEWithLogitsLoss()(outputs.squeeze(), targets)
+            # else:  # Multi-class classification
+            #    loss = nn.CrossEntropyLoss()(outputs, targets)
            
-            model.zero_grad()
-            loss.backward()
+            # model.zero_grad()
+            # loss.backward()
            
-            # FGSM attack
-            perturbed_inputs = inputs + eps * inputs.grad.sign()
-            perturbed_inputs = torch.clamp(perturbed_inputs, 0, 1)
+            # # FGSM attack
+            # perturbed_inputs = inputs + eps * inputs.grad.sign()
+            # perturbed_inputs = torch.clamp(perturbed_inputs, 0, 1)
            
             # Evaluate on perturbed inputs
             with torch.no_grad():
-                adv_outputs = model(perturbed_inputs)
-                
+                # adv_outputs = model(perturbed_inputs)
+                adv_outputs = model(adv_inputs)
                 if adv_outputs.size(-1) == 1:  # Binary
                     predictions = (torch.sigmoid(adv_outputs) > 0.5).squeeze()
                 else:  # Multi-class
@@ -325,7 +381,7 @@ def train_model(model: nn.Module,
               train_loader: DataLoader,
               val_loader: Optional[DataLoader] = None,
               lr: float = 1e-3,
-              n_epochs: int = 100,
+              n_epochs: int = 30,
               epsilon: float = 0.0,
               alpha: float = 0.5,
               patience: int = 10,
@@ -422,7 +478,7 @@ def train_model(model: nn.Module,
 
 class SuperpositionExperiment:
    """Experiment framework for measuring superposition in adversarially trained models."""
-   
+   #Here is where we train the SAE Change the distribution here 
    def __init__(
        self,
        train_dataset,
@@ -430,6 +486,7 @@ class SuperpositionExperiment:
        model_type: str = 'mlp',
        hidden_dim: int = 32,
        image_size: int = 28,
+       epsilon=0,
        device: Optional[torch.device] = None
    ):
        """Initialize the experiment.
@@ -456,7 +513,9 @@ class SuperpositionExperiment:
        # Create dataloaders
        self.train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
        self.val_loader = DataLoader(val_dataset, batch_size=64)
-       
+       #TODO: Apply L1 noise to SAE
+       if(epsilon > 0): 
+           pass
        # Initialize model
        # Get number of classes from dataset
        num_classes = len(set(y.item() for _, y in train_dataset))
