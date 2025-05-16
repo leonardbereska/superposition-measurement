@@ -16,39 +16,66 @@ def get_default_device() -> torch.device:
         return torch.device("cpu")
 
 # %%
-def get_default_config(testing_mode: bool = False) -> Dict[str, Any]:
+def get_dataset_config(dataset_type: str, selected_classes=None) -> Dict[str, Any]:
+    """Get dataset-specific configuration.
+    
+    Args:
+        dataset_type: Type of dataset ('mnist' or 'cifar10')
+        selected_classes: Classes to use (None for all classes)
+        
+    Returns:
+        Dataset configuration dictionary
+    """
+    if dataset_type.lower() == "mnist":
+        return {
+            "dataset_type": "mnist",
+            "image_size": 28,
+            "input_channels": 1,   # Grayscale
+            "selected_classes": selected_classes if selected_classes else None,
+        }
+    elif dataset_type.lower() == "cifar10":
+        return {
+            "dataset_type": "cifar10",
+            "image_size": 32,
+            "input_channels": 3,   # RGB
+            "selected_classes": selected_classes if selected_classes else None,
+        }
+    else:
+        raise ValueError(f"Unknown dataset type: {dataset_type}")
+
+# %%
+def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist") -> Dict[str, Any]:
     """Get default configuration for experiments.
     
     Args:
         testing_mode: Whether to use minimal settings for testing
+        dataset_type: Type of dataset to use ('mnist' or 'cifar10')
         
     Returns:
         Configuration dictionary with all parameters
     """
+    
+    
+    # Device configuration
+    device = get_default_device()
+    
+    # Get dataset configuration
+    dataset_config = get_dataset_config(dataset_type, selected_classes=(0, 1))
+    
     # Base directories
-    base_dir = "../../results/adversarial_robustness"
+    base_dir = f"../../results/adversarial_robustness/{dataset_type.lower()}"
     data_dir = "../../data"
     
     # Create directories if they don't exist
     os.makedirs(base_dir, exist_ok=True)
     os.makedirs(data_dir, exist_ok=True)
-    
-    # Device configuration
-    device = get_default_device()
-    
-    # Model configuration
+
+    # Model configuration - use dataset parameters
     model_config = {
         "model_type": "mlp",  # Options: "mlp", "cnn"
         "hidden_dim": 32,
-        "image_size": 28,
-    }
-    
-    # Dataset configuration
-    dataset_config = {
-        "dataset_type": "mnist",
-        "target_size": 28,
-        "selected_classes": (0, 1),  # Binary classification
-        # "selected_classes": None,  # Use all classes
+        "image_size": dataset_config["image_size"],
+        "input_channels": dataset_config["input_channels"],
     }
     
     # Training configuration
@@ -56,7 +83,7 @@ def get_default_config(testing_mode: bool = False) -> Dict[str, Any]:
         "batch_size": 128,
         "learning_rate": 1e-3,
         # Use shorter epochs in testing mode
-        "n_epochs": 5 if testing_mode else 100,  # early stopping seemed to make results less reliable
+        "n_epochs": 2 if testing_mode else 100,  # early stopping seemed to make results less reliable
     }
     
     # Adversarial training configuration
@@ -90,6 +117,8 @@ def get_default_config(testing_mode: bool = False) -> Dict[str, Any]:
     
     # Print basic information
     print(f"Using device: {device}")
+    print(f"Dataset: {dataset_type.upper()}")
+    print(f"Image size: {dataset_config['image_size']}x{dataset_config['image_size']}, {dataset_config['input_channels']} channels")
     print(f"Data directory: {os.path.abspath(data_dir)}")
     print(f"Base directory: {os.path.abspath(base_dir)}")
     print(f"Mode: {'TESTING' if testing_mode else 'FULL EXPERIMENT'}")
@@ -120,21 +149,39 @@ def update_config(config: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, 
                 # Replace value
                 updated_config[key] = value
     
+    # If dataset type was updated, update related parameters
+    if "dataset" in updates and "dataset_type" in updates["dataset"]:
+        dataset_type = updates["dataset"]["dataset_type"]
+        new_dataset_config = get_dataset_config(
+            dataset_type, 
+            selected_classes=updated_config["dataset"].get("selected_classes")
+        )
+        
+        # Update dataset config
+        updated_config["dataset"].update(new_dataset_config)
+        
+        # Update model config to match dataset
+        updated_config["model"]["image_size"] = new_dataset_config["image_size"]
+        updated_config["model"]["input_channels"] = new_dataset_config["input_channels"]
+    
     return updated_config
 
 # %%
 # Example usage
 if __name__ == "__main__":
     # Get default config
-    config = get_default_config(testing_mode=True)
+    config = get_default_config(dataset_type="mnist", testing_mode=True)
     
     # Update config with custom values
     custom_updates = {
         "model": {"hidden_dim": 64},
-        "dataset": {"selected_classes": (0, 1, 2)},
+        "dataset": {"dataset_type": "mnist", "selected_classes": (0, 1, 2)},
     }
     
     updated_config = update_config(config, custom_updates)
     print("\nUpdated configuration:")
+    print(f"Dataset: {updated_config['dataset']['dataset_type']}")
+    print(f"Image size: {updated_config['model']['image_size']}")
+    print(f"Input channels: {updated_config['model']['input_channels']}")
     print(f"Hidden dimension: {updated_config['model']['hidden_dim']}")
     print(f"Selected classes: {updated_config['dataset']['selected_classes']}")

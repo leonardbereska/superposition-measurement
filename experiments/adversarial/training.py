@@ -206,8 +206,9 @@ def train_model(
     train_loader: DataLoader,
     val_loader: Optional[DataLoader] = None,
     model_type: str = 'mlp',
-    hidden_dim: int = 32,
+    input_channels: int = 1,  
     image_size: int = 28,
+    hidden_dim: int = 32,
     n_epochs: int = 100,
     learning_rate: float = 1e-3,
     epsilon: float = 0.0,
@@ -221,8 +222,9 @@ def train_model(
         train_loader: DataLoader with training data
         val_loader: Optional DataLoader with validation data
         model_type: Type of model ('mlp' or 'cnn')
-        hidden_dim: Hidden dimension
+        input_channels: Number of input channels (1 for grayscale, 3 for RGB)
         image_size: Image size
+        hidden_dim: Hidden dimension
         n_epochs: Number of epochs
         learning_rate: Learning rate
         epsilon: Perturbation size (0.0 for standard training)
@@ -247,9 +249,10 @@ def train_model(
     # Create model
     model = create_model(
         model_type=model_type,
-        hidden_dim=hidden_dim,
+        input_channels=input_channels,
         image_size=image_size,
-        num_classes=output_dim,
+        hidden_dim=hidden_dim,
+        output_dim=output_dim,
         use_nnsight=False
     ).to(device)
     
@@ -422,7 +425,7 @@ def load_model_from_checkpoint(
     model_type = config.get('model_type', 'mlp')
     hidden_dim = config.get('hidden_dim', 32)
     image_size = config.get('image_size', 28)
-    
+    input_channels = config.get('input_channels', 1)
     # Determine number of output classes from state dict
     if 'model_state' in checkpoint:
         output_dim = list(checkpoint['model_state'].items())[-1][1].size(0)
@@ -433,9 +436,10 @@ def load_model_from_checkpoint(
     # Create model
     model = create_model(
         model_type=model_type,
+        input_channels=input_channels,
         hidden_dim=hidden_dim,
         image_size=image_size,
-        num_classes=output_dim,
+        output_dim=output_dim,
         use_nnsight=False
     )
     

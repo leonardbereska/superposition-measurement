@@ -49,7 +49,7 @@ def run_training_phase(config: Dict[str, Any], results_dir: Optional[Path] = Non
         dataset_type=config['dataset']['dataset_type'],
         batch_size=config['training']['batch_size'],
         selected_classes=config['dataset']['selected_classes'],
-        target_size=config['dataset']['target_size'],
+        image_size=config['dataset']['image_size'],
         data_dir=config['data_dir']
     )
     
@@ -79,7 +79,8 @@ def run_training_phase(config: Dict[str, Any], results_dir: Optional[Path] = Non
                 val_loader=val_loader,
                 model_type=config['model']['model_type'],
                 hidden_dim=config['model']['hidden_dim'],
-                image_size=config['model']['image_size'],
+                input_channels=config['dataset']['input_channels'],
+                image_size=config['dataset']['image_size'],
                 n_epochs=config['training']['n_epochs'],
                 learning_rate=config['training']['learning_rate'],
                 epsilon=epsilon,
@@ -92,7 +93,8 @@ def run_training_phase(config: Dict[str, Any], results_dir: Optional[Path] = Non
                 'config': {
                     'model_type': config['model']['model_type'],
                     'hidden_dim': config['model']['hidden_dim'],
-                    'image_size': config['model']['image_size'],
+                    'image_size': config['dataset']['image_size'],
+                    'input_channels': config['dataset']['input_channels'],
                     'epsilon': epsilon,
                     'seed': run_seed
                 }
@@ -116,28 +118,31 @@ def run_training_phase(config: Dict[str, Any], results_dir: Optional[Path] = Non
     return results_dir
 
 def run_evaluation_phase(
-    search_string: Optional[Path] = None,
-    results_dir: Optional[Path] = None
+    search_string: Optional[str] = None,
+    results_dir: Optional[Path] = None,
+    dataset_type: Optional[str] = None
 ) -> Path:
     """Run evaluation phase.
     
     Args:
         search_string: search string to find results directory
-        
+        results_dir: results directory
+        dataset_type: dataset type
     Returns:
         Path to results directory
     """
     print("\n=== Starting Evaluation Phase ===\n")
-    config = get_default_config()
-    config, results_dir = get_config_and_results_dir(base_dir=Path(config['base_dir']), results_dir=results_dir, search_string=search_string)
+    config = get_default_config(dataset_type=dataset_type)
+    base_dir = Path(config['base_dir'])
+    config, results_dir = get_config_and_results_dir(base_dir=base_dir, results_dir=results_dir, search_string=search_string)
     
-    
+    print(f"Using results directory: {results_dir}")
     # Create dataloaders
     train_loader, val_loader = create_dataloaders(
         dataset_type=config['dataset']['dataset_type'],
         batch_size=config['training']['batch_size'],
         selected_classes=config['dataset']['selected_classes'],
-        target_size=config['dataset']['target_size'],
+        image_size=config['dataset']['image_size'],
         data_dir=config['data_dir']
     )
     
@@ -169,7 +174,7 @@ def run_evaluation_phase(
             # Load model
             model = load_model(
                 model_path=run_dir / "model.pt",
-                device=config['device']
+                config=config
             )
             
             # Measure feature organization
@@ -236,8 +241,9 @@ def run_evaluation_phase(
     return results_dir
 
 def run_analysis_phase(
-    search_string: Optional[Path] = None,
+    search_string: Optional[str] = None,
     results_dir: Optional[Path] = None,
+    dataset_type: Optional[str] = None,
     create_html_report: bool = False
 ) -> Path:
     """Run analysis phase.
@@ -245,6 +251,7 @@ def run_analysis_phase(
     Args:
         search_string: Optional search string to find results directory
         results_dir: Optional path to results directory
+        dataset_type: Optional dataset type to use for configuration
         create_html_report: Whether to create HTML report
         
     Returns:
@@ -252,7 +259,7 @@ def run_analysis_phase(
     """
     print("\n=== Starting Analysis Phase ===\n")
 
-    config = get_default_config()
+    config = get_default_config(dataset_type=dataset_type)
     config, results_dir = get_config_and_results_dir(base_dir=Path(config['base_dir']), results_dir=results_dir, search_string=search_string)
     print(f"Using results directory: {results_dir}")
     
@@ -319,6 +326,7 @@ def run_analysis_phase(
 def run_model_class_experiment(
     model_types: List[str] = ['mlp', 'cnn'],
     class_counts: List[int] = [2, 3, 5, 10],
+    dataset_types: List[str] = ['mnist'],
     base_config: Optional[Dict[str, Any]] = None,
     testing_mode: bool = False 
 ) -> Dict[str, Dict[int, Path]]:
@@ -327,53 +335,54 @@ def run_model_class_experiment(
     Args:
         model_types: List of model types to test ('mlp', 'cnn')
         class_counts: List of class counts to test
+        dataset_types: List of dataset types to test
         base_config: Base configuration (uses default if None)
         testing_mode: Whether to run in testing mode
     Returns:
         Dictionary mapping model types to dictionaries mapping class counts to result directories
     """
-    # Get base configuration if not provided
-    if base_config is None:
-        base_config = get_default_config(testing_mode=testing_mode)
-    
     # Store result directories
     results = {model_type: {} for model_type in model_types}
     
-    # Run experiments for each model type and class count
-    for model_type in model_types:
-        for n_classes in class_counts:
-            print(f"\n{'='*50}")
-            print(f"Running experiment: {model_type.upper()} with {n_classes} classes")
-            print(f"{'='*50}\n")
-            
-            # Select classes based on class count
-            selected_classes = tuple(range(n_classes))
-            
-            # Update configuration for this experiment
-            experiment_config = update_config(base_config, {
-                'model': {'model_type': model_type},
-                'dataset': {'selected_classes': selected_classes}
-            })
+    # Run experiments for each dataset, model type and class count
+    for dataset_type in dataset_types:
+        # Get base configuration if not provided
+        if base_config is None:
+            base_config = get_default_config(testing_mode=testing_mode, dataset_type=dataset_type)
+        
+        for model_type in model_types:
+            for n_classes in class_counts:
+                print(f"\n{'='*50}")
+                print(f"Running experiment: {model_type.upper()} with {n_classes} classes on {dataset_type}")
+                print(f"{'='*50}\n")
+                
+                # Select classes based on class count
+                selected_classes = tuple(range(n_classes))
+                
+                # Update configuration for this experiment
+                experiment_config = update_config(base_config, {
+                    'model': {'model_type': model_type},
+                    'dataset': {'selected_classes': selected_classes}
+                })
 
-            results_dir = run_training_phase(experiment_config)
-            try: 
-                run_evaluation_phase(results_dir=results_dir)
-                run_analysis_phase(results_dir=results_dir)
-            except Exception as e:
-                print(f"Error running all phases for {model_type} with {n_classes} classes: {e}")
-            
-            # Store result directory
-            results[model_type][n_classes] = results_dir
+                results_dir = run_training_phase(experiment_config)
+                try: 
+                    run_evaluation_phase(results_dir=results_dir, dataset_type=dataset_type)
+                    run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
+                except Exception as e:
+                    print(f"Error running all phases for {model_type} with {n_classes} classes: {e}")
+                
+                # Store result directory
+                results[model_type][n_classes] = results_dir
     
     return results
 
-def evaluate_all_experiments(config: Optional[Dict[str, Any]] = None, base_dir: Optional[Path] = None, measure_mixed: bool = True):
+def evaluate_all_experiments(config: Optional[Dict[str, Any]] = None, base_dir: Optional[Path] = None):
     """Evaluate all experiment models in the results directory.
     
     Args:
         config: Experiment configuration
         base_dir: Base directory containing experiment folders
-        measure_mixed: Whether to use mixed clean/adversarial distribution
     """
     # Get default config
     if config is None:
@@ -400,11 +409,7 @@ def evaluate_all_experiments(config: Optional[Dict[str, Any]] = None, base_dir: 
             config = update_config(config, exp_config)
             
             # Run evaluation on this experiment directory
-            run_evaluation_phase(
-                config=config,
-                search_string=exp_dir,
-                measure_mixed=measure_mixed
-            )
+            run_evaluation_phase(results_dir=exp_dir)
             
             print(f"Completed evaluation for: {exp_dir.name}")
         except Exception as e:
@@ -412,49 +417,68 @@ def evaluate_all_experiments(config: Optional[Dict[str, Any]] = None, base_dir: 
     
     print("\n=== All Evaluations Complete ===")
  
-def quick_test(model_type: str = 'cnn'):
+def quick_test(model_type: str = 'cnn', dataset_type: str = "mnist", testing_mode: bool = True):
     # Quick test configuration
-    config = get_default_config(testing_mode=True)
+    config = get_default_config(dataset_type=dataset_type, testing_mode=testing_mode)
     
     # Run a single training experiment with minimal settings
     print("Running quick test with minimal settings...")
     
     # Customize config for quick test
     config['model']['model_type'] = model_type
-    config['model']['hidden_dim'] = 16  # Smaller model
-    config['training']['n_epochs'] = 2  # Fewer epochs
+    config['dataset']['selected_classes'] = (0, 1)
     config['adversarial']['train_epsilons'] = [0.0, 0.1]  # Fewer epsilon values
     config['adversarial']['test_epsilons'] = [0.0, 0.1]  # Fewer test epsilon values
     config['adversarial']['n_runs'] = 1  # Single run
-    
+
+    print(config)
+
     # Run training phase
     results_dir = run_training_phase(config)
     
     # Run evaluation on the trained model
-    run_evaluation_phase(results_dir=results_dir)
+    run_evaluation_phase(results_dir=results_dir, dataset_type=dataset_type)
     
     # Generate analysis plots
-    run_analysis_phase(results_dir=results_dir)
+    run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
     
     print(f"Quick test completed. Results in: {results_dir}")
 
 # %%
 if __name__ == "__main__":
     # Run quick test
-    # quick_test(model_type='cnn')
-    # run_evaluation_phase(search_string="cnn_2-class")
+    # quick_test(model_type='mlp', dataset_type="mnist")
+    # quick_test(model_type='cnn', dataset_type="mnist")
+    # quick_test(model_type='mlp', dataset_type="cifar10")
+    # quick_test(model_type='cnn', dataset_type="cifar10")
+
+    # config = get_default_config(testing_mode=False, dataset_type="cifar10")
+    # config['model']['model_type'] = 'mlp'
+    # config['model']['hidden_dim'] = 32
+    # config['dataset']['selected_classes'] = (0, 1)
+    # config['training']['n_epochs'] = 100
+    # config['adversarial']['train_epsilons'] = [0.1]
+    # config['adversarial']['n_runs'] = 1
+    # results_dir = run_training_phase(config)
+    # run_evaluation_phase(results_dir=results_dir, dataset_type='cifar10')
+    # run_analysis_phase(results_dir=results_dir)
+    # run_evaluation_phase(search_string="mlp_2-class", dataset_type="cifar10")
     # run_analysis_phase(search_string="cnn_2-class")
     
     # Run model comparison experiment
     model_types = ['cnn', 'mlp']
     class_counts = [2, 3, 5, 10]
-    run_model_class_experiment(model_types, class_counts, testing_mode=False)
+    datasets = ['cifar10']
+    run_model_class_experiment(model_types, class_counts, datasets, testing_mode=False)
+    # for model_type in model_types:
+    #     for n_classes in class_counts:
+    #         run_analysis_phase(search_string=f"{model_type}_{n_classes}-class")
 
     # Run single experiment
     # config = get_default_config(testing_mode=False)
     # config['model']['model_type'] = 'mlp'
-    # config['dataset']['selected_classes'] = (0, 1)
     # config['model']['hidden_dim'] = 32
+    # config['dataset']['selected_classes'] = (0, 1)
     # config['training']['n_epochs'] = 100
     # config['adversarial']['train_epsilons'] = [0.0, 0.1, 0.2]
     # config['adversarial']['n_runs'] = 1

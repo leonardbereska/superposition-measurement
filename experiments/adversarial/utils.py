@@ -59,7 +59,7 @@ class ScientificPlotStyle:
         }
 
 def setup_results_dir(config: Dict[str, Any]) -> Path:
-    """Set up results directory with timestamp.
+    """Create and return results directory based on configuration.
     
     Args:
         config: Experiment configuration
@@ -67,21 +67,23 @@ def setup_results_dir(config: Dict[str, Any]) -> Path:
     Returns:
         Path to results directory
     """
+    # Get base directory from config
+    base_dir = Path(config['base_dir'])
+    
+    # Get current timestamp
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     
-    # Determine class information for directory name
-    dataset_config = config['dataset']
+    # Get model type and class count for directory name
     model_type = config['model']['model_type']
+    n_classes = len(config['dataset']['selected_classes'])
     
-    if dataset_config['selected_classes'] is not None:
-        class_info = "".join(map(str, dataset_config['selected_classes']))
-        n_classes = len(dataset_config['selected_classes'])
-    else:
-        class_info = "all"
-        n_classes = 10  # Default for MNIST/CIFAR
+    # Create directory name with timestamp, model type, and class count
+    dir_name = f"{timestamp}_{model_type}_{n_classes}-class"
     
-    # Create directory path
-    results_dir = Path(config['base_dir']) / f"{timestamp}_{model_type}_{n_classes}-class"
+    # Create full path including dataset name
+    results_dir = base_dir / dir_name
+    
+    # Create directory
     results_dir.mkdir(parents=True, exist_ok=True)
     
     return results_dir
@@ -165,7 +167,9 @@ def find_latest_results_dir(base_dir: Path) -> Optional[Path]:
         Path to latest results directory or None if not found
     """
     results_dirs = sorted(base_dir.glob("*"), key=os.path.getmtime)
-    
+    # print base_dir
+    print(f"Base directory: {base_dir}")
+    print(f"Found {len(results_dirs)} results directories.")
     if not results_dirs:
         print("No results directories found.")
         return None

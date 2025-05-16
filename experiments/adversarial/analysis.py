@@ -469,6 +469,15 @@ def generate_plots(results: Dict, output_dir: Path, results_dir: Path) -> Dict[s
 
     # load metadata
     metadata = load_metadata(results_dir)
+
+    # get model type and number of classes
+    model_type = metadata['model']['model_type']
+    n_classes = len(list(metadata['dataset']['selected_classes']))
+    experiment_name = f"{model_type.upper()} {n_classes}-class"  
+
+    def save_path(name):
+        experiment_string = f"{model_type}_{n_classes}-class"
+        return output_dir / f"{experiment_string}_{name}.pdf"
     
     # Feature count plot
     # if 'feature_count' in results:
@@ -479,16 +488,14 @@ def generate_plots(results: Dict, output_dir: Path, results_dir: Path) -> Dict[s
     #     )
     #     figures['feature_count'] = fig
 
-    model_type = metadata['model']['model_type']
-    n_classes = len(list(metadata['dataset']['selected_classes']))
-    experiment_name = f"{model_type.upper()} {n_classes}-class"
+
     # Robustness curve
     if 'robustness_score' in results:
         name = "robustness"
         fig = plot_robustness_curve(
             results['robustness_score'],
             title=f"Model Robustness {experiment_name}",
-            save_path=output_dir / f"{name}.pdf"
+            save_path=save_path(name)
         )
         figures[name] = fig
     
@@ -499,7 +506,7 @@ def generate_plots(results: Dict, output_dir: Path, results_dir: Path) -> Dict[s
             results['feature_count'],
             results['robustness_score'],
             title=f"Feature Count vs Model Robustness {experiment_name}",
-            save_path=output_dir / f"{name}.pdf"
+            save_path=save_path(name)
         )
         figures[name] = fig
     
@@ -516,11 +523,10 @@ def generate_plots(results: Dict, output_dir: Path, results_dir: Path) -> Dict[s
     
     # Generate combined feature count plot
     name = "feature_counts"
-    n_classes = len(list(metadata['dataset']['selected_classes']))
     fig = plot_combined_feature_counts(
         results,
         title=f"Feature Counts {experiment_name}",
-        save_path=output_dir / f"{name}.pdf"
+        save_path=save_path(name)
     )
     figures[name] = fig
     

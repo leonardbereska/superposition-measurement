@@ -14,60 +14,50 @@ from sae import train_sae, evaluate_sae, analyze_feature_statistics
 from models import create_model, NNsightModelWrapper
 from utils import json_serializer
 
-def load_model(
-    model_path: Path,
-    device: Optional[torch.device] = None
-) -> nn.Module:
-    """Load a model from a saved state.
+def load_model(model_path, config):
+    """Load a trained model from disk.
     
     Args:
-        model_path: Path to saved model
-        device: Device to load model onto
+        model_path: Path to the saved model
+        device: Device to load the model to
         
     Returns:
         Loaded model
     """
-    # Use default device if not provided
-    if device is None:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
-    # Load state
+    # Load checkpoint
+    device = config['device']
     state = torch.load(model_path, map_location=device)
     
-    # Create model
-    if 'config' in state:
-        config = state['config']
-        
-        # Get model parameters
-        model_type = config.get('model_type', 'mlp')
-        hidden_dim = config.get('hidden_dim', 32)
-        image_size = config.get('image_size', 28)
-        
-        # Determine number of output classes from state dict
-        if 'model_state' in state:
-            output_dim = list(state['model_state'].items())[-1][1].size(0)
-        else:
-            # Default to binary classification
-            output_dim = 1
-        
-        # Create model
-        model = create_model(
-            model_type=model_type,
-            hidden_dim=hidden_dim,
-            image_size=image_size,
-            num_classes=output_dim,
-            use_nnsight=False
-        )
-        
-        # Load state dict
-        model.load_state_dict(state['model_state'])
-        
-        # Move to device
-        model = model.to(device)
-        
-        return model
+    # Extract model configuration from the saved state
+    model_config = state['config']
+    model_type = model_config['model_type']
+    hidden_dim = model_config['hidden_dim']
+    input_channels = model_config.get('input_channels', 1)  # Default to 1 for backward compatibility
+    image_size = model_config.get('image_size', 28)  # Default to 28 for backward compatibility
+
+    # Determine number of output classes from state dict
+    if 'model_state' in state:
+        output_dim = list(state['model_state'].items())[-1][1].size(0)
     else:
-        raise ValueError("Could not determine model configuration from saved state")
+        # Default to binary classification
+        output_dim = 1
+    
+    model = create_model(
+        model_type=model_type,
+        use_nnsight=False,
+        hidden_dim=hidden_dim,
+        input_channels=input_channels,
+        image_size=image_size,
+        output_dim=output_dim,
+    )
+    
+    # Load state dict
+    model.load_state_dict(state['model_state'])
+    
+    # Move to device
+    model = model.to(device)
+    
+    return model
 
 def evaluate_model_performance(
     model: nn.Module, 

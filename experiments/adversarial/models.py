@@ -94,14 +94,20 @@ class NNsightModelWrapper:
 class MLP(nn.Module):
     """Simple MLP classifier."""
     
-    def __init__(self, hidden_dim=32, image_size=28, num_classes=1):
+    def __init__(
+        self,
+        input_channels: int = 1,  # 1 for grayscale, 3 for RGB
+        image_size: int = 28,
+        hidden_dim: int = 32,
+        output_dim: int = 1
+    ):
         super().__init__()
         self.flatten = nn.Flatten()
         
         # Define layers
-        self.fc1 = nn.Linear(image_size * image_size, hidden_dim)
+        self.fc1 = nn.Linear(input_channels * image_size * image_size, hidden_dim)
         self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(hidden_dim, num_classes)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
         
     def forward(self, x):
         x = self.flatten(x)
@@ -112,32 +118,44 @@ class MLP(nn.Module):
 
 
 class CNN(nn.Module):
-    """Simple CNN classifier."""
+    """Simple CNN model."""
     
-    def __init__(self, image_size=28, num_classes=1):
-        super().__init__()
+    def __init__(
+        self,
+        input_channels: int = 1, # 1 for grayscale, 3 for RGB
+        image_size: int = 28,
+        hidden_dim: int = 32,
+        output_dim: int = 1
+    ):
+        """Initialize CNN.
         
-        # Feature extraction layers
+        Args:
+            input_channels: Number of input image channels (1 for grayscale, 3 for RGB)
+            hidden_dim: Number of hidden units
+            output_dim: Number of output classes
+        """
+        super().__init__()
+        print(f"Input channels: {input_channels}")
         self.features = nn.Sequential(
-            nn.Conv2d(1, 16, kernel_size=3, padding=1),
+            nn.Conv2d(input_channels, hidden_dim, kernel_size=3, padding=1),  # Use input_channels here
             nn.ReLU(),
             nn.MaxPool2d(2),
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),
+            nn.Conv2d(hidden_dim, hidden_dim * 2, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(2)
+            nn.MaxPool2d(2),
+            nn.Flatten()
         )
         
-        # Calculate feature size after convolutions and pooling
-        feature_size = (image_size // 4) ** 2 * 32
+        # Calculate flattened size based on input dimensions
+        # This assumes 28x28 input images with two 2x2 max pooling layers
+        flat_size = (hidden_dim * 2) * (image_size // 4) * (image_size // 4)
         
-        # Classification layers
         self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(feature_size, 128),
+            nn.Linear(flat_size, hidden_dim),
             nn.ReLU(),
-            nn.Linear(128, num_classes)
+            nn.Linear(hidden_dim, output_dim)
         )
-        
+    
     def forward(self, x):
         # Add channel dimension if missing
         if x.dim() == 3:
@@ -153,15 +171,26 @@ def create_model(model_type='mlp', use_nnsight=False, **kwargs):
     
     Args:
         model_type: Type of model to create ('mlp' or 'cnn')
+        use_nnsight: Whether to wrap the model with NNsight
         **kwargs: Arguments to pass to model constructor
     
     Returns:
         Instantiated model, optionally wrapped with NNsight
     """
     if model_type.lower() == 'mlp':
-        model = MLP(hidden_dim=kwargs['hidden_dim'], image_size=kwargs['image_size'], num_classes=kwargs['num_classes'])
+        model = MLP(
+            input_channels=kwargs['input_channels'],
+            image_size=kwargs['image_size'],
+            hidden_dim=kwargs['hidden_dim'],
+            output_dim=kwargs['output_dim']
+        )
     elif model_type.lower() == 'cnn':
-        model = CNN(image_size=kwargs['image_size'], num_classes=kwargs['num_classes'])
+        model = CNN(
+            input_channels=kwargs['input_channels'],
+            image_size=kwargs['image_size'],
+            hidden_dim=kwargs['hidden_dim'],
+            output_dim=kwargs['output_dim']
+        )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     
@@ -223,10 +252,10 @@ def explore_model_structure(model):
 # Example usage
 if __name__ == "__main__":
     # Test model creation and structure exploration
-    mlp = create_model('mlp', hidden_dim=32, image_size=28, num_classes=1)
+    mlp = create_model('mlp', input_channels=1, hidden_dim=32, image_size=28, output_dim=1)
     explore_model_structure(mlp)
 
-    cnn = create_model('cnn', image_size=28, num_classes=1)
+    cnn = create_model('cnn', input_channels=3, hidden_dim=64, image_size=32, output_dim=10)
     explore_model_structure(cnn)
     
     # Test with a more complex model
