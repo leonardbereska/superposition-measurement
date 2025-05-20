@@ -5,12 +5,16 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from typing import Dict, List, Optional, Tuple, Callable, Any
+from typing import Dict, List, Optional, Tuple, Callable, Any, NamedTuple
 from pathlib import Path
 import json
 import numpy as np
 
-from models import create_model
+from models import create_model, ModelConfig
+from attacks import AttackConfig, generate_adversarial_examples
+
+# %%
+
 
 # %%
 def train_step(
@@ -50,10 +54,11 @@ def adversarial_train_step(
     targets: torch.Tensor, 
     optimizer: torch.optim.Optimizer, 
     criterion: Callable,
-    epsilon: float, 
+    epsilon: float,
+    attack_config: AttackConfig,
     alpha: float = 0.5
 ) -> Dict[str, float]:
-    """Perform a single adversarial training step using FGSM.
+    """Perform a single adversarial training step.
     
     Args:
         model: Model to train
@@ -62,6 +67,7 @@ def adversarial_train_step(
         optimizer: Optimizer
         criterion: Loss function
         epsilon: Perturbation size
+        attack_config: Configuration for the attack
         alpha: Weight for clean vs adversarial loss
         
     Returns:
@@ -75,17 +81,9 @@ def adversarial_train_step(
     clean_loss = criterion(clean_outputs.squeeze(), targets)
     
     # Generate adversarial examples
-    inputs.requires_grad = True
-    adv_outputs = model(inputs)
-    adv_loss = criterion(adv_outputs.squeeze(), targets)
-    adv_loss.backward()
-    
-    # FGSM
-    perturbation = epsilon * inputs.grad.sign()
-    adv_inputs = torch.clamp(inputs + perturbation, 0, 1)
+    adv_inputs = generate_adversarial_examples(model, inputs, targets, epsilon, attack_config)
     
     # Calculate adversarial loss
-    inputs.requires_grad = False
     adv_outputs = model(adv_inputs)
     adv_loss = criterion(adv_outputs.squeeze(), targets)
     
@@ -106,7 +104,8 @@ def train_epoch(
     dataloader: DataLoader, 
     optimizer: torch.optim.Optimizer, 
     criterion: Callable,
-    epsilon: float = 0.0, 
+    epsilon: float = 0.0,
+    attack_config: Optional[AttackConfig] = None,
     alpha: float = 0.5
 ) -> Dict[str, float]:
     """Train for one epoch with optional adversarial training.
@@ -116,7 +115,8 @@ def train_epoch(
         dataloader: DataLoader with training data
         optimizer: Optimizer
         criterion: Loss function
-        epsilon: Perturbation size (0.0 for standard training)
+        epsilon: Perturbation size (0 for standard training)
+        attack_config: Configuration for the attack (None for standard training)
         alpha: Weight for clean vs adversarial loss
         
     Returns:
@@ -130,9 +130,10 @@ def train_epoch(
         inputs = inputs.to(device)
         targets = targets.to(device)
         
-        if epsilon > 0:
+        if epsilon > 0 and attack_config is not None:
             step_stats = adversarial_train_step(
-                model, inputs, targets, optimizer, criterion, epsilon, alpha
+                model, inputs, targets, optimizer, criterion, 
+                epsilon, attack_config, alpha
             )
         else:
             step_stats = train_step(model, inputs, targets, optimizer, criterion)
@@ -142,11 +143,11 @@ def train_epoch(
             epoch_stats[k] = epoch_stats.get(k, 0) + v
         
         num_batches += 1
-        
+    
     # Average stats
     for k in epoch_stats:
         epoch_stats[k] /= num_batches
-        
+    
     return epoch_stats
 
 # %%
@@ -204,104 +205,136 @@ def evaluate_model(
 # %%
 def train_model(
     train_loader: DataLoader,
-    val_loader: Optional[DataLoader] = None,
-    model_type: str = 'mlp',
-    input_channels: int = 1,  
-    image_size: int = 28,
-    hidden_dim: int = 32,
+    val_loader: DataLoader,
+    model_config: ModelConfig,
     n_epochs: int = 100,
     learning_rate: float = 1e-3,
     epsilon: float = 0.0,
+    attack_config: Optional[AttackConfig] = None,
     alpha: float = 0.5,
-    verbose: bool = True,
-    device: Optional[torch.device] = None
+    device: Optional[torch.device] = None,
+    save_path: Optional[Path] = None,
+    verbose: bool = True
 ) -> nn.Module:
     """Train a model with optional adversarial training.
     
     Args:
         train_loader: DataLoader with training data
-        val_loader: Optional DataLoader with validation data
-        model_type: Type of model ('mlp' or 'cnn')
-        input_channels: Number of input channels (1 for grayscale, 3 for RGB)
-        image_size: Image size
-        hidden_dim: Hidden dimension
-        n_epochs: Number of epochs
-        learning_rate: Learning rate
-        epsilon: Perturbation size (0.0 for standard training)
+        val_loader: DataLoader with validation data
+        model_config: Configuration for the model
+        n_epochs: Number of epochs to train
+        learning_rate: Learning rate for the optimizer
+        epsilon: Perturbation size (0 for standard training)
+        attack_config: Configuration for the attack (None for standard training)
         alpha: Weight for clean vs adversarial loss
+        device: Device to train on
+        save_path: Path to save model checkpoints
         verbose: Whether to print progress
-        device: Device to use
         
     Returns:
-        Tuple of (trained model, training history)
+        Trained model
     """
-    # Set up device
+    # Use default device if not provided
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # Determine number of classes
-    num_classes = len(torch.unique(train_loader.dataset.targets))
-    output_dim = 1 if num_classes <= 2 else num_classes
+    # # Determine number of classes if output_dim not specified
+    # output_dim = model_config.output_dim
+    # if output_dim is None:
+    #     if hasattr(train_loader.dataset, 'targets'):
+    #         targets = train_loader.dataset.targets
+    #     else:
+    #         # Extract targets from dataset if not directly accessible
+    #         targets = torch.tensor([y for _, y in train_loader.dataset])
+        
+    #     num_classes = len(torch.unique(targets))
+    #     output_dim = 1 if num_classes <= 2 else num_classes
     
-    if verbose:
-        print(f"Creating {model_type.upper()} model with {output_dim} output classes")
+    # if verbose:
+    #     print(f"Creating {model_config.model_type.upper()} model with {output_dim} output classes")
     
     # Create model
     model = create_model(
-        model_type=model_type,
-        input_channels=input_channels,
-        image_size=image_size,
-        hidden_dim=hidden_dim,
-        output_dim=output_dim,
+        model_type=model_config.model_type,
+        input_channels=model_config.input_channels,
+        hidden_dim=model_config.hidden_dim,
+        image_size=model_config.image_size,
+        output_dim=model_config.output_dim,
         use_nnsight=False
-    ).to(device)
+    )
     
-    # Create optimizer
+    # Move model to device
+    model = model.to(device)
+    
+    # Create optimizer and loss function
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    criterion = nn.BCEWithLogitsLoss() if model_config.output_dim == 1 else nn.CrossEntropyLoss()
     
-    # Create criterion based on output dimension
-    criterion = nn.BCEWithLogitsLoss() if output_dim == 1 else nn.CrossEntropyLoss()
+    # Initialize history
+    history = {
+        'train_loss': [],
+        'val_loss': [],
+        'val_acc': []
+    }
+    
+    # Add adversarial metrics if using adversarial training
+    if epsilon > 0 and attack_config is not None:
+        history['train_clean_loss'] = []
+        history['train_adv_loss'] = []
+        history['val_adv_acc'] = []
     
     # Training loop
     for epoch in range(n_epochs):
         # Train for one epoch
         train_stats = train_epoch(
-            model, train_loader, optimizer, criterion, epsilon, alpha
+            model, train_loader, optimizer, criterion, 
+            epsilon, attack_config, alpha
         )
         
-        # Only evaluate when we're going to print progress
-        if verbose and (epoch % max(1, n_epochs // 5) == 0 or epoch == n_epochs - 1):
-            # Evaluate on training set
-            train_metrics = evaluate_model(model, train_loader, criterion)
+        # Update history
+        history['train_loss'].append(train_stats['loss'])
+        if epsilon > 0 and attack_config is not None:
+            history['train_clean_loss'].append(train_stats['clean_loss'])
+            history['train_adv_loss'].append(train_stats['adv_loss'])
+        
+        # Evaluate on validation set
+        val_metrics = evaluate_model(model, val_loader, criterion)
+        history['val_loss'].append(val_metrics['loss'])
+        history['val_acc'].append(val_metrics['accuracy'])
+        
+        # Evaluate adversarial accuracy if using adversarial training
+        if epsilon > 0 and attack_config is not None:
+            val_adv_acc = evaluate_model_performance(
+                model, val_loader, [epsilon], device, attack_config
+            )[str(epsilon)]
+            history['val_adv_acc'].append(val_adv_acc)
+        
+        # Print progress at regular intervals
+        if verbose:
+            # Handle the case where n_epochs might be very small (avoid division by zero)
+            should_print = (epoch == 0 or 
+                           epoch == n_epochs - 1 or 
+                           (n_epochs > 5 and (epoch + 1) % max(1, n_epochs // 5) == 0))
             
-            # Evaluate on validation set if provided
-            if val_loader is not None:
-                val_metrics = evaluate_model(model, val_loader, criterion)
-                
-                # Print progress
-                log_str = f"Epoch {epoch+1}/{n_epochs}"
-                log_str += f" - Loss: {train_stats.get('loss', 0):.4f}"
-                log_str += f" - Accuracy: {train_metrics['accuracy']:.2f}%"
-                log_str += f" - Val Loss: {val_metrics['loss']:.4f}"
-                log_str += f" - Val Accuracy: {val_metrics['accuracy']:.2f}%"
-            else:
-                # Print progress without validation metrics
-                log_str = f"Epoch {epoch+1}/{n_epochs}"
-                log_str += f" - Loss: {train_stats.get('loss', 0):.4f}"
-                if 'adv_loss' in train_stats:
-                    log_str += f" - Adv Loss: {train_stats.get('adv_loss', 0):.4f}"
-                log_str += f" - Accuracy: {train_metrics['accuracy']:.2f}%"
-                
-            print(log_str)
-    
-    return model 
+            if should_print:
+                print(f"Epoch {epoch+1}/{n_epochs} - ", end="")
+                print(f"Train loss: {train_stats['loss']:.4f}", end="")
+                if epsilon > 0 and attack_config is not None:
+                    print(f", Clean loss: {train_stats['clean_loss']:.4f}", end="")
+                    print(f", Adv loss: {train_stats['adv_loss']:.4f}", end="")
+                print(f", Val loss: {val_metrics['loss']:.4f}", end="")
+                print(f", Val acc: {val_metrics['accuracy']:.2f}%", end="")
+                if epsilon > 0 and attack_config is not None:
+                    print(f", Val adv acc: {val_adv_acc:.2f}%", end="")
+                print()
+    return model
 
-# %%
 def evaluate_model_performance(
     model: nn.Module, 
     dataloader: DataLoader, 
     epsilons: List[float],
-    device: Optional[torch.device] = None
+    device: Optional[torch.device] = None,
+    attack_config: Optional[AttackConfig] = None
 ) -> Dict[str, float]:
     """Evaluate model robustness across different perturbation sizes.
     
@@ -310,12 +343,17 @@ def evaluate_model_performance(
         dataloader: DataLoader with evaluation data
         epsilons: List of perturbation sizes to test
         device: Device to use (defaults to model's device)
+        attack_config: Configuration for the attack (defaults to FGSM)
         
     Returns:
         Dictionary mapping epsilon values to accuracies
     """
     if device is None:
         device = next(model.parameters()).device
+    
+    # Use default attack config if none provided
+    if attack_config is None:
+        attack_config = AttackConfig()
     
     model.eval()
     results = {}
@@ -342,21 +380,10 @@ def evaluate_model_performance(
                     total += batch_size
                     continue
             
-            # Generate adversarial examples with FGSM
-            inputs.requires_grad = True
-            outputs = model(inputs)
-            
-            if outputs.size(-1) == 1:  # Binary classification
-               loss = nn.BCEWithLogitsLoss()(outputs.squeeze(), targets)
-            else:  # Multi-class classification
-               loss = nn.CrossEntropyLoss()(outputs, targets)
-           
-            model.zero_grad()
-            loss.backward()
-           
-            # FGSM attack
-            perturbed_inputs = inputs + eps * inputs.grad.sign()
-            perturbed_inputs = torch.clamp(perturbed_inputs, 0, 1)
+            # Generate adversarial examples
+            perturbed_inputs = generate_adversarial_examples(
+                model, inputs, targets, eps, attack_config
+            )
            
             # Evaluate on perturbed inputs
             with torch.no_grad():
@@ -375,81 +402,48 @@ def evaluate_model_performance(
         
     return results
 
-# %%
 def save_model(
     model: nn.Module,
-    history: Dict[str, List[float]],
-    config: Dict[str, Any],
+    model_config: ModelConfig,
     save_path: Path
 ) -> None:
-    """Save model, history, and configuration.
-    
-    Args:
-        model: Trained model
-        history: Training history
-        config: Model configuration
-        save_path: Path to save model
-    """
-    save_path.parent.mkdir(parents=True, exist_ok=True)
+    """Save model and configuration."""
     torch.save({
-        'model_state': model.state_dict(),
-        'history': history,
-        'config': config
+        'model_state_dict': model.state_dict(),
+        'model_config': model_config._asdict()
     }, save_path)
+            
 
-# %%
-def load_model_from_checkpoint(
-    checkpoint_path: Path,
+def load_model(
+    model_path: Path,
     device: Optional[torch.device] = None
-) -> Tuple[nn.Module, Dict[str, List[float]], Dict[str, Any]]:
-    """Load model, history, and configuration from checkpoint.
-    
-    Args:
-        checkpoint_path: Path to checkpoint
-        device: Device to load model onto
-        
-    Returns:
-        Tuple of (model, history, config)
-    """
+) -> Tuple[nn.Module, ModelConfig]:
+    """Load model and configuration from saved file."""
     # Use default device if not provided
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Load checkpoint
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(model_path, map_location=device)
     
-    # Get configuration
-    config = checkpoint['config']
-    
-    # Create model
-    model_type = config.get('model_type', 'mlp')
-    hidden_dim = config.get('hidden_dim', 32)
-    image_size = config.get('image_size', 28)
-    input_channels = config.get('input_channels', 1)
-    # Determine number of output classes from state dict
-    if 'model_state' in checkpoint:
-        output_dim = list(checkpoint['model_state'].items())[-1][1].size(0)
-    else:
-        # Default to binary classification
-        output_dim = 1
+    # Get model configuration
+    model_config_dict = checkpoint['model_config']
+    model_config = ModelConfig(**model_config_dict)
     
     # Create model
     model = create_model(
-        model_type=model_type,
-        input_channels=input_channels,
-        hidden_dim=hidden_dim,
-        image_size=image_size,
-        output_dim=output_dim,
+        model_type=model_config.model_type,
+        input_channels=model_config.input_channels,
+        hidden_dim=model_config.hidden_dim,
+        image_size=model_config.image_size,
+        output_dim=model_config.output_dim,
         use_nnsight=False
     )
     
     # Load state dict
-    model.load_state_dict(checkpoint['model_state'])
+    model.load_state_dict(checkpoint['model_state_dict'])
     
     # Move to device
     model = model.to(device)
     
-    # Get history
-    history = checkpoint.get('history', {})
-    
-    return model, history, config
+    return model, model_config

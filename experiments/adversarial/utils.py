@@ -8,55 +8,6 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional, Any, Tuple
 
-class ScientificPlotStyle:
-    """Standard style settings for scientific visualizations in our papers."""
-    
-    # Color palette - soft muted colors for data series
-    COLORS = ['#F0BE5E', '#94B9A3', '#88A7B2', '#DDC6E1']  # yellow, green, blue, purple
-    ERROR_COLOR = '#BA898A'  # soft red for error indicators
-    REFERENCE_LINE_COLOR = '#8B5C5D'  # dark red for reference lines
-    
-    # Typography - large sizes for readability
-    FONT_SIZE_TITLE = 48     # plot titles
-    FONT_SIZE_LABELS = 36    # axis labels
-    FONT_SIZE_TICKS = 36     # tick labels
-    FONT_SIZE_LEGEND = 28    # legend text
-    
-    # Plot elements
-    MARKER_SIZE = 15         # data point size
-    LINE_WIDTH = 5.0         # line thickness
-    CAPSIZE = 12             # error bar cap size
-    CAPTHICK = 5.0           # error bar cap thickness
-    GRID_ALPHA = 0.3         # grid transparency
-    
-    # Figure dimensions
-    FIGURE_SIZE = (12, 10)   # standard figure size
-    COMBINED_FIG_SIZE = (20, 10)  # two-panel figure size
-    
-    @staticmethod
-    def apply_axis_style(ax, title, xlabel, ylabel, legend=True):
-        """Apply consistent styling to a matplotlib axis."""
-        ax.set_title(title, fontsize=ScientificPlotStyle.FONT_SIZE_TITLE, fontweight='bold')
-        ax.set_xlabel(xlabel, fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-        ax.set_ylabel(ylabel, fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-        ax.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
-        ax.grid(True, alpha=ScientificPlotStyle.GRID_ALPHA)
-        if legend:
-            ax.legend(fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND, loc='best')
-        return ax
-    
-    @staticmethod
-    def errorbar_kwargs(color_idx=0):
-        """Return standard error bar parameters."""
-        return {
-            'marker': 'o',
-            'color': ScientificPlotStyle.COLORS[color_idx % len(ScientificPlotStyle.COLORS)],
-            'markersize': ScientificPlotStyle.MARKER_SIZE,
-            'linewidth': ScientificPlotStyle.LINE_WIDTH,
-            'capsize': ScientificPlotStyle.CAPSIZE,
-            'capthick': ScientificPlotStyle.CAPTHICK,
-            'elinewidth': ScientificPlotStyle.LINE_WIDTH
-        }
 
 def setup_results_dir(config: Dict[str, Any]) -> Path:
     """Create and return results directory based on configuration.
@@ -104,7 +55,21 @@ def get_config_and_results_dir(base_dir: Path, results_dir: Optional[Path] = Non
     print(f"Using results directory: {results_dir}")
     return config, results_dir
 
-
+def find_latest_results_dir(base_dir: Path) -> Optional[Path]:
+    """Find most recent results directory.
+    
+    Returns:
+        Path to latest results directory or None if not found
+    """
+    results_dirs = sorted(base_dir.glob("*"), key=os.path.getmtime)
+    # print base_dir
+    print(f"Base directory: {base_dir}")
+    print(f"Found {len(results_dirs)} results directories.")
+    if not results_dirs:
+        print("No results directories found.")
+        return None
+    
+    return results_dirs[-1]
 
 def find_results_dir(base_dir: Path, search_string: Optional[Path] = None) -> Path:
     """Find results directory.
@@ -147,34 +112,23 @@ def save_config(config: Dict[str, Any], results_dir: Path) -> None:
     with open(results_dir / "config.json", 'w') as f:
         json.dump(json_config, f, indent=4, default=json_serializer)
 
-def load_config(results_dir: Path) -> Dict[str, Any]:
-    """Load configuration from file.
+def load_config(results_dir: Path) -> Dict:
+    """Load experiment configuration.
     
     Args:
-        results_dir: Directory to load configuration
-
+        results_dir: Directory containing experiment configuration
+        
     Returns:
-        Configuration
+        Dictionary with configuration
     """
-    with open(results_dir / "config.json", 'r') as f:
-        config = json.load(f)
-    return config
+    metadata_path = results_dir / "config.json"
+    if metadata_path.exists():
+        with open(metadata_path, 'r') as f:
+            return json.load(f)
+    else:
+        return {}
 
-def find_latest_results_dir(base_dir: Path) -> Optional[Path]:
-    """Find most recent results directory.
-    
-    Returns:
-        Path to latest results directory or None if not found
-    """
-    results_dirs = sorted(base_dir.glob("*"), key=os.path.getmtime)
-    # print base_dir
-    print(f"Base directory: {base_dir}")
-    print(f"Found {len(results_dirs)} results directories.")
-    if not results_dirs:
-        print("No results directories found.")
-        return None
-    
-    return results_dirs[-1]
+
 
 def json_serializer(obj):
     """Serialize objects for JSON serialization."""

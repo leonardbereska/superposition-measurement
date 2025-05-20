@@ -3,7 +3,7 @@
 
 import os
 import torch
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 # %%
 def get_default_device() -> torch.device:
@@ -16,7 +16,7 @@ def get_default_device() -> torch.device:
         return torch.device("cpu")
 
 # %%
-def get_dataset_config(dataset_type: str, selected_classes=None) -> Dict[str, Any]:
+def get_dataset_config(dataset_type: str, selected_classes: Optional[Tuple[int, ...]] = None) -> Dict[str, Any]:
     """Get dataset-specific configuration.
     
     Args:
@@ -31,20 +31,25 @@ def get_dataset_config(dataset_type: str, selected_classes=None) -> Dict[str, An
             "dataset_type": "mnist",
             "image_size": 28,
             "input_channels": 1,   # Grayscale
-            "selected_classes": selected_classes if selected_classes else None,
+            "selected_classes": selected_classes,
         }
     elif dataset_type.lower() == "cifar10":
         return {
             "dataset_type": "cifar10",
             "image_size": 32,
             "input_channels": 3,   # RGB
-            "selected_classes": selected_classes if selected_classes else None,
+            "selected_classes": selected_classes,
         }
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
+    
+def get_output_dim(selected_classes):
+    """Get output dimension based on selected classes."""
+    num_classes = len(selected_classes)
+    return num_classes if num_classes > 2 else 1
 
 # %%
-def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist") -> Dict[str, Any]:
+def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", selected_classes: Tuple[int, ...] = (0, 1)) -> Dict[str, Any]:
     """Get default configuration for experiments.
     
     Args:
@@ -60,7 +65,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist") 
     device = get_default_device()
     
     # Get dataset configuration
-    dataset_config = get_dataset_config(dataset_type, selected_classes=(0, 1))
+    dataset_config = get_dataset_config(dataset_type, selected_classes=selected_classes)
     
     # Base directories
     base_dir = f"../../results/adversarial_robustness/{dataset_type.lower()}"
@@ -76,6 +81,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist") 
         "hidden_dim": 32,
         "image_size": dataset_config["image_size"],
         "input_channels": dataset_config["input_channels"],
+        "output_dim": get_output_dim(dataset_config["selected_classes"]),
     }
     
     # Training configuration
@@ -83,7 +89,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist") 
         "batch_size": 128,
         "learning_rate": 1e-3,
         # Use shorter epochs in testing mode
-        "n_epochs": 2 if testing_mode else 100,  # early stopping seemed to make results less reliable
+        "n_epochs": 2 if testing_mode else 300,  # early stopping seemed to make results less reliable
     }
     
     # Adversarial training configuration
@@ -91,11 +97,15 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist") 
         "train_epsilons": [0.0, 0.05, 0.1, 0.15, 0.2] if not testing_mode else [0.0, 0.1],
         "test_epsilons": [0.0, 0.02, 0.05, 0.1, 0.15, 0.2] if not testing_mode else [0.0, 0.1],
         "n_runs": 1 if testing_mode else 5,  # Number of runs per epsilon
+        "attack_type": "pgd",  # Default attack type, fgsm is also available
+        "pgd_steps": 10,        # Number of steps for PGD attack
+        "pgd_alpha": None,      # Step size for PGD (None = auto-calculate as epsilon/4)
+        "pgd_random_start": True  # Whether to use random initialization for PGD
     }
     
     # SAE configuration
     sae_config = {
-        "expansion_factor": 4,  # NOTE: is this making a difference?
+        "expansion_factor": 4,  
         "n_epochs": 5 if testing_mode else 800,  # early stopping usually around 500
         "learning_rate": 1e-3,
         "batch_size": 128,
@@ -122,6 +132,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist") 
     print(f"Data directory: {os.path.abspath(data_dir)}")
     print(f"Base directory: {os.path.abspath(base_dir)}")
     print(f"Mode: {'TESTING' if testing_mode else 'FULL EXPERIMENT'}")
+    print(f"Attack type: {adversarial_config['attack_type']}")
     
     return config
 
@@ -163,6 +174,12 @@ def update_config(config: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, 
         # Update model config to match dataset
         updated_config["model"]["image_size"] = new_dataset_config["image_size"]
         updated_config["model"]["input_channels"] = new_dataset_config["input_channels"]
+    
+    # If selected classes were updated, update output_dim to match
+    if "dataset" in updates and "selected_classes" in updates["dataset"]:
+        selected_classes = updated_config["dataset"]["selected_classes"]
+        # Set output_dim to number of classes for multi-class, or 1 for binary
+        updated_config["model"]["output_dim"] = get_output_dim(selected_classes)
     
     return updated_config
 

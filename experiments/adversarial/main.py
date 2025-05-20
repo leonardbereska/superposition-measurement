@@ -19,9 +19,11 @@ from datasets_adversarial import create_dataloaders
 from utils import json_serializer, setup_results_dir, find_results_dir, save_config, get_config_and_results_dir
 
 # Import components for different phases 
-from training import train_model, evaluate_model_performance
-from evaluation import load_model, measure_superposition_on_mixed_distribution
-from analysis import generate_plots, create_summary, create_report
+from training import train_model, evaluate_model_performance, load_model, save_model
+from evaluation import measure_superposition_on_mixed_distribution
+from analysis import generate_plots
+from attacks import AttackConfig, generate_adversarial_examples
+from models import ModelConfig
 
 def run_training_phase(config: Dict[str, Any], results_dir: Optional[Path] = None) -> Path:
     """Run training phase.
@@ -53,6 +55,23 @@ def run_training_phase(config: Dict[str, Any], results_dir: Optional[Path] = Non
         data_dir=config['data_dir']
     )
     
+    # Create attack config
+    attack_config = AttackConfig(
+        attack_type=config['adversarial']['attack_type'],
+        pgd_steps=config['adversarial']['pgd_steps'],
+        pgd_alpha=config['adversarial']['pgd_alpha'],
+        pgd_random_start=config['adversarial']['pgd_random_start']
+    )
+    
+    # Create model config
+    model_config = ModelConfig(
+        model_type=config['model']['model_type'],
+        hidden_dim=config['model']['hidden_dim'],
+        input_channels=config['dataset']['input_channels'],
+        image_size=config['dataset']['image_size'],
+        output_dim=config['model']['output_dim']
+    )
+    
     # Train models with different adversarial strengths
     for epsilon in config['adversarial']['train_epsilons']:
         print(f"\nTraining with epsilon={epsilon}")
@@ -77,34 +96,21 @@ def run_training_phase(config: Dict[str, Any], results_dir: Optional[Path] = Non
             model = train_model(
                 train_loader=train_loader,
                 val_loader=val_loader,
-                model_type=config['model']['model_type'],
-                hidden_dim=config['model']['hidden_dim'],
-                input_channels=config['dataset']['input_channels'],
-                image_size=config['dataset']['image_size'],
+                model_config=model_config,
                 n_epochs=config['training']['n_epochs'],
                 learning_rate=config['training']['learning_rate'],
                 epsilon=epsilon,
+                attack_config=attack_config,
                 device=config['device']
             )
-            
-            # Save model and history
-            torch.save({
-                'model_state': model.state_dict(),
-                'config': {
-                    'model_type': config['model']['model_type'],
-                    'hidden_dim': config['model']['hidden_dim'],
-                    'image_size': config['dataset']['image_size'],
-                    'input_channels': config['dataset']['input_channels'],
-                    'epsilon': epsilon,
-                    'seed': run_seed
-                }
-            }, run_dir / "model.pt")
-            
-            # Evaluate on test epsilons
+
+            save_model(model, model_config, run_dir / "model.pt")
+                        # Evaluate on test epsilons
             robustness_results = evaluate_model_performance(
                 model=model,
                 dataloader=val_loader,
                 epsilons=config['adversarial']['test_epsilons'],
+                attack_config=attack_config,
                 device=config['device']
             )
             
@@ -146,8 +152,13 @@ def run_evaluation_phase(
         data_dir=config['data_dir']
     )
     
-    # Determine layer name based on model type
-    layer_name = 'relu' if config['model']['model_type'].lower() == 'mlp' else 'features.1'
+    # Create attack config
+    attack_config = AttackConfig(
+        attack_type=config['adversarial']['attack_type'],
+        pgd_steps=config['adversarial']['pgd_steps'],
+        pgd_alpha=config['adversarial']['pgd_alpha'],
+        pgd_random_start=config['adversarial']['pgd_random_start']
+    )
     
     # Store overall results
     clean_feature_results = {}
@@ -172,10 +183,19 @@ def run_evaluation_phase(
             eval_dir.mkdir(exist_ok=True)
             
             # Load model
-            model = load_model(
+            model, model_config = load_model(
                 model_path=run_dir / "model.pt",
-                config=config
+                device=config['device']
             )
+            
+            # Determine layer name based on model type
+            model_type = model_config.model_type.lower()
+            if model_type == 'mlp':
+                layer_name = 'relu'
+            elif model_type == 'cnn':
+                layer_name = 'features.1'
+            elif model_type == 'resnet18':
+                layer_name = 'layer3.1.conv2'
             
             # Measure feature organization
             epsilon = float(epsilon)
@@ -189,6 +209,7 @@ def run_evaluation_phase(
                 batch_size=config['sae']['batch_size'],
                 learning_rate=config['sae']['learning_rate'],
                 n_epochs=config['sae']['n_epochs'],
+                attack_config=attack_config,
                 save_dir=eval_dir
             )
             
@@ -307,17 +328,6 @@ def run_analysis_phase(
     print("Generating plots...")
     generate_plots(processed_results, plots_dir, results_dir)
     
-    # Create summary
-    print("Creating summary...")
-    summary_df = create_summary(processed_results)
-    summary_df.to_csv(results_dir / "summary.csv", index=False)
-    
-    # Create report if requested
-    if create_html_report:
-        print("Creating HTML report...")
-        report_path = create_report(processed_results, results_dir, plots_dir)
-        print(f"Report created at: {report_path}")
-    
     print(f"\n=== Analysis Phase Completed ===")
     print(f"Results saved to: {plots_dir}")
     
@@ -377,59 +387,68 @@ def run_model_class_experiment(
     
     return results
 
-def evaluate_all_experiments(config: Optional[Dict[str, Any]] = None, base_dir: Optional[Path] = None):
-    """Evaluate all experiment models in the results directory.
+# def evaluate_all_experiments(config: Optional[Dict[str, Any]] = None, base_dir: Optional[Path] = None):
+#     """Evaluate all experiment models in the results directory.
     
-    Args:
-        config: Experiment configuration
-        base_dir: Base directory containing experiment folders
-    """
-    # Get default config
-    if config is None:
-        config = get_default_config()
+#     Args:
+#         config: Experiment configuration
+#         base_dir: Base directory containing experiment folders
+#     """
+#     # Get default config
+#     if config is None:
+#         config = get_default_config()
     
-    if base_dir is None: 
-        base_dir = Path(config['base_dir'])
+#     if base_dir is None: 
+#         base_dir = Path(config['base_dir'])
     
-    print(f"\n=== Evaluating All Experiments in {base_dir} ===\n")
+#     print(f"\n=== Evaluating All Experiments in {base_dir} ===\n")
     
-    # Find all experiment directories
-    experiment_dirs = [d for d in base_dir.glob("*") if d.is_dir()]
+#     # Find all experiment directories
+#     experiment_dirs = [d for d in base_dir.glob("*") if d.is_dir()]
     
-    for exp_dir in experiment_dirs:
-        try:
-            print(f"\nEvaluating experiment: {exp_dir.name}")
+#     for exp_dir in experiment_dirs:
+#         try:
+#             print(f"\nEvaluating experiment: {exp_dir.name}")
             
-            # Load the experiment's config.json 
-            config_path = exp_dir / "config.json"
+#             # Load the experiment's config.json 
+#             config_path = exp_dir / "config.json"
             
-            with open(config_path, 'r') as f:
-                exp_config = json.load(f)
-            # Update the default config with the experiment's config
-            config = update_config(config, exp_config)
+#             with open(config_path, 'r') as f:
+#                 exp_config = json.load(f)
+#             # Update the default config with the experiment's config
+#             config = update_config(config, exp_config)
             
-            # Run evaluation on this experiment directory
-            run_evaluation_phase(results_dir=exp_dir)
+#             # Run evaluation on this experiment directory
+#             run_evaluation_phase(results_dir=exp_dir)
             
-            print(f"Completed evaluation for: {exp_dir.name}")
-        except Exception as e:
-            print(f"Error evaluating {exp_dir.name}: {str(e)}")
+#             print(f"Completed evaluation for: {exp_dir.name}")
+#         except Exception as e:
+#             print(f"Error evaluating {exp_dir.name}: {str(e)}")
     
-    print("\n=== All Evaluations Complete ===")
+#     print("\n=== All Evaluations Complete ===")
  
 def quick_test(model_type: str = 'cnn', dataset_type: str = "mnist", testing_mode: bool = True):
     # Quick test configuration
-    config = get_default_config(dataset_type=dataset_type, testing_mode=testing_mode)
+    config = get_default_config(dataset_type=dataset_type, testing_mode=testing_mode, selected_classes=(0, 1, 2))
     
     # Run a single training experiment with minimal settings
     print("Running quick test with minimal settings...")
     
-    # Customize config for quick test
-    config['model']['model_type'] = model_type
-    config['dataset']['selected_classes'] = (0, 1)
-    config['adversarial']['train_epsilons'] = [0.0, 0.1]  # Fewer epsilon values
-    config['adversarial']['test_epsilons'] = [0.0, 0.1]  # Fewer test epsilon values
-    config['adversarial']['n_runs'] = 1  # Single run
+    # Customize config for quick test using update_config function
+    config = update_config(config, {
+        'model': {
+            'model_type': model_type
+        },
+        'adversarial': {
+            'attack_type': 'pgd',
+            'pgd_steps': 10,
+            'pgd_alpha': 0.01,
+            'pgd_random_start': True,
+            'train_epsilons': [0.05],  # Fewer epsilon values
+            'test_epsilons': [0.0, 0.05],  # Fewer test epsilon values
+            'n_runs': 1  # Single run
+        }
+    })
 
     print(config)
 
@@ -447,32 +466,51 @@ def quick_test(model_type: str = 'cnn', dataset_type: str = "mnist", testing_mod
 # %%
 if __name__ == "__main__":
     # Run quick test
-    # quick_test(model_type='mlp', dataset_type="mnist")
-    # quick_test(model_type='cnn', dataset_type="mnist")
-    # quick_test(model_type='mlp', dataset_type="cifar10")
-    # quick_test(model_type='cnn', dataset_type="cifar10")
+    # quick_test(model_type='mlp', dataset_type="mnist", testing_mode=True)
+    # quick_test(model_type='cnn', dataset_type="mnist", testing_mode=True)
+    # quick_test(model_type='mlp', dataset_type="cifar10", testing_mode=True)
+    # quick_test(model_type='cnn', dataset_type="cifar10", testing_mode=True)
+    # quick_test(model_type='resnet18', dataset_type="cifar10", testing_mode=False)
 
-    # config = get_default_config(testing_mode=False, dataset_type="cifar10")
-    # config['model']['model_type'] = 'mlp'
+    # Run single experiment
+    # config = get_default_config(testing_mode=False, dataset_type="mnist")
+    # config['model']['model_type'] = 'cnn'
     # config['model']['hidden_dim'] = 32
     # config['dataset']['selected_classes'] = (0, 1)
     # config['training']['n_epochs'] = 100
-    # config['adversarial']['train_epsilons'] = [0.1]
+    # config['adversarial']['train_epsilons'] = [0.0, 0.1]
     # config['adversarial']['n_runs'] = 1
+    # config['adversarial']['attack_type'] = 'pgd'
+    # config['adversarial']['pgd_steps'] = 10
+    # config['adversarial']['pgd_random_start'] = True
     # results_dir = run_training_phase(config)
-    # run_evaluation_phase(results_dir=results_dir, dataset_type='cifar10')
-    # run_analysis_phase(results_dir=results_dir)
+
+    # run_evaluation_phase(results_dir=results_dir, dataset_type='mnist')
+    # run_analysis_phase(results_dir=results_dir, dataset_type='mnist')
     # run_evaluation_phase(search_string="mlp_2-class", dataset_type="cifar10")
     # run_analysis_phase(search_string="cnn_2-class")
     
     # Run model comparison experiment
-    model_types = ['cnn', 'mlp']
+    model_types = ['resnet18']
     class_counts = [2, 3, 5, 10]
     datasets = ['cifar10']
     run_model_class_experiment(model_types, class_counts, datasets, testing_mode=False)
-    # for model_type in model_types:
-    #     for n_classes in class_counts:
-    #         run_analysis_phase(search_string=f"{model_type}_{n_classes}-class")
+    
+    model_types = ['cnn']
+    class_counts = [2, 3, 5, 10]
+    datasets = ['mnist']
+    run_model_class_experiment(model_types, class_counts, datasets, testing_mode=False)
+
+    model_types = ['mlp']
+    class_counts = [3, 5, 10]
+    datasets = ['mnist']
+    run_model_class_experiment(model_types, class_counts, datasets, testing_mode=False)
+
+    # model_types = ['resnet18', 'cnn']
+    # class_counts = [2, 3, 5, 10]
+    # datasets = ['cifar10']
+    # run_model_class_experiment(model_types, class_counts, datasets, testing_mode=False)
+
 
     # Run single experiment
     # config = get_default_config(testing_mode=False)

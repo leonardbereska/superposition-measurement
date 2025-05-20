@@ -13,186 +13,182 @@ import os
 from sae import train_sae, evaluate_sae, analyze_feature_statistics
 from models import create_model, NNsightModelWrapper
 from utils import json_serializer
+from attacks import AttackConfig, generate_adversarial_examples
 
-def load_model(model_path, config):
-    """Load a trained model from disk.
+# def load_model(model_path, config):
+#     """Load a trained model from disk.
     
-    Args:
-        model_path: Path to the saved model
-        device: Device to load the model to
+#     Args:
+#         model_path: Path to the saved model
+#         device: Device to load the model to
         
-    Returns:
-        Loaded model
-    """
-    # Load checkpoint
-    device = config['device']
-    state = torch.load(model_path, map_location=device)
+#     Returns:
+#         Loaded model
+#     """
+#     # Load checkpoint
+#     device = config['device']
+#     state = torch.load(model_path, map_location=device)
     
-    # Extract model configuration from the saved state
-    model_config = state['config']
-    model_type = model_config['model_type']
-    hidden_dim = model_config['hidden_dim']
-    input_channels = model_config.get('input_channels', 1)  # Default to 1 for backward compatibility
-    image_size = model_config.get('image_size', 28)  # Default to 28 for backward compatibility
+#     # Extract model configuration from the saved state
+#     model_config = state['config']
+#     model_type = model_config['model_type']
+#     hidden_dim = model_config['hidden_dim']
+#     input_channels = model_config.get('input_channels', 1)  # Default to 1 for backward compatibility
+#     image_size = model_config.get('image_size', 28)  # Default to 28 for backward compatibility
 
-    # Determine number of output classes from state dict
-    if 'model_state' in state:
-        output_dim = list(state['model_state'].items())[-1][1].size(0)
-    else:
-        # Default to binary classification
-        output_dim = 1
+#     # Determine number of output classes from state dict
+#     if 'model_state' in state:
+#         output_dim = list(state['model_state'].items())[-1][1].size(0)
+#     else:
+#         # Default to binary classification
+#         output_dim = 1
     
-    model = create_model(
-        model_type=model_type,
-        use_nnsight=False,
-        hidden_dim=hidden_dim,
-        input_channels=input_channels,
-        image_size=image_size,
-        output_dim=output_dim,
-    )
+#     model = create_model(
+#         model_type=model_type,
+#         use_nnsight=False,
+#         hidden_dim=hidden_dim,
+#         input_channels=input_channels,
+#         image_size=image_size,
+#         output_dim=output_dim,
+#     )
     
-    # Load state dict
-    model.load_state_dict(state['model_state'])
+#     # Load state dict
+#     model.load_state_dict(state['model_state'])
     
-    # Move to device
-    model = model.to(device)
+#     # Move to device
+#     model = model.to(device)
     
-    return model
+#     return model
 
-def evaluate_model_performance(
-    model: nn.Module, 
-    dataloader: DataLoader, 
-    epsilons: List[float],
-    device: Optional[torch.device] = None
-) -> Dict[str, float]:
-    """Evaluate model robustness across different perturbation sizes.
+# def evaluate_model_performance(
+#     model: nn.Module, 
+#     dataloader: DataLoader, 
+#     epsilons: List[float],
+#     device: Optional[torch.device] = None,
+#     attack_config: Optional[AttackConfig] = None
+# ) -> Dict[str, float]:
+#     """Evaluate model robustness across different perturbation sizes.
     
-    Args:
-        model: Model to evaluate
-        dataloader: DataLoader with evaluation data
-        epsilons: List of perturbation sizes to test
-        device: Device to use (defaults to model's device)
+#     Args:
+#         model: Model to evaluate
+#         dataloader: DataLoader with evaluation data
+#         epsilons: List of perturbation sizes to test
+#         device: Device to use (defaults to model's device)
+#         attack_config: Configuration for the attack (defaults to FGSM)
         
-    Returns:
-        Dictionary mapping epsilon values to accuracies
-    """
-    if device is None:
-        device = next(model.parameters()).device
+#     Returns:
+#         Dictionary mapping epsilon values to accuracies
+#     """
+#     if device is None:
+#         device = next(model.parameters()).device
     
-    model.eval()
-    results = {}
+#     # Use default attack config if none provided
+#     if attack_config is None:
+#         attack_config = AttackConfig()
     
-    for eps in epsilons:
-        correct = 0
-        total = 0
+#     model.eval()
+#     results = {}
+    
+#     for eps in epsilons:
+#         correct = 0
+#         total = 0
         
-        for inputs, targets in dataloader:
-            inputs = inputs.to(device)
-            targets = targets.to(device)
-            batch_size = inputs.shape[0]
+#         for inputs, targets in dataloader:
+#             inputs = inputs.to(device)
+#             targets = targets.to(device)
+#             batch_size = inputs.shape[0]
             
-            # For eps=0, just evaluate normally
-            if eps == 0:
-                with torch.no_grad():
-                    outputs = model(inputs)
-                    if outputs.size(-1) == 1:  # Binary
-                        predictions = (torch.sigmoid(outputs) > 0.5).squeeze()
-                    else:  # Multi
-                        predictions = outputs.argmax(dim=1)
+#             # For eps=0, just evaluate normally
+#             if eps == 0:
+#                 with torch.no_grad():
+#                     outputs = model(inputs)
+#                     if outputs.size(-1) == 1:  # Binary
+#                         predictions = (torch.sigmoid(outputs) > 0.5).squeeze()
+#                     else:  # Multi
+#                         predictions = outputs.argmax(dim=1)
                         
-                    correct += (predictions == targets).sum().item()
-                    total += batch_size
-                    continue
+#                     correct += (predictions == targets).sum().item()
+#                     total += batch_size
+#                     continue
             
-            # Generate adversarial examples with FGSM
-            inputs.requires_grad = True
-            outputs = model(inputs)
-            
-            if outputs.size(-1) == 1:  # Binary classification
-               loss = nn.BCEWithLogitsLoss()(outputs.squeeze(), targets)
-            else:  # Multi-class classification
-               loss = nn.CrossEntropyLoss()(outputs, targets)
+#             # Generate adversarial examples
+#             perturbed_inputs = generate_adversarial_examples(
+#                 model, inputs, targets, eps, attack_config
+#             )
            
-            model.zero_grad()
-            loss.backward()
-           
-            # FGSM attack
-            perturbed_inputs = inputs + eps * inputs.grad.sign()
-            perturbed_inputs = torch.clamp(perturbed_inputs, 0, 1)
-           
-            # Evaluate on perturbed inputs
-            with torch.no_grad():
-                adv_outputs = model(perturbed_inputs)
+#             # Evaluate on perturbed inputs
+#             with torch.no_grad():
+#                 adv_outputs = model(perturbed_inputs)
                 
-                if adv_outputs.size(-1) == 1:  # Binary
-                    predictions = (torch.sigmoid(adv_outputs) > 0.5).squeeze()
-                else:  # Multi-class
-                    predictions = adv_outputs.argmax(dim=1)
+#                 if adv_outputs.size(-1) == 1:  # Binary
+#                     predictions = (torch.sigmoid(adv_outputs) > 0.5).squeeze()
+#                 else:  # Multi-class
+#                     predictions = adv_outputs.argmax(dim=1)
                     
-                correct += (predictions == targets).sum().item()
-                total += batch_size
+#                 correct += (predictions == targets).sum().item()
+#                 total += batch_size
         
-        accuracy = 100 * correct / total
-        results[str(eps)] = accuracy
+#         accuracy = 100 * correct / total
+#         results[str(eps)] = accuracy
         
-    return results
+#     return results
 
-def generate_adversarial_example(
-   model: nn.Module,
-   image: torch.Tensor,
-   true_label: torch.Tensor,
-   epsilon: float = 0.1,
-   targeted: bool = False,
-   target_label: Optional[torch.Tensor] = None
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-   """Generate adversarial example using FGSM.
+# def generate_adversarial_example(
+#    model: nn.Module,
+#    image: torch.Tensor,
+#    true_label: torch.Tensor,
+#    epsilon: float = 0.1,
+#    targeted: bool = False,
+#    target_label: Optional[torch.Tensor] = None
+# ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+#    """Generate adversarial example using FGSM.
    
-   Args:
-       model: Trained model
-       image: Input image tensor
-       true_label: Original label
-       epsilon: Perturbation size
-       targeted: If True, optimize toward target_label
-       target_label: Label to target if targeted=True
+#    Args:
+#        model: Trained model
+#        image: Input image tensor
+#        true_label: Original label
+#        epsilon: Perturbation size
+#        targeted: If True, optimize toward target_label
+#        target_label: Label to target if targeted=True
    
-   Returns:
-       perturbed_image, prediction, perturbation
-   """
-   # Prepare input
-   device = next(model.parameters()).device
-   image = image.clone().detach().requires_grad_(True).to(device)
-   target = target_label.to(device) if targeted else true_label.to(device)
+#    Returns:
+#        perturbed_image, prediction, perturbation
+#    """
+#    # Prepare input
+#    device = next(model.parameters()).device
+#    image = image.clone().detach().requires_grad_(True).to(device)
+#    target = target_label.to(device) if targeted else true_label.to(device)
    
-   # Forward pass
-   output = model(image.unsqueeze(0))
+#    # Forward pass
+#    output = model(image.unsqueeze(0))
    
-   if output.size(-1) == 1:  # Binary classification
-       loss = nn.BCEWithLogitsLoss()(output.squeeze(), target.float())
-   else:  # Multi-class classification
-       loss = nn.CrossEntropyLoss()(output, target)
+#    if output.size(-1) == 1:  # Binary classification
+#        loss = nn.BCEWithLogitsLoss()(output.squeeze(), target.float())
+#    else:  # Multi-class classification
+#        loss = nn.CrossEntropyLoss()(output, target)
    
-   # Backward pass
-   loss.backward()
+#    # Backward pass
+#    loss.backward()
    
-   # Generate perturbation
-   # Minus sign for targeted (move toward target)
-   # Plus sign for untargeted (move away from true label)
-   sign = -1 if targeted else 1
-   perturbation = sign * epsilon * image.grad.sign()
+#    # Generate perturbation
+#    # Minus sign for targeted (move toward target)
+#    # Plus sign for untargeted (move away from true label)
+#    sign = -1 if targeted else 1
+#    perturbation = sign * epsilon * image.grad.sign()
    
-   # Generate adversarial example
-   perturbed_image = torch.clamp(image + perturbation, 0, 1)
+#    # Generate adversarial example
+#    perturbed_image = torch.clamp(image + perturbation, 0, 1)
    
-   # Get prediction
-   with torch.no_grad():
-       adv_output = model(perturbed_image.unsqueeze(0))
+#    # Get prediction
+#    with torch.no_grad():
+#        adv_output = model(perturbed_image.unsqueeze(0))
        
-       if adv_output.size(-1) == 1:  # Binary
-           pred = torch.sigmoid(adv_output) > 0.5
-       else:  # Multi-class
-           pred = adv_output.argmax(dim=1)
+#        if adv_output.size(-1) == 1:  # Binary
+#            pred = torch.sigmoid(adv_output) > 0.5
+#        else:  # Multi-class
+#            pred = adv_output.argmax(dim=1)
    
-   return perturbed_image, pred, perturbation
+#    return perturbed_image, pred, perturbation
 
 # def evaluate_feature_organization(
 #     model: torch.nn.Module,
@@ -422,7 +418,8 @@ def measure_superposition_on_mixed_distribution(
     n_epochs: int = 300,
     save_dir: Optional[Path] = None,
     max_samples: int = 10000,
-    verbose: bool = True
+    verbose: bool = True,
+    attack_config: Optional[AttackConfig] = None
 ) -> Dict[str, float]:
     """Measure feature organization across different input distributions.
     
@@ -439,12 +436,17 @@ def measure_superposition_on_mixed_distribution(
         save_dir: Directory to save results
         max_samples: Maximum number of samples to use
         verbose: Whether to print progress
+        attack_config: Configuration for the attack (defaults to FGSM)
         
     Returns:
         Dictionary with feature counts for clean, adversarial, and mixed distributions
     """
     device = next(model.parameters()).device
     model_wrapper = NNsightModelWrapper(model)
+    
+    # Use default attack config if none provided
+    if attack_config is None:
+        attack_config = AttackConfig()
     
     # Extract clean activations
     clean_activations = model_wrapper.get_activations(
@@ -463,21 +465,10 @@ def measure_superposition_on_mixed_distribution(
             
         inputs, targets = inputs.to(device), targets.to(device)
         
-        # Generate adversarial examples with FGSM
-        inputs.requires_grad = True
-        outputs = model(inputs)
-        
-        if outputs.size(-1) == 1:  # Binary classification
-            loss = nn.BCEWithLogitsLoss()(outputs.squeeze(), targets)
-        else:  # Multi-class classification
-            loss = nn.CrossEntropyLoss()(outputs, targets)
-        
-        model.zero_grad()
-        loss.backward()
-        
-        # FGSM attack
-        perturbed_inputs = inputs + epsilon * inputs.grad.sign()
-        perturbed_inputs = torch.clamp(perturbed_inputs, 0, 1)
+        # Generate adversarial examples
+        perturbed_inputs = generate_adversarial_examples(
+            model, inputs, targets, epsilon, attack_config
+        )
         
         # Get activations for adversarial examples
         with torch.no_grad():

@@ -4,6 +4,16 @@
 import torch
 import torch.nn as nn
 from nnsight import NNsight
+import torchvision.models as models
+from typing import NamedTuple, Optional
+
+class ModelConfig(NamedTuple):
+    """Configuration for model creation."""
+    model_type: str
+    hidden_dim: int
+    input_channels: int
+    image_size: int
+    output_dim: Optional[int] = None  # Will be determined from data if None
 
 class NNsightModelWrapper:
     """Wrapper for models to use with nnsight."""
@@ -165,7 +175,6 @@ class CNN(nn.Module):
         x = self.classifier(x)
         return x
 
-
 def create_model(model_type='mlp', use_nnsight=False, **kwargs):
     """Factory function to create models.
     
@@ -191,6 +200,9 @@ def create_model(model_type='mlp', use_nnsight=False, **kwargs):
             hidden_dim=kwargs['hidden_dim'],
             output_dim=kwargs['output_dim']
         )
+    elif model_type.lower() == 'resnet18':
+        # Simple ResNet-18 for CIFAR-10
+        model = models.resnet18(pretrained=False, num_classes=kwargs['output_dim'])
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     
@@ -248,7 +260,7 @@ def explore_model_structure(model):
     
     return layer_paths
 
-
+# %%
 # Example usage
 if __name__ == "__main__":
     # Test model creation and structure exploration
@@ -259,8 +271,7 @@ if __name__ == "__main__":
     explore_model_structure(cnn)
     
     # Test with a more complex model
-    import torchvision.models as models
-    resnet = models.resnet18()
+    resnet = models.resnet18(pretrained=False, num_classes=10)
     wrapped_resnet = NNsightModelWrapper(resnet)
     explore_model_structure(wrapped_resnet)
 # %%
