@@ -89,28 +89,45 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
         "batch_size": 128,
         "learning_rate": 1e-3,
         # Use shorter epochs in testing mode
-        "n_epochs": 2 if testing_mode else 300,  # early stopping seemed to make results less reliable
+        "n_epochs": 1 if testing_mode else 500,  # early stopping 
     }
     
-    # Adversarial training configuration
+    # Adversarial training configuration with dataset-specific epsilon values
+    if dataset_type.lower() == "mnist":
+        # Standard epsilon values for MNIST (in [0,1] pixel range)
+        # Madry et al. used 0.3 as the standard benchmark
+        train_epsilons = [0.0, 0.1, 0.2, 0.3] if not testing_mode else [0.0, 0.1]
+        test_epsilons = [0.0, 0.1, 0.2, 0.3] if not testing_mode else [0.0, 0.1]
+        pgd_alpha = 0.01  # Step size for PGD (smaller than epsilon/4)
+    elif dataset_type.lower() == "cifar10":
+        # Standard epsilon values for CIFAR-10 (in [0,1] pixel range)
+        # 8/255 ≈ 0.031 is the de facto standard from Madry et al.
+        train_epsilons = [0.0, 0.01, 0.02, 0.031] if not testing_mode else [0.0, 0.01]
+        test_epsilons = [0.0, 0.01, 0.02, 0.031] if not testing_mode else [0.0, 0.01]
+        pgd_alpha = 0.008  # Step size for PGD (≈ 2/255)
+    else:
+        raise ValueError(f"Unknown dataset type: {dataset_type}")
+    
     adversarial_config = {
-        "train_epsilons": [0.0, 0.05, 0.1, 0.15, 0.2] if not testing_mode else [0.0, 0.1],
-        "test_epsilons": [0.0, 0.02, 0.05, 0.1, 0.15, 0.2] if not testing_mode else [0.0, 0.1],
-        "n_runs": 1 if testing_mode else 5,  # Number of runs per epsilon
+        "train_epsilons": train_epsilons,
+        "test_epsilons": test_epsilons,
+        "n_runs": 1 if testing_mode else 3,  # Number of runs per epsilon
         "attack_type": "pgd",  # Default attack type, fgsm is also available
         "pgd_steps": 10,        # Number of steps for PGD attack
-        "pgd_alpha": None,      # Step size for PGD (None = auto-calculate as epsilon/4)
+        "pgd_alpha": pgd_alpha,  # Step size for PGD
         "pgd_random_start": True  # Whether to use random initialization for PGD
     }
     
     # SAE configuration
     sae_config = {
         "expansion_factor": 4,  
-        "n_epochs": 5 if testing_mode else 800,  # early stopping usually around 500
+        "n_epochs": 1 if testing_mode else 800,  # early stopping usually around 500
         "learning_rate": 1e-3,
         "batch_size": 128,
         "l1_lambda": 0.1,
     }
+
+    comment = ""
     
     # Assemble complete configuration
     config = {
@@ -123,17 +140,8 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
         "adversarial": adversarial_config,
         "sae": sae_config,
         "testing_mode": testing_mode,
+        "comment": comment,
     }
-    
-    # Print basic information
-    print(f"Using device: {device}")
-    print(f"Dataset: {dataset_type.upper()}")
-    print(f"Image size: {dataset_config['image_size']}x{dataset_config['image_size']}, {dataset_config['input_channels']} channels")
-    print(f"Data directory: {os.path.abspath(data_dir)}")
-    print(f"Base directory: {os.path.abspath(base_dir)}")
-    print(f"Mode: {'TESTING' if testing_mode else 'FULL EXPERIMENT'}")
-    print(f"Attack type: {adversarial_config['attack_type']}")
-    
     return config
 
 # %%
@@ -174,6 +182,26 @@ def update_config(config: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, 
         # Update model config to match dataset
         updated_config["model"]["image_size"] = new_dataset_config["image_size"]
         updated_config["model"]["input_channels"] = new_dataset_config["input_channels"]
+        
+        # Update adversarial config with dataset-specific epsilon values
+        # Only if adversarial config wasn't explicitly provided in updates
+        if "adversarial" not in updates or not any(k in updates.get("adversarial", {}) 
+                                                for k in ["train_epsilons", "test_epsilons"]):
+            if dataset_type.lower() == "mnist":
+                # Standard epsilon values for MNIST
+                updated_config["adversarial"]["train_epsilons"] = [0.0, 0.1, 0.2, 0.3]
+                updated_config["adversarial"]["test_epsilons"] = [0.0, 0.1, 0.2, 0.3]
+                updated_config["adversarial"]["pgd_alpha"] = 0.01
+            else:  # CIFAR-10
+                # Standard epsilon values for CIFAR-10
+                updated_config["adversarial"]["train_epsilons"] = [0.0, 0.01, 0.02, 0.031]
+                updated_config["adversarial"]["test_epsilons"] = [0.0, 0.01, 0.02, 0.031]
+                updated_config["adversarial"]["pgd_alpha"] = 0.008
+            
+            # Apply testing mode adjustments if needed
+            if updated_config["testing_mode"]:
+                updated_config["adversarial"]["train_epsilons"] = updated_config["adversarial"]["train_epsilons"][:2]
+                updated_config["adversarial"]["test_epsilons"] = updated_config["adversarial"]["test_epsilons"][:2]
     
     # If selected classes were updated, update output_dim to match
     if "dataset" in updates and "selected_classes" in updates["dataset"]:

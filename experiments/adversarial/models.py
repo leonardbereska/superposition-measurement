@@ -145,7 +145,6 @@ class CNN(nn.Module):
             output_dim: Number of output classes
         """
         super().__init__()
-        print(f"Input channels: {input_channels}")
         self.features = nn.Sequential(
             nn.Conv2d(input_channels, hidden_dim, kernel_size=3, padding=1),  # Use input_channels here
             nn.ReLU(),

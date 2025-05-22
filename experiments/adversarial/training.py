@@ -3,16 +3,14 @@
 
 import torch
 import torch.nn as nn
+from pathlib import Path
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from typing import Dict, List, Optional, Tuple, Callable, Any, NamedTuple
-from pathlib import Path
-import json
-import numpy as np
+from typing import Dict, List, Optional, Tuple, Callable
 
 from models import create_model, ModelConfig
 from attacks import AttackConfig, generate_adversarial_examples
-
+import logging
 # %%
 
 
@@ -213,8 +211,7 @@ def train_model(
     attack_config: Optional[AttackConfig] = None,
     alpha: float = 0.5,
     device: Optional[torch.device] = None,
-    save_path: Optional[Path] = None,
-    verbose: bool = True
+    logger: Optional[logging.Logger] = None
 ) -> nn.Module:
     """Train a model with optional adversarial training.
     
@@ -228,32 +225,18 @@ def train_model(
         attack_config: Configuration for the attack (None for standard training)
         alpha: Weight for clean vs adversarial loss
         device: Device to train on
-        save_path: Path to save model checkpoints
-        verbose: Whether to print progress
+        logger: Optional logger for training progress
         
     Returns:
         Trained model
     """
-    # Use default device if not provided
+    # Set up logging
+    log = logger.info if logger else print
+    
+    # Initialize model
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # # Determine number of classes if output_dim not specified
-    # output_dim = model_config.output_dim
-    # if output_dim is None:
-    #     if hasattr(train_loader.dataset, 'targets'):
-    #         targets = train_loader.dataset.targets
-    #     else:
-    #         # Extract targets from dataset if not directly accessible
-    #         targets = torch.tensor([y for _, y in train_loader.dataset])
-        
-    #     num_classes = len(torch.unique(targets))
-    #     output_dim = 1 if num_classes <= 2 else num_classes
-    
-    # if verbose:
-    #     print(f"Creating {model_config.model_type.upper()} model with {output_dim} output classes")
-    
-    # Create model
     model = create_model(
         model_type=model_config.model_type,
         input_channels=model_config.input_channels,
@@ -261,27 +244,26 @@ def train_model(
         image_size=model_config.image_size,
         output_dim=model_config.output_dim,
         use_nnsight=False
-    )
+    ).to(device)
     
-    # Move model to device
-    model = model.to(device)
-    
-    # Create optimizer and loss function
+    # Prepare optimizer and loss function
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.BCEWithLogitsLoss() if model_config.output_dim == 1 else nn.CrossEntropyLoss()
     
-    # Initialize history
+    # Initialize training state
+    best_val_acc = 0.0
+    best_adv_acc = 0.0
+    best_epoch = 0
+    best_state_dict = None
+    patience = 10
+    
+    # Training history
     history = {
         'train_loss': [],
         'val_loss': [],
-        'val_acc': []
+        'val_acc': [],
+        'val_adv_acc': []
     }
-    
-    # Add adversarial metrics if using adversarial training
-    if epsilon > 0 and attack_config is not None:
-        history['train_clean_loss'] = []
-        history['train_adv_loss'] = []
-        history['val_adv_acc'] = []
     
     # Training loop
     for epoch in range(n_epochs):
@@ -291,42 +273,62 @@ def train_model(
             epsilon, attack_config, alpha
         )
         
-        # Update history
-        history['train_loss'].append(train_stats['loss'])
-        if epsilon > 0 and attack_config is not None:
-            history['train_clean_loss'].append(train_stats['clean_loss'])
-            history['train_adv_loss'].append(train_stats['adv_loss'])
-        
         # Evaluate on validation set
         val_metrics = evaluate_model(model, val_loader, criterion)
+        
+        # Track metrics
+        history['train_loss'].append(train_stats['loss'])
         history['val_loss'].append(val_metrics['loss'])
         history['val_acc'].append(val_metrics['accuracy'])
         
-        # Evaluate adversarial accuracy if using adversarial training
+        # Get adversarial accuracy if using adversarial training
+        val_adv_acc = None
         if epsilon > 0 and attack_config is not None:
             val_adv_acc = evaluate_model_performance(
                 model, val_loader, [epsilon], device, attack_config
             )[str(epsilon)]
             history['val_adv_acc'].append(val_adv_acc)
-        
-        # Print progress at regular intervals
-        if verbose:
-            # Handle the case where n_epochs might be very small (avoid division by zero)
-            should_print = (epoch == 0 or 
-                           epoch == n_epochs - 1 or 
-                           (n_epochs > 5 and (epoch + 1) % max(1, n_epochs // 5) == 0))
             
-            if should_print:
-                print(f"Epoch {epoch+1}/{n_epochs} - ", end="")
-                print(f"Train loss: {train_stats['loss']:.4f}", end="")
-                if epsilon > 0 and attack_config is not None:
-                    print(f", Clean loss: {train_stats['clean_loss']:.4f}", end="")
-                    print(f", Adv loss: {train_stats['adv_loss']:.4f}", end="")
-                print(f", Val loss: {val_metrics['loss']:.4f}", end="")
-                print(f", Val acc: {val_metrics['accuracy']:.2f}%", end="")
-                if epsilon > 0 and attack_config is not None:
-                    print(f", Val adv acc: {val_adv_acc:.2f}%", end="")
-                print()
+            # Early stopping based on adversarial accuracy
+            if val_adv_acc > best_adv_acc:
+                best_adv_acc = val_adv_acc
+                best_epoch = epoch
+                best_state_dict = model.state_dict().copy()
+            elif epoch - best_epoch >= patience:
+                log(f"\tEarly stopping at epoch {epoch+1}")
+                model.load_state_dict(best_state_dict)
+                break
+        else:
+            # Early stopping based on validation accuracy
+            if val_metrics['accuracy'] > best_val_acc:
+                best_val_acc = val_metrics['accuracy']
+                best_epoch = epoch
+                best_state_dict = model.state_dict().copy()
+            elif epoch - best_epoch >= patience:
+                log(f"\tEarly stopping at epoch {epoch+1}")
+                model.load_state_dict(best_state_dict)
+                break
+        
+        # Log progress at regular intervals
+        if epoch % max(1, n_epochs // 10) == 0 or epoch == n_epochs - 1:
+            log_message = f"\tEpoch {epoch+1:04d}/{n_epochs}"
+            log_message += f" | Train loss: {train_stats['loss']:.4f}"
+            log_message += f" | Val loss: {val_metrics['loss']:.4f}"
+            log_message += f" | Val acc: {val_metrics['accuracy']:6.2f}%"
+            
+            if epsilon > 0 and attack_config is not None and val_adv_acc is not None:
+                log_message += f" | Val adv acc: {val_adv_acc:6.2f}%"
+                
+            log(log_message)
+    
+    # Load best model if early stopping was triggered
+    if best_state_dict is not None and epoch != best_epoch:
+        model.load_state_dict(best_state_dict)
+        if epsilon > 0 and attack_config is not None:
+            log(f"\t\tBest model with adversarial accuracy: {best_adv_acc:.2f}%")
+        else:
+            log(f"\t\tBest model with validation accuracy: {best_val_acc:.2f}%")
+    
     return model
 
 def evaluate_model_performance(
@@ -413,7 +415,6 @@ def save_model(
         'model_config': model_config._asdict()
     }, save_path)
             
-
 def load_model(
     model_path: Path,
     device: Optional[torch.device] = None

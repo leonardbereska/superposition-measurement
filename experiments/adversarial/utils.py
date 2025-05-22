@@ -3,11 +3,66 @@
 import os
 import json
 import torch
+import logging
 import numpy as np
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Optional, Any, Tuple
 
+def create_directory(base_dir: Path, dir_name: str) -> Path:
+    """Create a directory with the given name under the base directory.
+    
+    Args:
+        base_dir: Base directory path
+        dir_name: Name of the directory to create
+        
+    Returns:
+        Path to the created directory
+    """
+    new_dir = base_dir / dir_name
+    new_dir.mkdir(parents=True, exist_ok=True)
+    return new_dir
+
+
+def setup_logger(results_dir: Path, log_filename: str = "experiment.log") -> logging.Logger:
+    """Set up a logger that writes to both console and file.
+    
+    Args:
+        results_dir: Directory to save log file
+        log_filename: Name of log file
+        
+    Returns:
+        Configured logger
+    """
+    # Create logger
+    logger = logging.getLogger("adversarial_experiment")
+    logger.setLevel(logging.INFO)
+    
+    # Remove existing handlers if any
+    if logger.hasHandlers():
+        logger.handlers.clear()
+    
+    # Create formatters
+    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    console_formatter = logging.Formatter('%(message)s')
+    
+    # Create file handler
+    log_path = results_dir / log_filename
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(file_formatter)
+    
+    # Create console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(console_formatter)
+    
+    # Add handlers to logger
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    logger.info(f"Logging to: {log_path}")
+    return logger
 
 def setup_results_dir(config: Dict[str, Any]) -> Path:
     """Create and return results directory based on configuration.
@@ -27,9 +82,13 @@ def setup_results_dir(config: Dict[str, Any]) -> Path:
     # Get model type and class count for directory name
     model_type = config['model']['model_type']
     n_classes = len(config['dataset']['selected_classes'])
-    
+    attack_type = config['adversarial']['attack_type']
+    comment = config['comment']
     # Create directory name with timestamp, model type, and class count
-    dir_name = f"{timestamp}_{model_type}_{n_classes}-class"
+    if comment is not None and comment != "":
+        dir_name = f"{timestamp}_{model_type}_{n_classes}-class_{attack_type}_{comment}"
+    else:
+        dir_name = f"{timestamp}_{model_type}_{n_classes}-class_{attack_type}"
     
     # Create full path including dataset name
     results_dir = base_dir / dir_name
@@ -148,3 +207,4 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
+

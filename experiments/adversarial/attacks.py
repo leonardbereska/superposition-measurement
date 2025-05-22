@@ -2,7 +2,8 @@
 
 import torch
 import torch.nn as nn
-from typing import Optional, Tuple, Union, List
+from typing import Optional
+from torch.utils.data import DataLoader, TensorDataset
 
 class AttackConfig:
     """Configuration for adversarial attacks.
@@ -163,3 +164,45 @@ def generate_adversarial_examples(
         return attack_pgd(model, inputs, targets, epsilon, config, target_labels)
     else:
         raise ValueError(f"Unknown attack type: {config.attack_type}") 
+    
+def get_adversarial_dataloader(
+    model: nn.Module,
+    dataloader: DataLoader,
+    attack_config: AttackConfig,
+    epsilon: float
+) -> DataLoader:
+    """Create a DataLoader for adversarial examples. 
+    Pre-compute adversarial examples for the entire dataset.
+    Memory intensive, but faster than generating on the fly."""
+    
+    adv_examples = []
+    adv_targets = []
+    
+    # Set model to evaluation mode for generating adversarial examples
+    model.eval()
+    
+    for inputs, targets in dataloader:
+        # Move data to the same device as the model
+        device = next(model.parameters()).device
+        inputs, targets = inputs.to(device), targets.to(device)
+        
+        perturbed_inputs = generate_adversarial_examples(
+            model, inputs, targets, epsilon, attack_config
+        )
+        
+        adv_examples.append(perturbed_inputs.cpu())
+        adv_targets.append(targets.cpu())
+    
+    adv_examples = torch.cat(adv_examples)
+    adv_targets = torch.cat(adv_targets)
+    
+    adv_dataset = TensorDataset(adv_examples, adv_targets)
+    
+    adv_loader = DataLoader(
+        adv_dataset, 
+        batch_size=dataloader.batch_size,
+        shuffle=False,  # Maintain the same order as the original dataset
+        num_workers=dataloader.num_workers if hasattr(dataloader, 'num_workers') else 0
+    )
+    
+    return adv_loader
