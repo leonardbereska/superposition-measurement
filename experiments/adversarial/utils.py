@@ -61,7 +61,6 @@ def setup_logger(results_dir: Path, log_filename: str = "experiment.log") -> log
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
     
-    logger.info(f"Logging to: {log_path}")
     return logger
 
 def setup_results_dir(config: Dict[str, Any]) -> Path:

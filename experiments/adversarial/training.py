@@ -6,11 +6,26 @@ import torch.nn as nn
 from pathlib import Path
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from typing import Dict, List, Optional, Tuple, Callable
+from typing import Dict, List, Optional, Tuple, Callable, NamedTuple
 
 from models import create_model, ModelConfig
 from attacks import AttackConfig, generate_adversarial_examples
 import logging
+
+class TrainingConfig(NamedTuple):
+    """Configuration for model training."""
+    n_epochs: int
+    learning_rate: float
+    optimizer_type: str = 'adam'
+    weight_decay: float = 0.0
+    momentum: float = 0.9
+    lr_schedule: Optional[str] = None
+    lr_milestones: Optional[List[int]] = None
+    lr_gamma: float = 0.1
+    early_stopping_patience: int = 20
+    min_epochs: int = 0
+    use_early_stopping: bool = True  # Whether to use early stopping at all
+
 # %%
 
 
@@ -205,8 +220,7 @@ def train_model(
     train_loader: DataLoader,
     val_loader: DataLoader,
     model_config: ModelConfig,
-    n_epochs: int = 100,
-    learning_rate: float = 1e-3,
+    training_config: TrainingConfig,
     epsilon: float = 0.0,
     attack_config: Optional[AttackConfig] = None,
     alpha: float = 0.5,
@@ -219,8 +233,7 @@ def train_model(
         train_loader: DataLoader with training data
         val_loader: DataLoader with validation data
         model_config: Configuration for the model
-        n_epochs: Number of epochs to train
-        learning_rate: Learning rate for the optimizer
+        training_config: Configuration for training
         epsilon: Perturbation size (0 for standard training)
         attack_config: Configuration for the attack (None for standard training)
         alpha: Weight for clean vs adversarial loss
@@ -245,9 +258,32 @@ def train_model(
         output_dim=model_config.output_dim,
         use_nnsight=False
     ).to(device)
+
+    # Prepare optimizer
+    if training_config.optimizer_type.lower() == 'sgd':
+        optimizer = optim.SGD(
+            model.parameters(), 
+            lr=training_config.learning_rate, 
+            momentum=training_config.momentum, 
+            weight_decay=training_config.weight_decay
+        )
+    else:  # Adam
+        optimizer = optim.Adam(
+            model.parameters(), 
+            lr=training_config.learning_rate, 
+            weight_decay=training_config.weight_decay
+        )
     
-    # Prepare optimizer and loss function
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    # Set up learning rate scheduler
+    scheduler = None
+    if training_config.lr_schedule == 'multistep' and training_config.lr_milestones is not None:
+        scheduler = optim.lr_scheduler.MultiStepLR(
+            optimizer, 
+            milestones=training_config.lr_milestones, 
+            gamma=training_config.lr_gamma
+        )
+    
+    # Loss function
     criterion = nn.BCEWithLogitsLoss() if model_config.output_dim == 1 else nn.CrossEntropyLoss()
     
     # Initialize training state
@@ -255,7 +291,6 @@ def train_model(
     best_adv_acc = 0.0
     best_epoch = 0
     best_state_dict = None
-    patience = 10
     
     # Training history
     history = {
@@ -266,12 +301,16 @@ def train_model(
     }
     
     # Training loop
-    for epoch in range(n_epochs):
+    for epoch in range(training_config.n_epochs):
         # Train for one epoch
         train_stats = train_epoch(
             model, train_loader, optimizer, criterion, 
             epsilon, attack_config, alpha
         )
+        
+        # Step scheduler if present
+        if scheduler is not None:
+            scheduler.step()
         
         # Evaluate on validation set
         val_metrics = evaluate_model(model, val_loader, criterion)
@@ -289,32 +328,35 @@ def train_model(
             )[str(epsilon)]
             history['val_adv_acc'].append(val_adv_acc)
             
-            # Early stopping based on adversarial accuracy
+            # Early stopping based on adversarial accuracy for adversarial training
             if val_adv_acc > best_adv_acc:
                 best_adv_acc = val_adv_acc
                 best_epoch = epoch
                 best_state_dict = model.state_dict().copy()
-            elif epoch - best_epoch >= patience:
-                log(f"\tEarly stopping at epoch {epoch+1}")
+            elif training_config.use_early_stopping and epoch >= training_config.min_epochs and epoch - best_epoch >= training_config.early_stopping_patience:
+                log(f"\tEarly stopping at epoch {epoch+1} (adversarial accuracy hasn't improved for {training_config.early_stopping_patience} epochs)")
                 model.load_state_dict(best_state_dict)
                 break
         else:
-            # Early stopping based on validation accuracy
+            # Early stopping based on validation accuracy for clean training
             if val_metrics['accuracy'] > best_val_acc:
                 best_val_acc = val_metrics['accuracy']
                 best_epoch = epoch
                 best_state_dict = model.state_dict().copy()
-            elif epoch - best_epoch >= patience:
-                log(f"\tEarly stopping at epoch {epoch+1}")
+            elif training_config.use_early_stopping and epoch >= training_config.min_epochs and epoch - best_epoch >= training_config.early_stopping_patience:
+                log(f"\tEarly stopping at epoch {epoch+1} (validation accuracy hasn't improved for {training_config.early_stopping_patience} epochs)")
                 model.load_state_dict(best_state_dict)
                 break
         
         # Log progress at regular intervals
-        if epoch % max(1, n_epochs // 10) == 0 or epoch == n_epochs - 1:
-            log_message = f"\tEpoch {epoch+1:04d}/{n_epochs}"
+        if epoch % max(1, training_config.n_epochs // 10) == 0 or epoch == training_config.n_epochs - 1:
+            log_message = f"\tEpoch {epoch+1:04d}/{training_config.n_epochs}"
             log_message += f" | Train loss: {train_stats['loss']:.4f}"
             log_message += f" | Val loss: {val_metrics['loss']:.4f}"
             log_message += f" | Val acc: {val_metrics['accuracy']:6.2f}%"
+            
+            if scheduler is not None:
+                log_message += f" | LR: {scheduler.get_last_lr()[0]:.2e}"
             
             if epsilon > 0 and attack_config is not None and val_adv_acc is not None:
                 log_message += f" | Val adv acc: {val_adv_acc:6.2f}%"
@@ -325,9 +367,9 @@ def train_model(
     if best_state_dict is not None and epoch != best_epoch:
         model.load_state_dict(best_state_dict)
         if epsilon > 0 and attack_config is not None:
-            log(f"\t\tBest model with adversarial accuracy: {best_adv_acc:.2f}%")
+            log(f"\t\tBest model from epoch {best_epoch+1} with adversarial accuracy: {best_adv_acc:.2f}%")
         else:
-            log(f"\t\tBest model with validation accuracy: {best_val_acc:.2f}%")
+            log(f"\t\tBest model from epoch {best_epoch+1} with validation accuracy: {best_val_acc:.2f}%")
     
     return model
 

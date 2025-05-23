@@ -32,6 +32,7 @@ def get_dataset_config(dataset_type: str, selected_classes: Optional[Tuple[int, 
             "image_size": 28,
             "input_channels": 1,   # Grayscale
             "selected_classes": selected_classes,
+            "batch_size": 256,     # Standard for MNIST
         }
     elif dataset_type.lower() == "cifar10":
         return {
@@ -39,6 +40,7 @@ def get_dataset_config(dataset_type: str, selected_classes: Optional[Tuple[int, 
             "image_size": 32,
             "input_channels": 3,   # RGB
             "selected_classes": selected_classes,
+            "batch_size": 128,     # Standard for CIFAR-10
         }
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
@@ -76,35 +78,70 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
     os.makedirs(data_dir, exist_ok=True)
 
     # Model configuration - use dataset parameters
-    model_config = {
-        "model_type": "mlp",  # Options: "mlp", "cnn"
-        "hidden_dim": 32,
-        "image_size": dataset_config["image_size"],
-        "input_channels": dataset_config["input_channels"],
-        "output_dim": get_output_dim(dataset_config["selected_classes"]),
-    }
+    if dataset_type.lower() == "cifar10":
+        model_config = {
+            "model_type": "resnet18",  # Standard for CIFAR-10
+            "hidden_dim": None, # using standard resnet18
+            "image_size": dataset_config["image_size"],
+            "input_channels": dataset_config["input_channels"],
+            "output_dim": get_output_dim(dataset_config["selected_classes"]),
+        }
+    else:  # MNIST
+        model_config = {
+            "model_type": "cnn",       # Simple CNN for MNIST
+            "hidden_dim": 16,          # Smaller network for MNIST
+            "image_size": dataset_config["image_size"],
+            "input_channels": dataset_config["input_channels"],
+            "output_dim": get_output_dim(dataset_config["selected_classes"]),
+        }
     
-    # Training configuration
-    training_config = {
-        "batch_size": 128,
-        "learning_rate": 1e-3,
-        # Use shorter epochs in testing mode
-        "n_epochs": 1 if testing_mode else 500,  # early stopping 
-    }
+    # Training configuration with dataset-specific defaults
+    if dataset_type.lower() == "cifar10":
+        # Literature-standard hyperparameters for CIFAR-10 adversarial training
+        training_config = {
+            "batch_size": dataset_config["batch_size"],
+            "learning_rate": 0.1,      # Standard for CIFAR-10 with SGD
+            "n_epochs": 1 if testing_mode else 200,  # Standard: 200 epochs
+            "optimizer_type": "sgd",   # SGD with momentum for CIFAR-10
+            "weight_decay": 5e-4,      # Standard weight decay for CIFAR-10
+            "momentum": 0.9,           # Standard momentum
+            "lr_schedule": "multistep",  # Learning rate decay
+            "lr_milestones": [100, 150],  # Standard decay schedule
+            "lr_gamma": 0.1,           # Decay factor
+            "early_stopping_patience": 50,  # Longer patience for adversarial training
+            "min_epochs": 50,          # Minimum training before early stopping
+            "use_early_stopping": False,  # Standard practice uses fixed epochs
+        }
+    else:  # MNIST and other datasets
+        training_config = {
+            "batch_size": dataset_config["batch_size"],
+            "learning_rate": 0.01,     # Standard for MNIST
+            "n_epochs": 1 if testing_mode else 100,  # Standard: 100 epochs for MNIST
+            "optimizer_type": "sgd",   # SGD is standard
+            "weight_decay": 1e-4,      # Standard weight decay for MNIST
+            "momentum": 0.9,           # Standard momentum
+            "lr_schedule": "multistep",  # Learning rate decay
+            "lr_milestones": [50, 75],  # Adjusted for 100 epochs
+            "lr_gamma": 0.1,           # Decay factor
+            "early_stopping_patience": 20,
+            "min_epochs": 0,
+            "use_early_stopping": False,  # Standard practice uses fixed epochs
+        }
     
     # Adversarial training configuration with dataset-specific epsilon values
     if dataset_type.lower() == "mnist":
         # Standard epsilon values for MNIST (in [0,1] pixel range)
-        # Madry et al. used 0.3 as the standard benchmark
         train_epsilons = [0.0, 0.1, 0.2, 0.3] if not testing_mode else [0.0, 0.1]
         test_epsilons = [0.0, 0.1, 0.2, 0.3] if not testing_mode else [0.0, 0.1]
-        pgd_alpha = 0.01  # Step size for PGD (smaller than epsilon/4)
+        pgd_steps = 40       # Standard: 40 steps for MNIST
+        pgd_alpha = 0.01     # Standard step size for MNIST
     elif dataset_type.lower() == "cifar10":
         # Standard epsilon values for CIFAR-10 (in [0,1] pixel range)
-        # 8/255 ≈ 0.031 is the de facto standard from Madry et al.
-        train_epsilons = [0.0, 0.01, 0.02, 0.031] if not testing_mode else [0.0, 0.01]
-        test_epsilons = [0.0, 0.01, 0.02, 0.031] if not testing_mode else [0.0, 0.01]
-        pgd_alpha = 0.008  # Step size for PGD (≈ 2/255)
+        # 8/255 ≈ 0.031 is the de facto standard for CIFAR-10
+        train_epsilons = [0.0, 0.01, 0.02, 0.03] if not testing_mode else [0.0, 0.01]
+        test_epsilons = [0.0, 0.01, 0.02, 0.03] if not testing_mode else [0.0, 0.01]
+        pgd_steps = 10       # Standard: 10 steps for CIFAR-10
+        pgd_alpha = 2/255    # Standard step size for CIFAR-10
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
     
@@ -112,10 +149,10 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
         "train_epsilons": train_epsilons,
         "test_epsilons": test_epsilons,
         "n_runs": 1 if testing_mode else 3,  # Number of runs per epsilon
-        "attack_type": "pgd",  # Default attack type, fgsm is also available
-        "pgd_steps": 10,        # Number of steps for PGD attack
+        "attack_type": "pgd",  # PGD is the standard attack type
+        "pgd_steps": pgd_steps,  # Number of steps for PGD attack
         "pgd_alpha": pgd_alpha,  # Step size for PGD
-        "pgd_random_start": True  # Whether to use random initialization for PGD
+        "pgd_random_start": True  # Standard: random initialization
     }
     
     # SAE configuration
@@ -123,7 +160,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
         "expansion_factor": 4,  
         "n_epochs": 1 if testing_mode else 800,  # early stopping usually around 500
         "learning_rate": 1e-3,
-        "batch_size": 128,
+        "batch_size": dataset_config["batch_size"],
         "l1_lambda": 0.1,
     }
 
@@ -189,14 +226,16 @@ def update_config(config: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, 
                                                 for k in ["train_epsilons", "test_epsilons"]):
             if dataset_type.lower() == "mnist":
                 # Standard epsilon values for MNIST
-                updated_config["adversarial"]["train_epsilons"] = [0.0, 0.1, 0.2, 0.3]
-                updated_config["adversarial"]["test_epsilons"] = [0.0, 0.1, 0.2, 0.3]
+                updated_config["adversarial"]["train_epsilons"] = [0.0, 0.3]
+                updated_config["adversarial"]["test_epsilons"] = [0.0, 0.3]
                 updated_config["adversarial"]["pgd_alpha"] = 0.01
+                updated_config["adversarial"]["pgd_steps"] = 40  # Standard for MNIST
             else:  # CIFAR-10
                 # Standard epsilon values for CIFAR-10
-                updated_config["adversarial"]["train_epsilons"] = [0.0, 0.01, 0.02, 0.031]
-                updated_config["adversarial"]["test_epsilons"] = [0.0, 0.01, 0.02, 0.031]
+                updated_config["adversarial"]["train_epsilons"] = [0.0, 0.031]
+                updated_config["adversarial"]["test_epsilons"] = [0.0, 0.031]
                 updated_config["adversarial"]["pgd_alpha"] = 0.008
+                updated_config["adversarial"]["pgd_steps"] = 10  # Standard for CIFAR-10
             
             # Apply testing mode adjustments if needed
             if updated_config["testing_mode"]:
