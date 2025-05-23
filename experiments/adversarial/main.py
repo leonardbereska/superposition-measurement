@@ -620,12 +620,13 @@ if __name__ == "__main__":
     #     run_evaluation_phase(results_dir=results_dir, dataset_type="mnist")
     #     run_analysis_phase(results_dir=results_dir, dataset_type="mnist")
 
+
     # 2025-05-23 16-05  NOTE current experiment
-    model_types = ['mlp', 'cnn']
-    class_counts = [2, 3, 5, 10]
-    dataset_types = ['mnist']
-    attack_types = ['fgsm', 'pgd']
-    run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode=False)
+    # model_types = ['mlp', 'cnn']
+    # class_counts = [2, 3, 5, 10]
+    # dataset_types = ['mnist']
+    # attack_types = ['fgsm', 'pgd']
+    # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode=False)
 
     # 2025-05-23 16-04  NOTE current experiment
     # model_types = ['resnet18']

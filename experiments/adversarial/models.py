@@ -109,7 +109,7 @@ class MLP(nn.Module):
         input_channels: int = 1,  # 1 for MNIST (grayscale)
         image_size: int = 28,  # MNIST is 28x28
         hidden_dim: int = 32,
-        output_dim: int = 10  # MNIST has 10 classes (digits 0-9)
+        output_dim: int = 10  
     ):
         super().__init__()
         self.flatten = nn.Flatten()
@@ -127,11 +127,11 @@ class MLP(nn.Module):
     def forward(self, x):
         x = self.flatten(x)
         x = self.fc1(x)
-        x = self.relu1(x)
+        x = self.relu1(x) # extract activations from here
         x = self.fc2(x)
-        x = self.relu2(x)
+        x = self.relu2(x) # extract activations from here
         x = self.fc3(x)
-        x = self.relu3(x)
+        x = self.relu3(x) # extract activations from here
         x = self.fc4(x)  
         return x
 
@@ -143,7 +143,7 @@ class CNN(nn.Module):
         self,
         input_channels: int = 1,  # 1 for grayscale, 3 for RGB
         image_size: int = 28,
-        hidden_dim: int = 32,
+        hidden_dim: int = 16,
         output_dim: int = 10
     ):
         """Initialize CNN.

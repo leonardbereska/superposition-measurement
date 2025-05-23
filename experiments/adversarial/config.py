@@ -32,7 +32,6 @@ def get_dataset_config(dataset_type: str, selected_classes: Optional[Tuple[int, 
             "image_size": 28,
             "input_channels": 1,   # Grayscale
             "selected_classes": selected_classes,
-            "batch_size": 256,     # Standard for MNIST
         }
     elif dataset_type.lower() == "cifar10":
         return {
@@ -40,7 +39,6 @@ def get_dataset_config(dataset_type: str, selected_classes: Optional[Tuple[int, 
             "image_size": 32,
             "input_channels": 3,   # RGB
             "selected_classes": selected_classes,
-            "batch_size": 128,     # Standard for CIFAR-10
         }
     else:
         raise ValueError(f"Unknown dataset type: {dataset_type}")
@@ -99,7 +97,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
     if dataset_type.lower() == "cifar10":
         # Literature-standard hyperparameters for CIFAR-10 adversarial training
         training_config = {
-            "batch_size": dataset_config["batch_size"],
+            "batch_size": 256,     # Standard for CIFAR-10
             "learning_rate": 0.1,      # Standard for CIFAR-10 with SGD
             "n_epochs": 1 if testing_mode else 200,  # Standard: 200 epochs
             "optimizer_type": "sgd",   # SGD with momentum for CIFAR-10
@@ -114,7 +112,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
         }
     else:  # MNIST and other datasets
         training_config = {
-            "batch_size": dataset_config["batch_size"],
+            "batch_size": 256,     # Standard for MNIST
             "learning_rate": 0.01,     # Standard for MNIST
             "n_epochs": 1 if testing_mode else 100,  # Standard: 100 epochs for MNIST
             "optimizer_type": "sgd",   # SGD is standard
@@ -160,7 +158,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
         "expansion_factor": 4,  
         "n_epochs": 1 if testing_mode else 800,  # early stopping usually around 500
         "learning_rate": 1e-3,
-        "batch_size": dataset_config["batch_size"],
+        "batch_size": 128,
         "l1_lambda": 0.1,
     }
 

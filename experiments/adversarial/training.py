@@ -364,13 +364,12 @@ def train_model(
             log(log_message)
     
     # Load best model if early stopping was triggered
-    if best_state_dict is not None and epoch != best_epoch:
+    if training_config.use_early_stopping and best_state_dict is not None and epoch != best_epoch:
         model.load_state_dict(best_state_dict)
         if epsilon > 0 and attack_config is not None:
             log(f"\t\tBest model from epoch {best_epoch+1} with adversarial accuracy: {best_adv_acc:.2f}%")
         else:
             log(f"\t\tBest model from epoch {best_epoch+1} with validation accuracy: {best_val_acc:.2f}%")
-    
     return model
 
 def evaluate_model_performance(
