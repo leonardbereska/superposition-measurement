@@ -11,8 +11,8 @@ import numpy as np
 import os
 import logging
 
-from sae import train_sae, SAEConfig
-from models import NNsightModelWrapper
+from experiments.adversarial.sae import train_sae, SAEConfig
+from experiments.adversarial.models import NNsightModelWrapper
 
 
 def measure_superposition(

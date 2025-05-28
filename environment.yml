@@ -1,0 +1,24 @@
+name: devinterp_env
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8
+  - pip
+  - pytorch=2.2.1
+  - pytorch-cuda=12.1
+  - torchvision
+  - numpy
+  - pandas
+  - matplotlib
+  - tqdm
+  - ipykernel
+  - cudatoolkit=12.1
+  - pip:
+    - nnsight
+    - devinterp
+    - tokenizers
+    - transformers
+    - python-socketio[client] 

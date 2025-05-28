@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Grokking experiment showing LLC estimation calibration in a simple modular addition example.
-Adapted from Nina Panickssery and Dmitry Vaintrob's modular addition learning coefficient work.
+Enhanced grokking experiment showing LLC estimation and SAE-based superposition measurement.
+Tracks how feature organization evolves during the grokking phenomenon.
 """
 
 import random
@@ -23,20 +23,13 @@ from devinterp.slt.sampler import estimate_learning_coeff_with_summary
 from devinterp.utils import evaluate_ce, plot_trace
 from devinterp.vis_utils import EpsilonBetaAnalyzer
 
-# SAE imports and evaluation functions
-from experiments.adversarial.sae import TiedSparseAutoencoder, train_sae, SAEConfig, evaluate_sae
-from experiments.adversarial.evaluation import get_feature_distribution, calculate_feature_metrics
-from experiments.adversarial.analysis import ScientificPlotStyle, plot_feature_counts
+# Import SAE and evaluation functions
+from sae import TiedSparseAutoencoder, train_sae, SAEConfig, evaluate_sae
+from evaluation import get_feature_distribution, calculate_feature_metrics
+from analysis import ScientificPlotStyle, plot_feature_counts
 
 # Set device
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-'''
-Added function: 
-get_hidden_activations
-extract_activations (calls sae_config = SAEConfig()
-'''
-
 
 @dataclass
 class ExperimentParams:
@@ -49,11 +42,10 @@ class ExperimentParams:
     hidden_size: int = 48
     embed_dim: int = 12
     train_frac: float = 0.4
-    # the shown grokking / llc curve behavior is robust to change of seed from my experiments, but not all seeds show grokking withying the first 100 checkpoints, NB!
     random_seed: int = 0
     device: str = DEVICE
     weight_decay: float = 0.0002
-
+    
     # SAE parameters
     sae_expansion_factor: float = 4.0
     sae_l1_lambda: float = 0.1
@@ -81,7 +73,7 @@ class MLP(nn.Module):
         x = self.act(x)
         x = self.linear2(x)
         return x
-
+    
     def get_hidden_activations(self, x):
         """Extract hidden layer activations for SAE analysis."""
         x1 = self.embedding(x[..., 0])
@@ -106,6 +98,7 @@ def extract_activations(model, dataloader, device):
             activations.append(hidden_acts.cpu())
     
     return torch.cat(activations, dim=0)
+
 
 def measure_superposition_at_checkpoint(model, dataloader, params, logger=None):
     """Measure superposition using SAE at a specific model checkpoint."""
@@ -153,6 +146,7 @@ def measure_superposition_at_checkpoint(model, dataloader, params, logger=None):
     
     return metrics, sae
 
+
 def test(model, dataset, device):
     n_correct = 0
     total_loss = 0
@@ -174,7 +168,7 @@ def train(train_dataset, test_dataset, params, verbose=True, logger=None):
     log = logger.info if logger else print
     all_models = []
     sae_metrics = []  # Store SAE metrics for each checkpoint
-
+    
     model = MLP(params).to(params.device)
     optimizer = torch.optim.Adam(
         model.parameters(), weight_decay=params.weight_decay, lr=params.lr
@@ -237,8 +231,10 @@ def train(train_dataset, test_dataset, params, verbose=True, logger=None):
                     }
                 )
                 pbar.update(print_every)
+    
     if verbose:
         pbar.close()
+        
     df = pd.DataFrame(loss_data)
     final_train_acc, final_train_loss = test(model, train_dataset, params.device)
     final_val_acc, final_val_loss = test(model, test_dataset, params.device)
@@ -246,6 +242,7 @@ def train(train_dataset, test_dataset, params, verbose=True, logger=None):
     if verbose:
         print(f"Final Train Acc: {final_train_acc:.4f} | Final Train Loss: {final_train_loss:.4f}")
         print(f"Final Val Acc: {final_val_acc:.4f} | Final Val Loss: {final_val_loss:.4f}")
+    
     return all_models, df, sae_metrics
 
 
@@ -297,17 +294,16 @@ def estimate_llc_given_model(
     online: bool = True,
     verbose: bool = False,
 ):
-
     sweep_stats = estimate_learning_coeff_with_summary(
         model,
         loader=loader,
         evaluate=evaluate,
         sampling_method=sampling_method,
         optimizer_kwargs=dict(lr=epsilon, localization=localization, nbeta=beta),
-        num_chains=num_chains,  # How many independent chains to run
-        num_draws=num_draws,  # How many samples to draw per chain
-        num_burnin_steps=num_burnin_steps,  # How many samples to discard at the beginning of each chain
-        num_steps_bw_draws=num_steps_bw_draws,  # How many steps to take between each sample
+        num_chains=num_chains,
+        num_draws=num_draws,
+        num_burnin_steps=num_burnin_steps,
+        num_steps_bw_draws=num_steps_bw_draws,
         device=device,
         online=online,
         verbose=verbose,
@@ -315,7 +311,6 @@ def estimate_llc_given_model(
 
     sweep_stats["llc/trace"] = np.array(sweep_stats["llc/trace"])
     return sweep_stats
-
 
 
 def plot_combined_results(df, llcs, sae_metrics, params):
@@ -406,6 +401,7 @@ def plot_combined_results(df, llcs, sae_metrics, params):
     plt.savefig("experiments/grokking/feature_count_vs_accuracy.png", dpi=300, bbox_inches='tight')
     plt.close()
 
+
 def main():
     import logging
     
@@ -430,70 +426,17 @@ def main():
         logger=logger
     )
 
-    # # Plot training results
-    # plt.figure(figsize=(10, 6))
-    # plt.plot(df["val_acc"], label="test")
-    # plt.plot(df["train_acc"], label="train")
-    # plt.legend()
-    # plt.ylabel("Correct answer %")
-    # plt.xlabel("Checkpoint")
-    # plt.title(f"Train & test correct answer % for modular addition with p={params.p}")
-    # plt.savefig("experiments/grokking/accuracy_plot.png")
-    # plt.close()
-
-    # plt.figure(figsize=(10, 6))
-    # plt.plot(df["val_loss"], label="test")
-    # plt.plot(df["train_loss"], label="train")
-    # plt.legend()
-    # plt.ylabel("Loss")
-    # plt.xlabel("Checkpoint")
-    # plt.title(f"Train & test loss for modular addition with p={params.p}")
-    # plt.savefig("experiments/grokking/loss_plot.png")
-    # plt.close()
-
     # LLC estimation
     print("\nPerforming LLC estimation...")
     loader = DataLoader(train_data, shuffle=True, batch_size=params.batch_size)
     
-    # Hyperparameter analysis
-    analyzer = EpsilonBetaAnalyzer()
-    analyzer.configure_sweep(
-        llc_estimator=estimate_llc_given_model,
-        llc_estimator_kwargs=dict(
-            model=all_checkpointed_models[-1],
-            evaluate=evaluate_ce,
-            device=DEVICE,
-            loader=loader,
-        ),
-        min_epsilon=3e-5,
-        max_epsilon=3e-1,
-        epsilon_samples=5,
-        min_beta=None,
-        max_beta=None,
-        beta_samples=5,
-        dataloader=loader,
-    )
-    analyzer.sweep()
-    
-    # Save analyzer plots
-    plt.figure(figsize=(10, 6))
-    analyzer.plot()
-    plt.savefig("experiments/grokking/llc_analysis.png")
-    plt.close()
-
-    plt.figure(figsize=(10, 6))
-    analyzer.plot(div_out_beta=True)
-    plt.savefig("experiments/grokking/llc_analysis_beta.png")
-    plt.close()
-
     # Final LLC estimation with chosen parameters
     lr = 3e-3
     gamma = 5
     nbeta = 2.0
     num_draws = 500
-    num_chains = 2
 
-    print("\nEstimating final LLC values...")
+    print("Estimating LLC values...")
     llcs = [
         estimate_learning_coeff_with_summary(
             model_checkpoint,
@@ -544,33 +487,6 @@ def main():
     
     print("\nPlots saved to experiments/grokking/")
 
-
-    # # Plot final results
-    # fig, ax1 = plt.subplots(figsize=(10, 6))
-    # plt.title(
-    #     f"Lambdahat vs acc for modular addition p={params.p}, train_frac={params.train_frac}"
-    # )
-    # ax2 = ax1.twinx()
-    # ax1.plot(df["val_acc"], label="test acc")
-    # ax1.plot(df["train_acc"], label="train acc")
-    # ax2.plot([llc["llc/mean"] for llc in llcs], color="g", label="Lambdahat")
-    # ax1.set_xlabel("Checkpoint no.")
-    # fig.legend(loc="center right")
-    # plt.savefig("experiments/grokking/llc_vs_acc.png")
-    # plt.close()
-
-    # fig, ax1 = plt.subplots(figsize=(10, 6))
-    # plt.title(
-    #     f"Lambdahat vs loss for modular addition, p={params.p}, train_frac={params.train_frac}"
-    # )
-    # ax2 = ax1.twinx()
-    # ax1.plot(df["val_loss"], label="test loss")
-    # ax1.plot(df["train_loss"], label="train loss")
-    # ax2.plot([llc["llc/mean"] for llc in llcs], color="g", label="Lambdahat")
-    # ax1.set_xlabel("Checkpoint no.")
-    # fig.legend(loc="center right")
-    # plt.savefig("experiments/grokking/llc_vs_loss.png")
-    # plt.close()
 
 if __name__ == "__main__":
     main()

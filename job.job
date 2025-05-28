@@ -1,0 +1,29 @@
+#!/bin/bash
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=8
+#SBATCH --job-name=sd2_aligner_inference
+#SBATCH --output=RunMethod_%A_h100_grokking_test.out
+#SBATCH --time=00:10:00
+#SBATCH --mem=40G
+#SBATCH --hint=nomultithread
+
+echo "✅ Job started at: $(date)"
+module purge
+module load 2023
+module load Anaconda3/2023.07-2
+module load CUDA/12.1.1
+
+conda env create -f environment.yml
+
+# Activate Conda environment
+source activate devinterp_env
+
+pip install devinterp 
+# conda install pytorch torchvision=0.18.1 pytorch-cuda=12.1 -c pytorch -c nvidia -y
+
+# python -c "import torch; print(f'🔧 Torch: {torch.__version__}, CUDA: {torch.version.cuda}, Arch: {torch.cuda.get_device_capability()}')"
+
+python experiments/grokking/grokking_llc_measurement.py
+
+
