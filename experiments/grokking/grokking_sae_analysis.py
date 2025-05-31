@@ -342,7 +342,7 @@ def plot_combined_results(df, llcs, sae_metrics, params):
     ax3.plot(llc_means, linewidth=ScientificPlotStyle.LINE_WIDTH,
              color=ScientificPlotStyle.COLORS[2])
     ScientificPlotStyle.apply_axis_style(
-        ax3, "Learning Coefficient Evolution", "Checkpoint", "LLC (λ̂)", legend=False
+        ax3, "LLC Evolution", "Checkpoint", "LLC (λ̂)", legend=False
     )
     
     # Plot 4: Feature metrics evolution
@@ -357,7 +357,7 @@ def plot_combined_results(df, llcs, sae_metrics, params):
                   color=ScientificPlotStyle.COLORS[1])
     
     ScientificPlotStyle.apply_axis_style(
-        ax4, "Feature Organization Evolution", "Checkpoint", "Feature Count", legend=False
+        ax4, "Feature Evolution", "Checkpoint", "Feature Count", legend=False
     )
     ax4_twin.set_ylabel("Active Features", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
     ax4_twin.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
