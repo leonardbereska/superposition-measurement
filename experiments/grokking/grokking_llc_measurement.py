@@ -143,12 +143,12 @@ def measure_superposition_at_checkpoint(model, dataloader, params, logger=None):
     metrics = calculate_feature_metrics(feature_dist)
     
     # Additional metrics
-    metrics['active_features'] = (feature_dist > 1e-6).sum()
+    # metrics['active_features'] = (feature_dist > 1e-6).sum()
     metrics['sparsity'] = (sae_activations == 0.0).mean()
     metrics['dictionary_size'] = sae.dictionary_dim
     
     log(f"\tFeature count: {metrics['feature_count']:.2f}")
-    log(f"\tActive features: {metrics['active_features']}")
+    # log(f"\tActive features: {metrics['active_features']}")
     log(f"\tSparsity: {metrics['sparsity']:.3f}")
     
     return metrics, sae
@@ -353,25 +353,13 @@ def plot_combined_results(df, llcs, sae_metrics, params):
     # Plot 4: Feature metrics evolution
     feature_counts = [metrics['feature_count'] for metrics in sae_metrics]
     entropies = [metrics['entropy'] for metrics in sae_metrics]
-    active_features = [metrics['active_features'] for metrics in sae_metrics]
     
     ax4.plot(feature_counts, label="Feature Count", linewidth=ScientificPlotStyle.LINE_WIDTH,
              color=ScientificPlotStyle.COLORS[0])
-    ax4_twin = ax4.twinx()
-    ax4_twin.plot(active_features, label="Active Features", linewidth=ScientificPlotStyle.LINE_WIDTH,
-                  color=ScientificPlotStyle.COLORS[1])
     
     ScientificPlotStyle.apply_axis_style(
-        ax4, "Feature Evolution", "Checkpoint", "Feature Count", legend=False
+        ax4, "Feature Evolution", "Checkpoint", "Feature Count", legend=True
     )
-    ax4_twin.set_ylabel("Active Features", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-    ax4_twin.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
-    
-    # Create combined legend for plot 4
-    lines1, labels1 = ax4.get_legend_handles_labels()
-    lines2, labels2 = ax4_twin.get_legend_handles_labels()
-    ax4.legend(lines1 + lines2, labels1 + labels2, 
-               fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND, loc='best')
     
     plt.tight_layout()
     plt.savefig("experiments/grokking/combined_grokking_analysis.png", dpi=300, bbox_inches='tight')
