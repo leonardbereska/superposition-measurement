@@ -11,6 +11,7 @@ import typing
 from typing import Type, Dict, List, Optional
 import numpy as np
 
+
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch
@@ -512,6 +513,18 @@ def main():
     initial_test_acc = df["val_acc"].iloc[0]
     final_test_acc = df["val_acc"].iloc[-1]
     
+    # Calculate correlations between LLC and feature count
+    llc_means = np.array([llc["llc/mean"] for llc in llcs])
+    feature_counts = np.array([metrics['feature_count'] for metrics in sae_metrics])
+    
+    # Convert to pandas Series and calculate correlations
+    llc_series = pd.Series(llc_means)
+    feature_series = pd.Series(feature_counts)
+    
+    # Calculate Pearson and Spearman correlations using pandas
+    pearson_corr = llc_series.corr(feature_series, method='pearson')
+    spearman_corr = llc_series.corr(feature_series, method='spearman')
+    
     print(f"Initial test accuracy: {initial_test_acc:.3f}")
     print(f"Final test accuracy: {final_test_acc:.3f}")
     print(f"Accuracy improvement: {final_test_acc - initial_test_acc:.3f}")
@@ -519,6 +532,10 @@ def main():
     print(f"Initial feature count: {initial_feature_count:.2f}")
     print(f"Final feature count: {final_feature_count:.2f}")
     print(f"Feature count change: {final_feature_count - initial_feature_count:.2f}")
+    print()
+    print(f"LLC-Feature Count Correlations:")
+    print(f"Pearson correlation: {pearson_corr:.3f}")
+    print(f"Spearman correlation: {spearman_corr:.3f}")
     print()
     
     # Find grokking point (largest increase in test accuracy)
