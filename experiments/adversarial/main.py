@@ -83,9 +83,6 @@ def create_dataloaders_from_config(config: Dict[str, Any]):
     )
 
 
-
-
-
 def run_training_phase(config: Dict[str, Any], results_dir: Optional[Path] = None) -> Path:
     """Run training phase.
     
@@ -309,46 +306,46 @@ def run_evaluation_phase(
             for layer_name in layer_names:
                 log(f"Layer: {layer_name}")
                 
-                try:
+                # try:
                     # Measure feature organization for clean data
-                    log(f"Clean data")
-                    clean_metrics = measure_superposition(
-                        model=model,
-                        dataloader=train_loader,
-                        layer_name=layer_name,
-                        sae_config=sae_config,
-                        save_dir=run_dir / "saes_clean",
-                        logger=logger
-                    )
+                log(f"Clean data")
+                clean_metrics = measure_superposition(
+                    model=model,
+                    dataloader=train_loader,
+                    layer_name=layer_name,
+                    sae_config=sae_config,
+                    save_dir=run_dir / "saes_clean",
+                    logger=logger
+                )
+                
+                # Measure feature organization for adversarial data
+                log(f"Adversarial data")
+                adv_metrics = measure_superposition(
+                    model=model,
+                    dataloader=adv_loader,
+                    layer_name=layer_name,
+                    sae_config=sae_config,
+                    save_dir=run_dir / "saes_adv",
+                    logger=logger
+                )
+
+                # Store results in cleaner nested structure
+                results[str(epsilon)]['layers'][layer_name]['clean_feature_count'].append(
+                    clean_metrics['feature_count']
+                )
+                results[str(epsilon)]['layers'][layer_name]['adv_feature_count'].append(
+                    adv_metrics['feature_count']
+                )
+                
+                log(f"\tClean features: {clean_metrics['feature_count']:.2f}")
+                log(f"\tAdversarial features: {adv_metrics['feature_count']:.2f}")
+                log(f"\tFeature ratio (adv/clean): {adv_metrics['feature_count']/clean_metrics['feature_count']:.2f}")
                     
-                    # Measure feature organization for adversarial data
-                    log(f"Adversarial data")
-                    adv_metrics = measure_superposition(
-                        model=model,
-                        dataloader=adv_loader,
-                        layer_name=layer_name,
-                        sae_config=sae_config,
-                        save_dir=run_dir / "saes_adv",
-                        logger=logger
-                    )
-                    
-                    # Store results in cleaner nested structure
-                    results[str(epsilon)]['layers'][layer_name]['clean_feature_count'].append(
-                        clean_metrics['feature_count']
-                    )
-                    results[str(epsilon)]['layers'][layer_name]['adv_feature_count'].append(
-                        adv_metrics['feature_count']
-                    )
-                    
-                    log(f"\tClean features: {clean_metrics['feature_count']:.2f}")
-                    log(f"\tAdversarial features: {adv_metrics['feature_count']:.2f}")
-                    log(f"\tFeature ratio (adv/clean): {adv_metrics['feature_count']/clean_metrics['feature_count']:.2f}")
-                    
-                except Exception as e:
-                    log(f"\tError evaluating layer {layer_name}: {e}")
-                    # Add placeholder values to maintain consistency
-                    results[str(epsilon)]['layers'][layer_name]['clean_feature_count'].append(None)
-                    results[str(epsilon)]['layers'][layer_name]['adv_feature_count'].append(None)
+                # except Exception as e:
+                #     log(f"\tError evaluating layer {layer_name}: {e}")
+                #     # Add placeholder values to maintain consistency
+                #     results[str(epsilon)]['layers'][layer_name]['clean_feature_count'].append(None)
+                #     results[str(epsilon)]['layers'][layer_name]['adv_feature_count'].append(None)
     
     # Save results in a cleaner nested structure
     results_file = results_dir / "results.json"
@@ -373,11 +370,20 @@ def get_layer_names_for_model(model_type: str) -> List[str]:
             'relu2', 
             'relu3',
         ]
+    elif model_type == 'simplemlp':
+        layer_names = [
+            'relu',
+        ]
     elif model_type == 'cnn': # for MNIST
         layer_names = [
-            'conv1.2', # post-ReLU after first conv (28×28)
-            'conv2.2', # post-ReLU after second conv (14×14)
+            'conv1.1', # post-ReLU after first conv (28×28)
+            'conv2.1', # post-ReLU after second conv (14×14)
             'fc1.1', # post-ReLU after first fc 
+        ]
+    elif model_type == 'simplecnn':
+        layer_names = [
+            'relu',
+            'fc',
         ]
     elif model_type == 'resnet18': # for CIFAR-10
         # Input (3×32×32) 
@@ -407,7 +413,7 @@ def get_layer_names_for_model(model_type: str) -> List[str]:
 def run_analysis_phase(
     search_string: Optional[str] = None,
     results_dir: Optional[Path] = None,
-    dataset_type: Optional[str] = None
+    dataset_type: Optional[str] = None,
 ) -> Path:
     """Run analysis phase with direct consumption of evaluation results.
     
@@ -492,8 +498,14 @@ def run_model_class_experiment(
                     })
 
                     results_dir = run_training_phase(config)
-                    run_evaluation_phase(results_dir=results_dir, dataset_type=dataset_type)
-                    run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
+                    try:
+                        run_evaluation_phase(results_dir=results_dir, dataset_type=dataset_type)
+                    except Exception as e:
+                        print(f"Error running evaluation phase: {e}")
+                    try:
+                        run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
+                    except Exception as e:
+                        print(f"Error running analysis phase: {e}")
 
  
 def quick_test(model_type: str = None, dataset_type: str = "cifar10", testing_mode: bool = True):
@@ -542,27 +554,53 @@ def quick_test(model_type: str = None, dataset_type: str = "cifar10", testing_mo
 
 # %%
 if __name__ == "__main__":
-    
+
+    # analyze cifar10 cnn 2-class pgd
+    # run evaluation for resnet18 2, 3, 5, 10 class pgd, and fgsm and analyze
+    # model_types = ['resnet18']
+    # class_counts = [2, 3, 5, 10]
+    # dataset_types = ['cifar10']
+    # attack_types = ['pgd', 'fgsm']
+    # # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode=False)
+    # for model_type in model_types:
+    #     for class_count in class_counts:
+    #         for dataset_type in dataset_types:
+    #             for attack_type in attack_types:
+    #                 run_evaluation_phase(search_string=f"{model_type}_{class_count}-class_{attack_type}", dataset_type=dataset_type)
+    #                 run_analysis_phase(search_string=f"{model_type}_{class_count}-class_{attack_type}", dataset_type=dataset_type)
+
+
+    # run a single experiment with simplemlp 
+    model_types = ['simplemlp', 'simplecnn']
+    class_counts = [2, 10]
+    dataset_types = ['mnist']
+    attack_types = ['fgsm', 'pgd']
+    testing_mode = False
+    run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode)
+    # run_evaluation_phase(search_string="simplemlp_2-class_fgsm", dataset_type="mnist")
+    # run_analysis_phase(search_string="simplemlp_2-class_fgsm", dataset_type="mnist")
+
     # run_model_class_experiment(
-    #     model_types=['cnn', 'mlp'],
+    #     model_types=['simplemlp', 'simplecnn'],
     #     class_counts=[2, 3, 5, 10],
     #     dataset_types=['mnist'],
     #     attack_types=['pgd'],
     #     testing_mode=False
     # )
-    
+# %% 
     # MNIST experiment
     # config = get_default_config(
-    #     dataset_type="mnist", 
-    #     testing_mode=False,
+    #     dataset_type="cifar10", 
+    #     testing_mode=True,
     #     selected_classes=(0, 1)
     # )
     # config = update_config(config, {
-    #     'comment': 'standard_pgd40_eps0.3'
+    #     'model': {'model_type': 'resnet18'},
+    #     'adversarial': {'attack_type': 'fgsm', 'train_epsilons': [0.0, 0.1, 0.2], 'test_epsilons': [0.0, 0.1, 0.2], 'n_runs': 1},
     # })
     # results_dir = run_training_phase(config)
-    # run_evaluation_phase(results_dir=results_dir, dataset_type=dataset_type)
-    # run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
+    # run_evaluation_phase(results_dir=results_dir, dataset_type="cifar10")
+    # run_analysis_phase(results_dir=results_dir, dataset_type="cifar10")
 
     # === PREVIOUS EXPERIMENTS (commented out) ===
     # experiments to start:
@@ -570,7 +608,7 @@ if __name__ == "__main__":
     # mnist cnn 2-class fgsm - 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0 - 100 epochs, 1 run  
 
     # Run quick test
-    # quick_test(model_type='mlp', dataset_type="mnist", testing_mode=True)
+    # quick_test(model_type='resnet18', dataset_type="cifar10", testing_mode=True)
     # quick_test(model_type='cnn', dataset_type="mnist", testing_mode=True)
     # quick_test(model_type='mlp', dataset_type="cifar10", testing_mode=True)
     # quick_test(model_type='cnn', dataset_type="cifar10", testing_mode=True)
@@ -620,6 +658,11 @@ if __name__ == "__main__":
     #     run_evaluation_phase(results_dir=results_dir, dataset_type="mnist")
     #     run_analysis_phase(results_dir=results_dir, dataset_type="mnist")
 
+    # analyze mnist cnn
+    # for n_classes in [2, 3, 5, 10]:
+    #     for attack_type in ['fgsm', 'pgd']:
+    #         for model_type in ['cnn', 'mlp']:
+    #             run_analysis_phase(search_string=f"{model_type}_{n_classes}-class_{attack_type}", dataset_type="mnist")
 
     # 2025-05-23 16-05  NOTE current experiment
     # model_types = ['mlp', 'cnn']

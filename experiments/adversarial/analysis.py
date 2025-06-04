@@ -390,166 +390,40 @@ def generate_plots(results: Dict, output_dir: Path, results_dir: Path) -> Dict[s
     # Get model type and number of classes
     model_type = metadata['model']['model_type']
     n_classes = len(list(metadata['dataset']['selected_classes']))
-    experiment_name = f"{model_type.upper()} {n_classes}-class"  
+    attack_type = metadata['adversarial']['attack_type']
+    experiment_name = f"{model_type.upper()} {n_classes}-class {attack_type.upper()}"  
 
     def save_path(name):
-        experiment_string = f"{model_type}_{n_classes}-class"
+        experiment_string = f"{model_type}_{n_classes}-class_{attack_type}"
         return output_dir / f"{experiment_string}_{name}.pdf"
     
-    # Process results for each layer
-    if 'layers' in results[next(iter(results))]:
-        # New format with layer-wise analysis
-        return generate_plots_from_nested_results(results, output_dir, model_type, n_classes)
-    
-    # Robustness curve
-    if 'robustness_score' in results:
-        name = "robustness"
-        fig = plot_robustness_curve(
-            results['robustness_score'],
-            title=f"Model Robustness {experiment_name}",
-            save_path=save_path(name)
-        )
-        figures[name] = fig
-    
-    # Feature vs robustness
-    name = "feature_vs_robustness"
-    if 'feature_count' in results and 'robustness_score' in results:
-        fig = plot_feature_vs_robustness(
-            results['feature_count'],
-            results['robustness_score'],
-            title=f"Feature Count vs Model Robustness {experiment_name}",
-            save_path=save_path(name)
-        )
-        figures[name] = fig
-    
-    # Generate combined feature count plot
-    name = "feature_counts"
-    fig = plot_combined_feature_counts(
-        results,
-        title=f"{experiment_name}",
-        save_path=save_path(name)
-    )
-    figures[name] = fig
-    
-    # Individual test epsilon plots
-    for key in results:
-        if key.startswith('accuracy_for_'):
-            eps = key.split('_')[-1]
-            fig = plot_robustness_curve(
-                results[key],
-                title=f"Accuracy for ε={eps} vs Training Strength",
-                save_path=output_dir / f"accuracy_for_{eps}.pdf"
-            )
-            figures[key] = fig
-
-     
-
-    return figures
-
-def generate_plots_from_nested_results(results: Dict, output_dir: Path, model_type: str, n_classes: int) -> Dict[str, plt.Figure]:
-    """Generate plots from the nested results structure with layer-wise analysis.
-    
-    Args:
-        results: Nested results dictionary
-        output_dir: Directory to save plots
-        model_type: Type of model used
-        n_classes: Number of classes in the dataset
-        
-    Returns:
-        Dictionary mapping plot names to figures
-    """
-    figures = {}
-    experiment_name = f"{model_type.upper()} {n_classes}-class"
-    
-    def save_path(name):
-        experiment_string = f"{model_type}_{n_classes}-class"
-        return output_dir / f"{experiment_string}_{name}.pdf"
-    
-    # Extract epsilons and sort them
     epsilons = sorted([float(eps) for eps in results.keys()])
     
-    # 1. Plot robustness curves
-    # robustness_data = {eps: results[str(eps)]['robustness_score'] for eps in epsilons}
-    # fig = plot_robustness_curve(
-    #     robustness_data, 
-    #     title=f"Model Robustness {experiment_name}",
-    #     save_path=save_path("robustness")
-    # )
-    # figures["robustness"] = fig
-    
-    # 2. For each layer, plot clean vs adversarial feature counts
     layers = results[str(epsilons[0])]['layers'].keys()
     
-    for layer_name in layers:
-        # Extract data for this layer
-        clean_data = {}
-        adv_data = {}
-        
-        # for eps in epsilons:
-        #     clean_data[eps] = results[str(eps)]['layers'][layer_name]['clean_feature_count']
-        #     adv_data[eps] = results[str(eps)]['layers'][layer_name]['adv_feature_count']
-        
-        # Generate layer-specific feature comparison plot
-        # fig = plot_combined_feature_counts(
-        #     {
-        #         'clean_feature_count': clean_data,
-        #         'adversarial_feature_count': adv_data
-        #     },
-        #     title=f"Feature Count vs Adversarial Training - {layer_name}",
-        #     save_path=save_path(f"{layer_name}_feature_comparison")
-        # )
-        # figures[f"{layer_name}_feature_comparison"] = fig
-        
-        # Generate feature vs robustness plot for this layer
-        # fig = plot_feature_vs_robustness(
-        #     clean_data, 
-        #     robustness_data,
-        #     title=f"Feature Count vs Robustness - {layer_name}",
-        #     save_path=save_path(f"{layer_name}_feature_vs_robustness")
-        # )
-        # figures[f"{layer_name}_feature_vs_robustness"] = fig
-    
-    # 3. Compare layers within clean and adversarial settings
-    # fig = plot_layer_comparison(
-    #     results, layers, epsilons, "clean_feature_count",
-    #     title=f"Clean Feature Count Across Layers - {experiment_name}",
-    #     save_path=save_path("layer_comparison_clean")
-    # )
-    # figures["layer_comparison_clean"] = fig
-    
-    # fig = plot_layer_comparison(
-    #     results, layers, epsilons, "adv_feature_count",
-    #     title=f"Adversarial Feature Count Across Layers - {experiment_name}",
-    #     save_path=save_path("layer_comparison_adversarial")
-    # )
-    # figures["layer_comparison_adversarial"] = fig
-    
-    # 4. Generate comprehensive overview plot with all layers and distributions
-    fig = plot_comprehensive_feature_overview(
+    # Generate comprehensive overview plot with all layers and distributions
+    fig = plot_feature_counts(
         results, layers, epsilons,
-        title=f"Feature Count Overview - {experiment_name}",
-        save_path=save_path("comprehensive_feature_overview")
+        title=f"{experiment_name}",
+        save_path=save_path("feature_counts")
     )
-    figures["comprehensive_feature_overview"] = fig
+    figures["feature_counts"] = fig
 
-    # 5. Generate comprehensive robustness overview plot
-    # Extract robustness data for all test epsilons
-    fig = plot_comprehensive_robustness_overview(
+    # Generate comprehensive robustness overview plot
+    fig = plot_robustness(
         results, epsilons,
-        title=f"Robustness Overview - {experiment_name}",
-        save_path=save_path("comprehensive_robustness_overview")
+        title=f"{experiment_name}",
+        save_path=save_path("robustness")
     )
-    figures["comprehensive_robustness_overview"] = fig
-    
-    return figures
-
-def plot_comprehensive_feature_overview(
+    figures["robustness"] = fig
+  
+def plot_feature_counts(
     results: Dict, 
     layers: List[str], 
     epsilons: List[float], 
     title: str,
     save_path: Optional[Path] = None,
-    figsize: Tuple[int, int] = (20, 12)
+    figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE
 ) -> plt.Figure:
     """Plot comprehensive overview of feature counts across all layers and distributions.
     
@@ -592,7 +466,11 @@ def plot_comprehensive_feature_overview(
             marker = marker_styles[i % len(marker_styles)]
             
             # Create label
-            label = f"{layer_name} - {dist_props['name']}"
+            # if only one layer, don't show the layer name
+            if len(layers) == 1:
+                label = f"{dist_props['name']}"
+            else:
+                label = f"{layer_name} - {dist_props['name']}"
             
             # Plot
             ax.errorbar(
@@ -690,14 +568,14 @@ def plot_layer_comparison(
     
     return fig
 
-def plot_comprehensive_robustness_overview(
+def plot_robustness(
     results: Dict, 
     epsilons: List[float], 
     title: str,
     save_path: Optional[Path] = None,
-    figsize: Tuple[int, int] = (20, 12)
+    figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE
 ) -> plt.Figure:
-    """Plot comprehensive overview of robustness scores across all test epsilons and training epsilons.
+    """Plot comprehensive overview of accuracy across all test epsilons and training epsilons.
     
     Args:
         results: Nested results dictionary containing detailed_robustness for each training epsilon
@@ -753,7 +631,7 @@ def plot_comprehensive_robustness_overview(
     # Apply styling with adjusted legend
     ax.set_title(title, fontsize=ScientificPlotStyle.FONT_SIZE_TITLE, fontweight='bold')
     ax.set_xlabel('Training Epsilon (ε)', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-    ax.set_ylabel('Robustness Score', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax.set_ylabel('Accuracy (%)', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
     ax.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
     ax.grid(True, alpha=ScientificPlotStyle.GRID_ALPHA)
     

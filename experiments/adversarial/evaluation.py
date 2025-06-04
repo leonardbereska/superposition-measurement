@@ -39,7 +39,7 @@ def measure_superposition(
     """
     
     device = torch.device("cpu")  # because it's faster and saves memory on the GPU
-    
+    # model.to(device)
     model_wrapper = NNsightModelWrapper(model)
     
     # Extract activations
