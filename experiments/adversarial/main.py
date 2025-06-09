@@ -21,7 +21,7 @@ from utils import json_serializer, setup_results_dir, save_config, get_config_an
 
 # Import components for different phases 
 from training import train_model, evaluate_model_performance, load_model, save_model, TrainingConfig
-from evaluation import measure_superposition, analyze_checkpoints_with_llc, measure_inference_time_llc
+from evaluation import measure_superposition, analyze_checkpoints_with_llc, measure_inference_time_llc, analyze_checkpoints_with_sae, plot_combined_llc_sae_evolution, plot_llc_vs_sae_correlation_over_time
 from analysis import generate_plots
 from attacks import AttackConfig, generate_adversarial_examples, get_adversarial_dataloader
 from models import ModelConfig, create_model
@@ -36,7 +36,9 @@ from analysis import (
     plot_llc_distribution, 
     plot_llc_mean_std,
     plot_combined_sae_llc_correlation,
-    plot_clean_vs_adversarial_llc
+    plot_clean_vs_adversarial_llc,
+    plot_combined_llc_sae_evolution,
+    plot_llc_vs_sae_correlation_over_time
 )
 
 
@@ -222,7 +224,8 @@ def run_evaluation_phase(
     dataset_type: Optional[str] = None,
     enable_llc: bool = True,
     enable_sae: bool = True,
-    enable_inference_llc: bool = True  # NEW: Option for inference-time LLC
+    enable_inference_llc: bool = True,  # Option for inference-time LLC
+    enable_sae_checkpoints: bool = False  # Enable SAE checkpoint analysis
 ) -> Path:
     """Run evaluation phase with both SAE and LLC analysis.
     
@@ -233,13 +236,13 @@ def run_evaluation_phase(
         enable_llc: Whether to perform LLC analysis
         enable_sae: Whether to perform SAE analysis
         enable_inference_llc: Whether to perform inference-time LLC analysis
+        enable_sae_checkpoints: Whether to perform SAE checkpoint analysis
     Returns:
         Path to results directory
     """
     config = get_default_config(dataset_type=dataset_type)
-    base_dir = Path(config['base_dir'])
-    config, results_dir = get_config_and_results_dir(base_dir=base_dir, results_dir=results_dir, search_string=search_string)
-
+    config, results_dir = get_config_and_results_dir(base_dir=Path(config['base_dir']), results_dir=results_dir, search_string=search_string)
+    
     # Set up logger
     logger = setup_logger(results_dir)
     log = logger.info
@@ -247,6 +250,7 @@ def run_evaluation_phase(
     log("\n=== Starting Evaluation Phase ===")
     log(f"Results directory: {results_dir}")
     log(f"SAE analysis: {'enabled' if enable_sae else 'disabled'}")
+    log(f"SAE checkpoint analysis: {'enabled' if enable_sae_checkpoints else 'disabled'}")
     log(f"LLC analysis: {'enabled' if enable_llc else 'disabled'}")
     log(f"Inference-time LLC analysis: {'enabled' if enable_inference_llc else 'disabled'}")
     
@@ -281,7 +285,8 @@ def run_evaluation_phase(
             'layers': {},  # SAE results organized by layer
             'llc_clean': [],  # LLC results for clean data
             'llc_adversarial': [],  # LLC results for adversarial data
-            'inference_llc': {}  # NEW: Inference-time LLC results
+            'inference_llc': {},  # Inference-time LLC results
+            'sae_checkpoint_analysis': {}  # NEW: SAE checkpoint analysis results
         }
         
         # Get layer names for SAE analysis only
@@ -325,7 +330,6 @@ def run_evaluation_phase(
                     results[str(epsilon)]['detailed_robustness'][test_eps] = []
                 results[str(epsilon)]['detailed_robustness'][test_eps].append(float(score))
             
-            
             # SAE EVALUATION (Per-run, independent)
             if enable_sae:
                 for layer_name in layer_names:
@@ -367,8 +371,31 @@ def run_evaluation_phase(
                         log(f"\tError in SAE evaluation for layer {layer_name}: {e}")
                         results[str(epsilon)]['layers'][layer_name]['clean_feature_count'].append(None)
                         results[str(epsilon)]['layers'][layer_name]['adv_feature_count'].append(None)
+            
+            # NEW: SAE CHECKPOINT ANALYSIS
+            if enable_sae_checkpoints:
+                checkpoint_dir = run_dir / "checkpoints"
+                if checkpoint_dir.exists():
+                    log(f"Performing SAE checkpoint analysis...")
+                    try:
+                        sae_checkpoint_results = analyze_checkpoints_with_sae(
+                            checkpoint_dir=checkpoint_dir,
+                            train_loader=train_loader,
+                            sae_config=sae_config,
+                            layer_names=layer_names,
+                            epsilons_to_test=[0.0, epsilon],  # Clean and adversarial
+                            device=config['device'],
+                            logger=logger
+                        )
+                        
+                        # Store SAE checkpoint results
+                        results[str(epsilon)]['sae_checkpoint_analysis'][f'run_{run_idx}'] = sae_checkpoint_results
+                        log(f"\t  SAE checkpoint analysis completed")
+                        
+                    except Exception as e:
+                        log(f"\tError in SAE checkpoint analysis: {e}")
 
-            # NEW: INFERENCE-TIME LLC EVALUATION (Optional)
+            # INFERENCE-TIME LLC EVALUATION
             if enable_inference_llc:
                 log(f"Performing inference-time LLC analysis...")
                 
@@ -630,8 +657,11 @@ def run_analysis_phase(
     
     # Check if LLC data is available
     has_llc_data = any('checkpoint_llc_analysis' in results[str(eps)] 
-                       for eps in epsilons 
-                       if 'checkpoint_llc_analysis' in results[str(eps)])
+                       for eps in epsilons)
+    
+    # Check if SAE checkpoint data is available
+    has_sae_checkpoint_data = any('sae_checkpoint_analysis' in results[str(eps)]
+                                 for eps in epsilons)
     
     if has_llc_data:
         logger.info("Generating LLC-specific analysis plots...")
@@ -668,80 +698,122 @@ def run_analysis_phase(
                 save_path=plots_dir / "llc_evolution_multi_epsilon.png",
                 n_runs=config['adversarial']['n_runs']
             )
+    # *** NEW: Combined LLC and SAE Analysis ***
+    if has_llc_data and has_sae_checkpoint_data:
+        logger.info("Generating combined LLC and SAE analysis plots...")
         
-        # 2. Generate clean vs adversarial LLC comparison
-        if any('llc_clean' in results[str(eps)] and 'llc_adversarial' in results[str(eps)] 
-               for eps in epsilons):
+        # Get layer names from SAE results
+        layer_names = list(next(iter(results.values()))['layers'].keys())
+        
+        for eps in epsilons:
+            eps_str = str(eps)
             
-            clean_llc_data = {}
-            adv_llc_data = {}
+            # Skip if we don't have both types of data
+            if not (('checkpoint_llc_analysis' in results[eps_str]) and 
+                   ('sae_checkpoint_analysis' in results[eps_str])):
+                continue
+            
+            # Process each layer
+            for layer_name in layer_names:
+                logger.info(f"Generating combined plots for ε={eps}, layer={layer_name}")
+                
+                try:
+                    # 1. Side-by-side evolution plot
+                    plot_combined_llc_sae_evolution(
+                        llc_checkpoint_results=results[eps_str]['checkpoint_llc_analysis'][0],  # Use first run
+                        sae_checkpoint_results=results[eps_str]['sae_checkpoint_analysis']['run_0'],  # Use first run
+                        layer_name=layer_name,
+                        epsilon=eps,
+                        title=f"LLC vs SAE Evolution - ε={eps}, {layer_name}",
+                        save_path=plots_dir / f"llc_sae_evolution_eps_{eps}_{layer_name.replace('.', '_')}.png"
+                    )
+                    
+                    # 2. Correlation over time plot
+                    plot_llc_vs_sae_correlation_over_time(
+                        llc_checkpoint_results=results[eps_str]['checkpoint_llc_analysis'][0],  # Use first run
+                        sae_checkpoint_results=results[eps_str]['sae_checkpoint_analysis']['run_0'],  # Use first run
+                        layer_name=layer_name,
+                        epsilon=eps,
+                        title=f"LLC vs SAE Correlation - ε={eps}, {layer_name}",
+                        save_path=plots_dir / f"llc_sae_correlation_time_eps_{eps}_{layer_name.replace('.', '_')}.png"
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Error generating combined plots for ε={eps}, layer={layer_name}: {e}")
+    
+    # 2. Generate clean vs adversarial LLC comparison
+    if any('llc_clean' in results[str(eps)] and 'llc_adversarial' in results[str(eps)] 
+           for eps in epsilons):
+        
+        clean_llc_data = {}
+        adv_llc_data = {}
+        
+        for eps in epsilons:
+            eps_str = str(eps)
+            
+            # Extract clean LLC data (final values)
+            if 'llc_clean' in results[eps_str] and results[eps_str]['llc_clean']:
+                clean_llc_data[eps] = [entry['llc_mean'] for entry in results[eps_str]['llc_clean'] 
+                                      if entry['llc_mean'] is not None]
+            
+            # Extract adversarial LLC data (final values)
+            if 'llc_adversarial' in results[eps_str] and results[eps_str]['llc_adversarial']:
+                adv_llc_data[eps] = [entry['llc_mean'] for entry in results[eps_str]['llc_adversarial'] 
+                                    if entry['llc_mean'] is not None]
+        
+        if clean_llc_data and adv_llc_data:
+            plot_clean_vs_adversarial_llc(
+                clean_llc=clean_llc_data,
+                adv_llc=adv_llc_data,
+                title="Clean vs Adversarial LLC Analysis",
+                save_path=plots_dir / "clean_vs_adversarial_llc.png"
+            )
+    
+    # 3. Combined SAE + LLC correlation plots (if both are available)
+    has_sae_data = any('layers' in results[str(eps)] and 
+                      any('clean_feature_count' in results[str(eps)]['layers'][layer] 
+                          for layer in results[str(eps)]['layers'])
+                      for eps in epsilons)
+    
+    if has_sae_data and llc_checkpoint_evolution:
+        logger.info("Generating combined SAE + LLC correlation plots...")
+        
+        # Get model metadata
+        model_type = config['model']['model_type']
+        n_classes = len(config['dataset']['selected_classes'])
+        
+        # Extract SAE data for correlation
+        layers = list(results[str(epsilons[0])]['layers'].keys())
+        
+        for layer_name in layers:
+            sae_data = {}
+            llc_data = {}
             
             for eps in epsilons:
                 eps_str = str(eps)
                 
-                # Extract clean LLC data (final values)
-                if 'llc_clean' in results[eps_str] and results[eps_str]['llc_clean']:
-                    clean_llc_data[eps] = [entry['llc_mean'] for entry in results[eps_str]['llc_clean'] 
-                                          if entry['llc_mean'] is not None]
+                # Get SAE feature counts
+                if ('layers' in results[eps_str] and 
+                    layer_name in results[eps_str]['layers'] and
+                    'clean_feature_count' in results[eps_str]['layers'][layer_name]):
+                    
+                    feature_counts = results[eps_str]['layers'][layer_name]['clean_feature_count']
+                    sae_data[eps] = [x for x in feature_counts if x is not None]
                 
-                # Extract adversarial LLC data (final values)
-                if 'llc_adversarial' in results[eps_str] and results[eps_str]['llc_adversarial']:
-                    adv_llc_data[eps] = [entry['llc_mean'] for entry in results[eps_str]['llc_adversarial'] 
-                                        if entry['llc_mean'] is not None]
+                # Get LLC data (use final values)
+                if eps in llc_checkpoint_evolution:
+                    # Use the final LLC value for correlation
+                    final_llc = llc_checkpoint_evolution[eps][-1] if llc_checkpoint_evolution[eps] else None
+                    if final_llc is not None:
+                        llc_data[eps] = [final_llc] * len(sae_data.get(eps, [1]))
             
-            if clean_llc_data and adv_llc_data:
-                plot_clean_vs_adversarial_llc(
-                    clean_llc=clean_llc_data,
-                    adv_llc=adv_llc_data,
-                    title="Clean vs Adversarial LLC Analysis",
-                    save_path=plots_dir / "clean_vs_adversarial_llc.png"
+            if sae_data and llc_data:
+                plot_combined_sae_llc_correlation(
+                    sae_data=sae_data,
+                    llc_data=llc_data,
+                    title=f"SAE vs LLC Correlation - {layer_name} - {model_type.upper()} {n_classes}-class",
+                    save_path=plots_dir / f"sae_llc_correlation_{layer_name.replace('.', '_')}.png"
                 )
-        
-        # 3. Combined SAE + LLC correlation plots (if both are available)
-        has_sae_data = any('layers' in results[str(eps)] and 
-                          any('clean_feature_count' in results[str(eps)]['layers'][layer] 
-                              for layer in results[str(eps)]['layers'])
-                          for eps in epsilons)
-        
-        if has_sae_data and llc_checkpoint_evolution:
-            logger.info("Generating combined SAE + LLC correlation plots...")
-            
-            # Get model metadata
-            model_type = config['model']['model_type']
-            n_classes = len(config['dataset']['selected_classes'])
-            
-            # Extract SAE data for correlation
-            layers = list(results[str(epsilons[0])]['layers'].keys())
-            
-            for layer_name in layers:
-                sae_data = {}
-                llc_data = {}
-                
-                for eps in epsilons:
-                    eps_str = str(eps)
-                    
-                    # Get SAE feature counts
-                    if ('layers' in results[eps_str] and 
-                        layer_name in results[eps_str]['layers'] and
-                        'clean_feature_count' in results[eps_str]['layers'][layer_name]):
-                        
-                        feature_counts = results[eps_str]['layers'][layer_name]['clean_feature_count']
-                        sae_data[eps] = [x for x in feature_counts if x is not None]
-                    
-                    # Get LLC data (use final values)
-                    if eps in llc_checkpoint_evolution:
-                        # Use the final LLC value for correlation
-                        final_llc = llc_checkpoint_evolution[eps][-1] if llc_checkpoint_evolution[eps] else None
-                        if final_llc is not None:
-                            llc_data[eps] = [final_llc] * len(sae_data.get(eps, [1]))
-                
-                if sae_data and llc_data:
-                    plot_combined_sae_llc_correlation(
-                        sae_data=sae_data,
-                        llc_data=llc_data,
-                        title=f"SAE vs LLC Correlation - {layer_name} - {model_type.upper()} {n_classes}-class",
-                        save_path=plots_dir / f"sae_llc_correlation_{layer_name.replace('.', '_')}.png"
-                    )
 
     # NEW: *** INFERENCE-TIME LLC ANALYSIS PLOTS ***
     has_inference_llc_data = any('inference_llc' in results[str(eps)] and results[str(eps)]['inference_llc']
@@ -756,7 +828,6 @@ def run_analysis_phase(
         for eps in epsilons:
             eps_str = str(eps)
             if 'inference_llc' in results[eps_str]:
-                
                 # Collect data from all runs
                 for run_key, run_data in results[eps_str]['inference_llc'].items():
                     for condition, llc_data in run_data.items():
@@ -829,7 +900,8 @@ def run_model_class_experiment(
     testing_mode: bool = False,
     enable_llc: bool = True,
     enable_sae: bool = True,
-    enable_inference_llc: bool = False  # NEW: Control inference-time LLC
+    enable_inference_llc: bool = False,  # Control inference-time LLC
+    enable_sae_checkpoints: bool = False  # Enable SAE checkpoint analysis
 ):
     """Run experiments across model types, class counts, and attack types.
     
@@ -841,6 +913,8 @@ def run_model_class_experiment(
         testing_mode: Whether to run in testing mode
         enable_llc: Whether to enable LLC analysis
         enable_sae: Whether to enable SAE analysis
+        enable_inference_llc: Whether to enable inference-time LLC analysis
+        enable_sae_checkpoints: Whether to enable SAE checkpoint analysis
     """
     for dataset_type in dataset_types:
         
@@ -883,12 +957,19 @@ def run_model_class_experiment(
                         dataset_type=dataset_type, 
                         enable_llc=enable_llc, 
                         enable_sae=enable_sae,
+                        enable_sae_checkpoints=enable_sae_checkpoints,
                         enable_inference_llc=enable_inference_llc
                     )
                     run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
 
  
-def quick_test(model_type: str = None, dataset_type: str = "cifar10", testing_mode: bool = True, enable_inference_llc: bool = False):
+def quick_test(
+    model_type: str = None, 
+    dataset_type: str = "cifar10", 
+    testing_mode: bool = True, 
+    enable_inference_llc: bool = False,
+    enable_sae_checkpoints: bool = False  # NEW: Enable SAE checkpoint analysis
+):
     """Run a quick test with standard adversarial training configuration.
     
     Args:
@@ -935,6 +1016,7 @@ def quick_test(model_type: str = None, dataset_type: str = "cifar10", testing_mo
         dataset_type=dataset_type, 
         enable_llc=True, 
         enable_sae=True,
+        enable_sae_checkpoints=enable_sae_checkpoints,
         enable_inference_llc=enable_inference_llc
     )
     
@@ -947,7 +1029,13 @@ def quick_test(model_type: str = None, dataset_type: str = "cifar10", testing_mo
 # %%
 if __name__ == "__main__":
     # Example usage - Quick test with both SAE, LLC, and optional inference-time LLC
-    quick_test(model_type='mlp', dataset_type="mnist", testing_mode=True, enable_inference_llc=True)
+    quick_test(
+        model_type='mlp', 
+        dataset_type="mnist", 
+        testing_mode=True, 
+        enable_inference_llc=True,
+        enable_sae_checkpoints=True  # Enable SAE checkpoint analysis
+    )
     
     # Example usage - Full experiment with all analyses
     run_model_class_experiment(
@@ -958,6 +1046,7 @@ if __name__ == "__main__":
         testing_mode=False,
         enable_llc=True,
         enable_sae=True,
+        enable_sae_checkpoints=True,  # Enable SAE checkpoint analysis
         enable_inference_llc=True  # Enable inference-time LLC for detailed analysis
     )
 
