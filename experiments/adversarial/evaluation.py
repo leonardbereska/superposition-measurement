@@ -1,19 +1,40 @@
 # %%
-"""Evaluation utilities for adversarial robustness experiments."""
+"""Evaluation utilities for adversarial robustness experiments with SAE and LLC support."""
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from typing import Dict, List, Optional, Union, Tuple, Any
+from typing import Dict, List, Optional, Union, Tuple, Any, Type, Callable
 from pathlib import Path
 import json
 import numpy as np
 import os
 import logging
+import socket
+import random
+from functools import partial
 
-from experiments.adversarial.sae import train_sae, SAEConfig
-from experiments.adversarial.models import NNsightModelWrapper
+# SAE imports (existing)
+from sae import train_sae, SAEConfig
+from models import NNsightModelWrapper
+from training import create_adversarial_dataloader, load_checkpoint
 
+# LLC imports (new)
+try:
+    import devinterp
+    from devinterp.optim.sgld import SGLD
+    from devinterp.slt.sampler import estimate_learning_coeff_with_summary
+    from devinterp.utils import evaluate_ce
+    from devinterp.vis_utils import EpsilonBetaAnalyzer
+    LLC_AVAILABLE = True
+except ImportError:
+    print("Warning: devinterp not available. LLC functionality will be disabled.")
+    LLC_AVAILABLE = False
+
+# ============================================================================
+# SAE FUNCTIONALITY 
+# ============================================================================
 
 def measure_superposition(
     model: nn.Module,
@@ -24,7 +45,7 @@ def measure_superposition(
     save_dir: Optional[Path] = None,
     logger: Optional[logging.Logger] = None
 ) -> Dict[str, float]:
-    """Measure feature organization for a given distribution.
+    """Measure feature organization for a given distribution using SAE.
     
     Args:
         model: Model to evaluate
@@ -149,467 +170,769 @@ def calculate_feature_metrics(p: np.ndarray) -> Dict[str, float]:
         'feature_count': feature_count,
     }
 
-# def load_model(model_path, config):
-#     """Load a trained model from disk.
-    
-#     Args:
-#         model_path: Path to the saved model
-#         device: Device to load the model to
-        
-#     Returns:
-#         Loaded model
-#     """
-#     # Load checkpoint
-#     device = config['device']
-#     state = torch.load(model_path, map_location=device)
-    
-#     # Extract model configuration from the saved state
-#     model_config = state['config']
-#     model_type = model_config['model_type']
-#     hidden_dim = model_config['hidden_dim']
-#     input_channels = model_config.get('input_channels', 1)  # Default to 1 for backward compatibility
-#     image_size = model_config.get('image_size', 28)  # Default to 28 for backward compatibility
+'''
+def load_model is in training
+def evaluate_model_performance is in training
+def generate_adversarial_example is in attacks.py
 
-#     # Determine number of output classes from state dict
-#     if 'model_state' in state:
-#         output_dim = list(state['model_state'].items())[-1][1].size(0)
-#     else:
-#         # Default to binary classification
-#         output_dim = 1
-    
-#     model = create_model(
-#         model_type=model_type,
-#         use_nnsight=False,
-#         hidden_dim=hidden_dim,
-#         input_channels=input_channels,
-#         image_size=image_size,
-#         output_dim=output_dim,
-#     )
-    
-#     # Load state dict
-#     model.load_state_dict(state['model_state'])
-    
-#     # Move to device
-#     model = model.to(device)
-    
-#     return model
+def evaluate_feature_organization is nowhere
+def measure_superposition is nowhere
+def measure_superposition_on_mixed_distribution is nowhere
+'''
 
-# def evaluate_model_performance(
-#     model: nn.Module, 
-#     dataloader: DataLoader, 
-#     epsilons: List[float],
-#     device: Optional[torch.device] = None,
-#     attack_config: Optional[AttackConfig] = None
-# ) -> Dict[str, float]:
-#     """Evaluate model robustness across different perturbation sizes.
+
+# ============================================================================
+# ADDITIONAL SAE FUNCTIONALITY FOR RETROACTIVE CHECKPOINT MEASUREMENTS
+# ============================================================================
+
+
+def analyze_checkpoints_with_sae(
+    checkpoint_dir: Path,
+    train_loader: DataLoader,
+    sae_config: SAEConfig,
+    layer_names: List[str],
+    epsilons_to_test: List[float],
+    device: Optional[torch.device] = None,
+    logger: Optional[logging.Logger] = None
+) -> Dict[str, Any]:
+    """Analyze saved checkpoints with SAE measurement.
     
-#     Args:
-#         model: Model to evaluate
-#         dataloader: DataLoader with evaluation data
-#         epsilons: List of perturbation sizes to test
-#         device: Device to use (defaults to model's device)
-#         attack_config: Configuration for the attack (defaults to FGSM)
+    Args:
+        checkpoint_dir: Directory containing checkpoints
+        train_loader: Training data loader
+        sae_config: SAE configuration
+        layer_names: List of layers to analyze
+        epsilons_to_test: List of perturbation strengths to test
+        device: Device for computation
+        logger: Optional logger
         
-#     Returns:
-#         Dictionary mapping epsilon values to accuracies
-#     """
-#     if device is None:
-#         device = next(model.parameters()).device
+    Returns:
+        Dictionary with SAE analysis results organized by epsilon, layer, and epoch
+    """
+    from training import load_checkpoint, create_adversarial_dataloader
+    from attacks import AttackConfig
     
-#     # Use default attack config if none provided
-#     if attack_config is None:
-#         attack_config = AttackConfig()
+    log = logger.info if logger else print
     
-#     model.eval()
-#     results = {}
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-#     for eps in epsilons:
-#         correct = 0
-#         total = 0
+    # Load checkpoint summary
+    summary_path = checkpoint_dir / "checkpoint_summary.json"
+    if not summary_path.exists():
+        raise FileNotFoundError(f"Checkpoint summary not found: {summary_path}")
+    
+    with open(summary_path, 'r') as f:
+        checkpoint_summary = json.load(f)
+    
+    checkpoint_paths = [Path(cp) for cp in checkpoint_summary['saved_checkpoints']]
+    attack_config = AttackConfig()
+    
+    # Results organized by epsilon -> layer -> epoch
+    results = {
+        'epsilon_analysis': {},
+        'layer_analysis': {},
+        'evolution_analysis': {}
+    }
+    
+    for epsilon in epsilons_to_test:
+        log(f"SAE analysis for epsilon={epsilon} across {len(checkpoint_paths)} checkpoints")
+        epsilon_results = {}
         
-#         for inputs, targets in dataloader:
-#             inputs = inputs.to(device)
-#             targets = targets.to(device)
-#             batch_size = inputs.shape[0]
+        for layer_name in layer_names:
+            log(f"  Analyzing layer: {layer_name}")
+            layer_results = []
             
-#             # For eps=0, just evaluate normally
-#             if eps == 0:
-#                 with torch.no_grad():
-#                     outputs = model(inputs)
-#                     if outputs.size(-1) == 1:  # Binary
-#                         predictions = (torch.sigmoid(outputs) > 0.5).squeeze()
-#                     else:  # Multi
-#                         predictions = outputs.argmax(dim=1)
-                        
-#                     correct += (predictions == targets).sum().item()
-#                     total += batch_size
-#                     continue
-            
-#             # Generate adversarial examples
-#             perturbed_inputs = generate_adversarial_examples(
-#                 model, inputs, targets, eps, attack_config
-#             )
-           
-#             # Evaluate on perturbed inputs
-#             with torch.no_grad():
-#                 adv_outputs = model(perturbed_inputs)
+            for checkpoint_path in checkpoint_paths:
+                # Load checkpoint
+                model, model_config, checkpoint_data = load_checkpoint(checkpoint_path, device)
+                epoch = checkpoint_data['epoch']
                 
-#                 if adv_outputs.size(-1) == 1:  # Binary
-#                     predictions = (torch.sigmoid(adv_outputs) > 0.5).squeeze()
-#                 else:  # Multi-class
-#                     predictions = adv_outputs.argmax(dim=1)
+                log(f"    Processing checkpoint from epoch {epoch}")
+                
+                # Create appropriate dataloader
+                if epsilon > 0:
+                    test_loader = create_adversarial_dataloader(
+                        model, train_loader, epsilon, attack_config
+                    )
+                else:
+                    test_loader = train_loader
+                
+                # Measure SAE features
+                try:
+                    sae_results = measure_superposition(
+                        model=model,
+                        dataloader=test_loader,
+                        layer_name=layer_name,
+                        sae_config=sae_config,
+                        save_dir=checkpoint_dir / f"sae_analysis_eps_{epsilon}_layer_{layer_name}_epoch_{epoch}",
+                        logger=logger
+                    )
                     
-#                 correct += (predictions == targets).sum().item()
-#                 total += batch_size
-        
-#         accuracy = 100 * correct / total
-#         results[str(eps)] = accuracy
-        
-#     return results
-
-# def generate_adversarial_example(
-#    model: nn.Module,
-#    image: torch.Tensor,
-#    true_label: torch.Tensor,
-#    epsilon: float = 0.1,
-#    targeted: bool = False,
-#    target_label: Optional[torch.Tensor] = None
-# ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-#    """Generate adversarial example using FGSM.
-   
-#    Args:
-#        model: Trained model
-#        image: Input image tensor
-#        true_label: Original label
-#        epsilon: Perturbation size
-#        targeted: If True, optimize toward target_label
-#        target_label: Label to target if targeted=True
-   
-#    Returns:
-#        perturbed_image, prediction, perturbation
-#    """
-#    # Prepare input
-#    device = next(model.parameters()).device
-#    image = image.clone().detach().requires_grad_(True).to(device)
-#    target = target_label.to(device) if targeted else true_label.to(device)
-   
-#    # Forward pass
-#    output = model(image.unsqueeze(0))
-   
-#    if output.size(-1) == 1:  # Binary classification
-#        loss = nn.BCEWithLogitsLoss()(output.squeeze(), target.float())
-#    else:  # Multi-class classification
-#        loss = nn.CrossEntropyLoss()(output, target)
-   
-#    # Backward pass
-#    loss.backward()
-   
-#    # Generate perturbation
-#    # Minus sign for targeted (move toward target)
-#    # Plus sign for untargeted (move away from true label)
-#    sign = -1 if targeted else 1
-#    perturbation = sign * epsilon * image.grad.sign()
-   
-#    # Generate adversarial example
-#    perturbed_image = torch.clamp(image + perturbation, 0, 1)
-   
-#    # Get prediction
-#    with torch.no_grad():
-#        adv_output = model(perturbed_image.unsqueeze(0))
-       
-#        if adv_output.size(-1) == 1:  # Binary
-#            pred = torch.sigmoid(adv_output) > 0.5
-#        else:  # Multi-class
-#            pred = adv_output.argmax(dim=1)
-   
-#    return perturbed_image, pred, perturbation
-
-# def evaluate_feature_organization(
-#     model: torch.nn.Module,
-#     train_loader: torch.utils.data.DataLoader,
-#     layer_name: str,
-#     use_mixed_distribution: bool = False,
-#     epsilon: float = 0.1,  # Only used for mixed distribution
-#     expansion_factor: int = 2,
-#     l1_lambda: float = 0.1,
-#     batch_size: int = 128,
-#     learning_rate: float = 1e-3,
-#     n_epochs: int = 300,
-#     save_dir: Optional[Path] = None,
-#     max_samples: int = 10000
-# ) -> Dict[str, Any]:
-#     """Measure feature organization in a trained model.
-    
-#     Args:
-#         model: Trained model to evaluate
-#         train_loader: DataLoader with training data
-#         layer_name: Layer name for activation extraction
-#         use_mixed_distribution: Whether to use mixed distribution
-#         epsilon: Perturbation size for mixed distribution
-#         expansion_factor: SAE expansion factor
-#         l1_lambda: L1 regularization strength
-#         batch_size: Batch size for SAE training
-#         learning_rate: Learning rate for SAE training
-#         n_epochs: Number of epochs for SAE training
-#         save_dir: Directory to save results
-#         max_samples: Maximum number of samples to use
-        
-#     Returns:
-#         Dictionary with feature organization metrics
-#     """
-#     if use_mixed_distribution:
-#         return measure_superposition_on_mixed_distribution(
-#             model=model,
-#             clean_loader=train_loader,
-#             layer_name=layer_name,
-#             epsilon=epsilon,
-#             expansion_factor=expansion_factor,
-#             l1_lambda=l1_lambda,
-#             batch_size=batch_size,
-#             learning_rate=learning_rate,
-#             n_epochs=n_epochs,
-#             save_dir=save_dir,
-#             max_samples=max_samples
-#         )
-#     else:
-#         return measure_superposition(
-#             model=model,
-#             data_loader=train_loader,
-#             layer_name=layer_name,
-#             expansion_factor=expansion_factor,
-#             l1_lambda=l1_lambda,
-#             batch_size=batch_size,
-#             learning_rate=learning_rate,
-#             n_epochs=n_epochs,
-#             save_dir=save_dir,
-#             max_samples=max_samples
-#         )
-
-# def measure_superposition(
-#     model: nn.Module,
-#     data_loader: torch.utils.data.DataLoader,
-#     layer_name: str,
-#     sae_model=None,
-#     expansion_factor: int = 2,
-#     l1_lambda: float = 0.1,
-#     batch_size: int = 128,
-#     learning_rate: float = 1e-3,
-#     n_epochs: int = 300,
-#     save_dir: Optional[Path] = None,
-#     max_samples: int = 10000
-# ) -> Dict[str, float]:
-#     """Measure feature superposition in a model layer."""
-#     device = next(model.parameters()).device
-
-#     model_wrapper = NNsightModelWrapper(model)
-
-#     # limiting the number of activations to extract to avoid memory issues
-#     activations = model_wrapper.get_activations(data_loader, layer_name, max_activations=max_samples)
-
-#     activations = activations.detach().cpu().contiguous()
-
-#     # Check if the activations are from a convolutional layer
-#     is_conv = activations.dim() == 4
-    
-#     if is_conv:
-#         # Reshape: [B, C, H, W] -> [B*H*W, C]
-#         orig_shape = activations.shape
-#         activations = activations.reshape(
-#             orig_shape[0], orig_shape[1], -1).permute(0, 2, 1).reshape(-1, orig_shape[1])
-        
-#         # Limit number of samples for SAE training if needed
-#         if max_samples and len(activations) > max_samples:
-#             train_activations = activations[:max_samples]
-#         else:
-#             train_activations = activations
-        
-#         # Train SAE if not provided
-#         if sae_model is None:
-#             sae_model = train_sae(
-#                 train_activations, 
-#                 expansion_factor=expansion_factor, 
-#                 n_epochs=n_epochs, 
-#                 l1_lambda=l1_lambda, 
-#                 batch_size=batch_size, 
-#                 learning_rate=learning_rate,
-#                 device=device
-#             )
-        
-#         # Apply SAE to get activations
-#         sae_acts, _ = sae_model(activations.to(device))
-#         sae_acts = sae_acts.detach().cpu()
-        
-#         # Reshape back: [B*H*W, D] -> [B, H*W, D] -> [B, D, H*W]
-#         sae_acts = sae_acts.reshape(
-#             orig_shape[0], 
-#             -1,  # H*W
-#             sae_model.dictionary_dim
-#         ).permute(0, 2, 1)
-        
-#         # Sum over spatial dimensions
-#         sae_acts = sae_acts.sum(dim=2).detach().cpu().numpy()
-        
-#     else:
-#         # For fully connected layers, use the existing approach
-#         if sae_model is None:
-#             sae_model = train_sae(
-#                 activations, 
-#                 verbose=True,
-#                 expansion_factor=expansion_factor, 
-#                 n_epochs=n_epochs, 
-#                 l1_lambda=l1_lambda, 
-#                 batch_size=batch_size, 
-#                 learning_rate=learning_rate,
-#                 device=device
-#             )
-        
-#         # Get SAE features
-#         sae_acts, _ = sae_model(activations.to(device))
-#         sae_acts = sae_acts.detach().cpu().numpy()
-    
-#     # Save SAE model if requested
-#     if save_dir:
-#         save_dir.mkdir(parents=True, exist_ok=True)
-        
-#         # Save SAE model state dict
-#         torch.save(sae_model.state_dict(), save_dir / f"sae_{layer_name}.pt")
-        
-#         # Evaluate SAE and save statistics
-#         sae_metrics = evaluate_sae(
-#             sae=sae_model,
-#             activations=activations,
-#             l1_lambda=l1_lambda,
-#             batch_size=batch_size,
-#             device=device
-#         )
-
-#         sae_stats = analyze_feature_statistics(
-#             sae=sae_model,
-#             activations=activations,
-#             device=device
-#         )
-        
-#         # Save statistics as JSON
-#         with open(save_dir / f"sae_{layer_name}_metrics.json", 'w') as f:
-#             json.dump({k: float(v) for k, v in sae_metrics.items()}, f, indent=4, default=json_serializer)
-#         with open(save_dir / f"sae_{layer_name}_stats.json", 'w') as f:
-#             json.dump(sae_stats, f, indent=4, default=json_serializer)
-    
-#     # Calculate metrics
-#     p = get_feature_distribution(sae_acts)
-#     metrics = calculate_feature_metrics(p)
-    
-#     return metrics
-
-# def measure_superposition_on_mixed_distribution(
-#     model: nn.Module,
-#     dataloader: torch.utils.data.DataLoader,
-#     layer_name: str,
-#     epsilon: float = 0.1,
-#     expansion_factor: int = 2,
-#     l1_lambda: float = 0.1,
-#     batch_size: int = 128,
-#     learning_rate: float = 1e-3,
-#     n_epochs: int = 300,
-#     save_dir: Optional[Path] = None,
-#     max_samples: int = 10000,
-#     verbose: bool = True
-# ) -> Dict[str, Dict[str, Dict[str, float]]]:
-#     """Measure superposition using SAEs trained on different distributions."""
-
-#     device = next(model.parameters()).device
-#     model_wrapper = NNsightModelWrapper(model)
-    
-#     # Get clean activations
-#     clean_loader = dataloader
-#     clean_activations = model_wrapper.get_activations(clean_loader, layer_name, max_activations=max_samples)
-#     clean_activations = clean_activations.detach().cpu()
-    
-#     # Generate adversarial examples and get their activations
-#     adv_activations = []
-#     for inputs, targets in clean_loader:
-#         inputs, targets = inputs.to(device), targets.to(device)
-        
-#         # Generate adversarial examples with FGSM
-#         inputs.requires_grad = True
-#         outputs = model(inputs)
-        
-#         if outputs.size(-1) == 1:  # Binary classification
-#             loss = nn.BCEWithLogitsLoss()(outputs.squeeze(), targets)
-#         else:  # Multi-class classification
-#             loss = nn.CrossEntropyLoss()(outputs, targets)
-        
-#         model.zero_grad()
-#         loss.backward()
-        
-#         # FGSM attack
-#         perturbed_inputs = inputs + epsilon * inputs.grad.sign()
-#         perturbed_inputs = torch.clamp(perturbed_inputs, 0, 1)
-        
-#         # Get activations for adversarial examples
-#         with torch.no_grad():
-#             adv_acts = model_wrapper.get_layer_output(perturbed_inputs, layer_name)
-#             adv_activations.append(adv_acts.cpu())
-    
-#     adv_activations = torch.cat(adv_activations, dim=0)
-    
-#     # Create mixed dataset (50% clean, 50% adversarial)
-#     min_samples = min(len(clean_activations), len(adv_activations), max_samples // 2)
-#     mixed_activations = torch.cat([
-#         clean_activations[:min_samples],
-#         adv_activations[:min_samples]
-#     ], dim=0)
-    
-#     # Train SAEs and evaluate feature metrics
-#     results = {}
-    
-#     # Define all activation distributions
-#     distributions = {
-#         "clean": clean_activations,
-#         "adversarial": adv_activations,
-#         "mixed": mixed_activations
-#     }
-    
-#     # For each distribution, train an SAE and evaluate it on all distributions
-#     for train_dist_name, train_activations in distributions.items():
-#         # Train SAE on this distribution
-#         sae = train_sae(
-#             train_activations,
-#             verbose=verbose,
-#             expansion_factor=expansion_factor, 
-#             n_epochs=n_epochs, 
-#             l1_lambda=l1_lambda, 
-#             batch_size=batch_size, 
-#             learning_rate=learning_rate,
-#             device=device
-#         )
-        
-#         # Save SAE model if requested
-#         if save_dir:
-#             save_dir.mkdir(parents=True, exist_ok=True)
-#             torch.save(sae.state_dict(), save_dir / f"sae_{layer_name}_{train_dist_name}.pt")
-        
-#         # Evaluate this SAE on each distribution
-#         metrics = {}
-#         for eval_dist_name, eval_activations in distributions.items():
-#             if verbose:
-#                 print(f"Evaluating SAE trained on {train_dist_name} distribution on {eval_dist_name} data...")
+                    layer_results.append({
+                        'epoch': epoch,
+                        'feature_count': sae_results['feature_count'],
+                        'entropy': sae_results['entropy'],
+                        'checkpoint_path': str(checkpoint_path)
+                    })
+                    
+                    log(f"      Epoch {epoch}: Feature count = {sae_results['feature_count']:.2f}")
+                    
+                except Exception as e:
+                    log(f"      Error in epoch {epoch}: {e}")
+                    layer_results.append({
+                        'epoch': epoch,
+                        'feature_count': None,
+                        'entropy': None,
+                        'checkpoint_path': str(checkpoint_path),
+                        'error': str(e)
+                    })
             
-#             # Get SAE activations for this distribution
-#             sae_acts, _ = sae(eval_activations.to(device))
-            
-#             # Calculate feature distribution and metrics
-#             p = get_feature_distribution(sae_acts.detach().cpu().numpy())
-#             metrics[eval_dist_name] = calculate_feature_metrics(p)
-            
-#             if verbose:
-#                 feature_count = metrics[eval_dist_name]['feature_count']
-#                 print(f"  Feature count: {feature_count:.2f}")
+            epsilon_results[layer_name] = layer_results
         
-#         # Store metrics for this SAE
-#         results[train_dist_name] = metrics
+        results['epsilon_analysis'][str(epsilon)] = epsilon_results
     
-#     return results
+    # Save results
+    results_path = checkpoint_dir / "sae_checkpoint_analysis_results.json"
+    with open(results_path, 'w') as f:
+        json.dump(results, f, indent=4, default=lambda x: x.tolist() if isinstance(x, np.ndarray) else str(x))
+    
+    log(f"SAE checkpoint analysis results saved to: {results_path}")
+    
+    return results
 
-# %%
-# %%
+
+
+# ============================================================================
+# LLC FUNCTIONALITIES
+# ============================================================================
+
+def evaluate_bce(model, data):
+    """Evaluate function for binary classification with BCE loss."""
+    x, y = data
+    y_pred = model(x)
+    
+    # Handle shape mismatch for binary classification
+    y_pred = y_pred.squeeze()  # Convert from [batch_size, 1] to [batch_size]
+    y = y.float()  # Ensure targets are float for BCE
+        
+    return F.binary_cross_entropy_with_logits(y_pred, y), {"output": y_pred}
+
+
+def initialize_distributed_training(rank=0):
+    """Initialize distributed training for LLC measurement."""
+    if not LLC_AVAILABLE:
+        return False
+        
+    def find_free_port():
+        # Try ports in range 29500-65535
+        while True:
+            port = random.randint(29500, 65535)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.bind(('', port))
+                sock.close()
+                return port
+            except OSError:
+                sock.close()
+                continue
+
+    try:
+        # Find an available port
+        port = find_free_port()
+        
+        # Initialize process group with the free port
+        torch.distributed.init_process_group(
+            backend='nccl',
+            init_method=f'tcp://localhost:{port}',
+            world_size=1,
+            rank=rank
+        )
+        return True
+    except Exception as e:
+        print(f"Failed to initialize process group: {e}")
+        return False
+
+def estimate_llc_given_model(
+    model: torch.nn.Module,
+    loader: torch.utils.data.DataLoader,
+    evaluate: Callable,
+    epsilon: float,                                     
+    beta: float,                                        
+    sampling_method: Type[torch.optim.Optimizer] = SGLD,
+    localization: float = 5.0,
+    num_chains: int = 3,
+    num_draws: int = 1500,
+    num_burnin_steps: int = 0,
+    num_steps_bw_draws: int = 1,
+    device: torch.device = "cuda" if torch.cuda.is_available() else "cpu",
+    online: bool = True,
+    verbose: bool = False,
+) -> Dict:
+    """Estimate LLC with given hyperparameters."""
+    if not LLC_AVAILABLE:
+        raise RuntimeError("LLC functionality requires devinterp library")
+    
+    sweep_stats = estimate_learning_coeff_with_summary(
+        model,
+        loader=loader,
+        evaluate=evaluate,
+        sampling_method=sampling_method,
+        optimizer_kwargs=dict(
+            lr=epsilon, 
+            localization=localization, 
+            nbeta=beta
+        ),
+        num_chains=num_chains,
+        num_draws=num_draws,
+        num_burnin_steps=num_burnin_steps,
+        num_steps_bw_draws=num_steps_bw_draws,
+        device=device,
+        online=online,
+        verbose=verbose,
+    )
+
+    if "llc/trace" not in sweep_stats:
+        # Get the trace from wherever estimate_learning_coeff_with_summary puts it
+        trace = sweep_stats.get("llc_trace", sweep_stats.get("trace", np.array([[sweep_stats.get("llc_mean", 0.0)]])))
+        sweep_stats["llc/trace"] = trace
+    else:
+        sweep_stats["llc/trace"] = np.array(sweep_stats["llc/trace"])
+    
+    return sweep_stats
+
+def find_stable_hyperparameters(sweep_df):
+    """Find stable hyperparameters from LLC sweep results using stability analysis."""
+    
+    def analyze_trace_stability(trace, desired_stable_step=200):
+        """Analyze a single trace for stability focusing on early stabilization and no drift."""
+        n_steps = len(trace)
+        
+        # Split trace into regions
+        early_region = trace[:desired_stable_step]
+        stable_region = trace[desired_stable_step:]
+        
+        # 1. Check for zero slope in stable region (most important)
+        x = np.arange(len(stable_region))
+        slope, _ = np.polyfit(x, stable_region, 1)
+        
+        # Exponentially penalize any non-zero slope
+        slope_penalty = np.exp(np.abs(slope) * 100)
+        
+        # 2. Check if we've stabilized by desired_stable_step
+        early_mean = np.mean(early_region[-50:])  # mean of last 50 points in early region
+        stable_mean = np.mean(stable_region[:50])  # mean of first 50 points in stable region
+        stabilization_score = 1.0 / (np.abs(early_mean - stable_mean) + 1e-6)
+        
+        # 3. Check for consistent range throughout stable region
+        window_size = 100
+        rolling_means = [np.mean(stable_region[i:i+window_size]) 
+                        for i in range(0, len(stable_region)-window_size, window_size)]
+        mean_consistency = 1.0 / (np.std(rolling_means) + 1e-6)
+        
+        # 4. Penalize large jumps
+        max_jump = np.max(np.abs(np.diff(stable_region)))
+        jump_penalty = np.exp(max_jump)
+        
+        # Combine scores with very heavy emphasis on slope and mean consistency
+        stability_score = (mean_consistency * stabilization_score) / (slope_penalty * jump_penalty)
+        
+        return (
+            stability_score,
+            slope,
+            np.std(rolling_means),  # mean variation
+            max_jump,
+            1.0 / stabilization_score  # early stabilization penalty
+        )
+
+    # Process traces
+    if isinstance(sweep_df['llc/means'].iloc[0], (list, np.ndarray)):
+        stability_results = sweep_df['llc/means'].apply(analyze_trace_stability)
+        sweep_df['stability_score'] = stability_results.apply(lambda x: x[0])
+        sweep_df['slope'] = stability_results.apply(lambda x: x[1])
+        sweep_df['mean_variation'] = stability_results.apply(lambda x: x[2])
+        sweep_df['max_jump'] = stability_results.apply(lambda x: x[3])
+        sweep_df['stabilization_penalty'] = stability_results.apply(lambda x: x[4])
+    
+    # Add epsilon preference score with stronger preference for higher values
+    epsilon_values = sweep_df['epsilon'].unique()
+    print("\nEpsilon values being considered:", sorted(epsilon_values))
+
+    
+    # Create a more aggressive preference for higher epsilon values
+    epsilon_min, epsilon_max = sweep_df['epsilon'].min(), sweep_df['epsilon'].max()
+    # Use exponential scaling to create stronger preference for higher values
+    sweep_df['epsilon_preference'] = np.exp((sweep_df['epsilon'] - epsilon_min) / (epsilon_max - epsilon_min)) - 1
+    
+    # Print epsilon preference values for debugging
+    print("\nEpsilon preference mapping:")
+    for eps in sorted(epsilon_values):
+        pref = np.exp((eps - epsilon_min) / (epsilon_max - epsilon_min)) - 1
+        print(f"Epsilon {eps:.2e} -> Preference {pref:.2f}")
+    
+    # Combine stability score with epsilon preference (with stronger weight)
+    alpha = 2.0  # Increase this to give more weight to epsilon preference
+    sweep_df['combined_score'] = sweep_df['stability_score'] * (1 + alpha * sweep_df['epsilon_preference'])
+    
+    # Group by epsilon and beta
+    grouped_stats = sweep_df.groupby(['epsilon', 'beta']).agg({
+        'combined_score': 'mean',
+        'stability_score': 'mean',
+        'slope': 'mean',
+        'mean_variation': 'mean',
+        'max_jump': 'mean',
+        'stabilization_penalty': 'mean',
+        'epsilon_preference': 'first'
+    }).reset_index()
+    
+    # Find the most stable region using combined score
+    best_idx = grouped_stats['combined_score'].argmax()
+    stable_epsilon = grouped_stats.iloc[best_idx]['epsilon']
+    stable_beta = grouped_stats.iloc[best_idx]['beta']
+    
+    return stable_epsilon, stable_beta
+
+def tune_llc_hyperparameters(
+    model: torch.nn.Module,
+    loader: torch.utils.data.DataLoader,
+    min_epsilon: float = 3e-3,
+    max_epsilon: float = 3e-1,
+    epsilon_samples: int = 5,
+    min_beta: Optional[float] = None,
+    max_beta: Optional[float] = None,
+    beta_samples: int = 5,
+    device: torch.device = "cuda" if torch.cuda.is_available() else "cpu",
+) -> Dict[str, float]:
+    """Find optimal hyperparameters for LLC estimation using epsilon-beta sweep."""
+    if not LLC_AVAILABLE:
+        raise RuntimeError("LLC functionality requires devinterp library")
+    
+    # Choose appropriate evaluation function
+    if list(model.parameters())[-1].size(0) == 1:
+        evaluate_fn = evaluate_bce
+        print("Using BCE evaluation function for LLC estimation in tune_llc_hyperparameters")
+    else:
+        evaluate_fn = evaluate_ce
+        print("Using CE evaluation function for LLC estimation in tune_llc_hyperparameters")
+    
+    analyzer = EpsilonBetaAnalyzer() 
+    
+    analyzer.configure_sweep(
+        llc_estimator=estimate_llc_given_model,
+        llc_estimator_kwargs=dict(
+            model=model,
+            evaluate=evaluate_fn,
+            device=device,
+            loader=loader,
+            localization=9.0,
+        ),
+        min_epsilon=min_epsilon,
+        max_epsilon=max_epsilon,
+        epsilon_samples=epsilon_samples,
+        min_beta=min_beta,
+        max_beta=max_beta,
+        beta_samples=beta_samples,
+        dataloader=loader,
+    )
+
+    analyzer.sweep()
+
+    # Generate plots for analysis
+    fig1 = analyzer.plot()  # Standard plot
+    fig2 = analyzer.plot(div_out_beta=True)  # Plot with beta divided out
+    
+    # Access sweep_df for analysis
+    if hasattr(analyzer, 'sweep_df'):
+        sweep_df = analyzer.sweep_df
+        stable_epsilon, stable_beta = find_stable_hyperparameters(sweep_df)
+    else:
+        # Use default values from the grokking example
+        print("No sweep_df found, USING ~DEFAULT~ VALUES")
+        stable_epsilon = 0.003 # 3e-3
+        stable_beta = 48.6
+    
+    return {
+        'recommended_epsilon': stable_epsilon,
+        'recommended_beta': stable_beta,
+        'analyzer': analyzer,  # Return analyzer for plotting if needed
+        'figures': [fig1, fig2]
+    }
+
+'''
+    Online vs offline stats:
+    - online stats used for a) Hyperparameter tuning with EpsilonBetaAnalyzer and b) Initial testing of sampling quality
+    - offline stats used for final LLC calculation across all model checkpoints
+    
+    Why Both?
+    Online advantages:
+    - Memory efficient (running averages instead of storing all samples)
+    - Can monitor convergence during sampling
+    - Good for exploration/tuning where you need quick feedback
+
+    Offline advantages:
+    - More accurate statistics (can calculate on all samples at once)
+    - Can perform more sophisticated statistical analysis
+    - Better for final results where accuracy matters most
+
+    In the reference notebook:
+    - They use online during hyperparameter exploration to quickly test many configurations
+    - They switch to offline for the final LLC calculations across all checkpoints to get the most accurate estimates for their plots
+    '''
+
+def estimate_llc(
+    model: torch.nn.Module,
+    data_loader: torch.utils.data.DataLoader,
+    llc_epsilon: Optional[float] = None,
+    llc_nbeta: Optional[float] = None,
+    gamma: float = 5.0,
+    num_chains: int = 3,
+    num_draws: int = 1500,
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    tune_hyperparams: bool = False,
+    online: bool = False
+) -> Dict[str, float]:
+    """Estimate LLC using provided parameters."""
+    if not LLC_AVAILABLE:
+        raise RuntimeError("LLC functionality requires devinterp library")
+    # Print debug info
+    print(f"Just for debug, LLC epsilon: {llc_epsilon}, type: {type(llc_epsilon)}")
+    print(f"Just for debug, LLC nbeta: {llc_nbeta}, type: {type(llc_nbeta)}")
+    print(f"Just for debug, tune_hyperparams: {tune_hyperparams}")
+    print(f"Using {'online' if online else 'offline'} stats")
+
+    # Choose appropriate evaluation function
+    if list(model.parameters())[-1].size(0) == 1:
+        evaluate_fn = evaluate_bce
+    else:
+        evaluate_fn = evaluate_ce
+   
+    try:
+        # Clean up existing process group if it exists
+        if torch.distributed.is_initialized():
+            torch.distributed.destroy_process_group()
+
+        # Initialize new process group
+        if not initialize_distributed_training():
+            print("Failed to initialize distributed process group")
+            return None
+    
+        # Estimate LLC
+        llc_stats = estimate_learning_coeff_with_summary(
+            model,
+            loader=data_loader,
+            evaluate=evaluate_fn,
+            sampling_method=SGLD,
+            optimizer_kwargs=dict(
+                lr=llc_epsilon,
+                nbeta=llc_nbeta,
+                localization=gamma
+            ),
+            num_chains=num_chains,
+            num_draws=num_draws,
+            device=device,
+            online=online,  
+        )
+        
+        print("llc_stats keys:", llc_stats.keys())
+
+        '''
+        When estimate_learning_coeff_with_summary is called, the keys of the llc_stats returned are: ['init_loss', 'llc/means', 'llc/stds', 'llc/trace', 'loss/trace']
+        Now, tune_llc_parameters in train.py calls estimate_llc with online=True
+        When we do this: Now making a single test run with chosen hyperparameters, still on FINAL model to check if the hyperparams are good"
+        The keys are : ['llc_average_mean', 'llc_average_std', 'llc_means', 'llc_stds', 'llc_trace', 'loss_trace', 'llc_epsilon', 'llc_nbeta', 'gamma']
+
+        '''
+        if "llc/trace" not in llc_stats:
+            print("WHY IS IT EVEN GOING IN HERE? Because we're using offline stats and llc/trace is not in llc_stats")
+            print("llc/trace not found in llc stats")
+            #the keys are: dict_keys(['llc/mean', 'llc/std', 
+            # 'llc-chain/0', 'llc-chain/1', 'llc-chain/2', 'loss/trace'])
+            print("llc-chain/0 value:", llc_stats['llc-chain/0'])
+            print("llc-chain/1 value:", llc_stats['llc-chain/1'])
+            print("llc-chain/2 value:", llc_stats['llc-chain/2'])
+            print("llc-chain/0 type:", type(llc_stats['llc-chain/0']))
+        
+        if online:
+            # Online mode keys: 'init_loss', 'llc/means', 'llc/stds', 'llc/trace', 'loss/trace'
+            return {
+                'llc_average_mean': llc_stats['llc/means'].mean(),
+                'llc_average_std': llc_stats['llc/stds'].mean(),
+                'llc/means': llc_stats['llc/means'],
+                'llc/stds': llc_stats['llc/stds'],
+                'llc/trace': llc_stats['llc/trace'],
+                'loss/trace': llc_stats['loss/trace'],
+                'llc_epsilon': llc_epsilon,
+                'llc_nbeta': llc_nbeta,
+                'gamma': gamma,
+            }
+        else:
+            # Offline mode keys: 'llc/mean', 'llc/std', 'llc-chain/0', 'llc-chain/1', 'llc-chain/2', 'loss/trace'
+            return {
+                'llc_average_mean': llc_stats['llc/mean'],
+                'llc_average_std': llc_stats['llc/std'],
+                'loss/trace': llc_stats['loss/trace'],
+                'llc_epsilon': llc_epsilon,
+                'llc_nbeta': llc_nbeta,
+                'gamma': gamma,
+            }
+        
+    except Exception as e:
+        print(f"Error during LLC estimation: {e}")
+        return None
+
+    finally:
+        # Clean up process group
+        if torch.distributed.is_initialized():
+            torch.distributed.destroy_process_group()
+
+
+
+# ============================================================================
+#  RETROACTIVE LLC EVALUATION ON CHECKPOINTS
+# ============================================================================
+
+def analyze_checkpoints_with_llc(
+    checkpoint_dir: Path,
+    train_loader: DataLoader,
+    llc_config: Dict[str, Any],
+    epsilons_to_test: List[float],
+    device: Optional[torch.device] = None,
+    logger: Optional[logging.Logger] = None
+) -> Dict[str, Any]:
+    """Analyze saved checkpoints with LLC measurement.
+    
+    Args:
+        checkpoint_dir: Directory containing checkpoints
+        train_loader: Training data loader
+        llc_config: LLC configuration
+        epsilons_to_test: List of perturbation strengths to test
+        device: Device for computation
+        logger: Optional logger
+        
+    Returns:
+        Dictionary with LLC analysis results
+    """
+    from evaluation import estimate_llc, tune_llc_hyperparameters
+    from attacks import AttackConfig
+    
+    log = logger.info if logger else print
+    
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Load checkpoint summary
+    summary_path = checkpoint_dir / "checkpoint_summary.json"
+    if not summary_path.exists():
+        raise FileNotFoundError(f"Checkpoint summary not found: {summary_path}")
+    
+    with open(summary_path, 'r') as f:
+        checkpoint_summary = json.load(f)
+    
+    checkpoint_paths = [Path(cp) for cp in checkpoint_summary['saved_checkpoints']]
+    
+    # Load the final model for hyperparameter tuning
+    final_model, model_config, _ = load_checkpoint(checkpoint_paths[-1], device)
+    
+    # Tune LLC hyperparameters on final model
+    log("Tuning LLC hyperparameters...")
+    tuning_results = tune_llc_hyperparameters(
+        model=final_model,
+        loader=train_loader,
+        min_epsilon=llc_config.get('min_epsilon', 3e-3),
+        max_epsilon=llc_config.get('max_epsilon', 3e-1),
+        epsilon_samples=llc_config.get('epsilon_samples', 5),
+        beta_samples=llc_config.get('beta_samples', 5),
+        device=device
+    )
+    
+    llc_epsilon = tuning_results['recommended_epsilon']
+    llc_nbeta = tuning_results['recommended_beta']
+    
+    log(f"Recommended LLC parameters: epsilon={llc_epsilon:.2e}, beta={llc_nbeta:.2f}")
+    
+    # Analyze each checkpoint
+    results = {
+        'tuning_results': tuning_results,
+        'checkpoint_analysis': {},
+        'epsilon_analysis': {}
+    }
+    
+    attack_config = AttackConfig()
+    
+    # Analyze across different perturbation strengths
+    for eps in epsilons_to_test:
+        log(f"Analyzing checkpoints with epsilon={eps}")
+        
+        # Create adversarial dataloader if needed
+        if eps > 0:
+            test_loader = create_adversarial_dataloader(
+                final_model, train_loader, eps, attack_config
+            )
+        else:
+            test_loader = train_loader
+        
+        epsilon_results = []
+        
+        for checkpoint_path in checkpoint_paths:
+            # Load checkpoint
+            model, _, checkpoint_data = load_checkpoint(checkpoint_path, device)
+            epoch = checkpoint_data['epoch']
+            
+            log(f"Analyzing checkpoint from epoch {epoch} with epsilon {eps}")
+            
+            # Estimate LLC
+            llc_results = estimate_llc(
+                model=model,
+                data_loader=test_loader,
+                llc_epsilon=llc_epsilon,
+                llc_nbeta=llc_nbeta,
+                gamma=llc_config.get('gamma', 5.0),
+                num_chains=llc_config.get('num_chains', 3),
+                num_draws=llc_config.get('num_draws', 1500),
+                device=str(device),
+                online=llc_config.get('online_stats', False)
+            )
+            
+            if llc_results is not None:
+                epsilon_results.append({
+                    'epoch': epoch,
+                    'llc_mean': llc_results['llc_average_mean'],
+                    'llc_std': llc_results['llc_average_std'],
+                    'checkpoint_path': str(checkpoint_path)
+                })
+        
+        results['epsilon_analysis'][str(eps)] = epsilon_results
+    
+    # Save results
+    results_path = checkpoint_dir / "llc_analysis_results.json"
+    with open(results_path, 'w') as f:
+        # Convert numpy arrays to lists for JSON serialization
+        def json_serializer(obj):
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif hasattr(obj, 'item'):  # numpy scalars
+                return obj.item()
+            return obj
+        
+        json.dump(results, f, indent=4, default=json_serializer)
+    
+    log(f"LLC analysis results saved to: {results_path}")
+    
+    return results
+
+
+# ============================================================================
+# POTENTIAL FUTURE FEATURE: INFERENCE-TIME LLC MEASUREMENTS
+# ============================================================================
+
+def measure_inference_time_llc(
+    model: nn.Module,
+    dataloaders: Dict[str, DataLoader],
+    llc_config: Dict[str, Any],
+    save_dir: Optional[Path] = None,
+    logger: Optional[logging.Logger] = None
+) -> Optional[Dict[str, Any]]:
+    """Measure LLC for inference-time analysis (currently not used in main workflow).
+    
+    This function would be useful for generating the inference-time LLC plots:
+    - plot_llc_traces, plot_llc_distribution, plot_llc_mean_std
+    
+    Currently our workflow only does checkpoint evolution analysis, but this could
+    be added as an optional feature for comparing final trained models.
+    
+    Args:
+        model: Final trained model
+        dataloaders: Dictionary of dataloaders {'clean': clean_loader, 'eps_0.1': adv_loader, ...}
+        llc_config: LLC configuration  
+        save_dir: Directory to save results
+        logger: Optional logger
+        
+    Returns:
+        Dictionary with inference-time LLC results in format expected by plotting functions
+    """
+    if not LLC_AVAILABLE:
+        if logger:
+            logger.warning("LLC analysis requested but devinterp not available.")
+        return None
+    
+    log = logger.info if logger else print
+    log("Performing inference-time LLC analysis...")
+    
+    # Tune hyperparameters on clean data
+    clean_loader = dataloaders.get('clean', list(dataloaders.values())[0])
+    tuning_results = tune_llc_hyperparameters(
+        model=model,
+        loader=clean_loader,
+        min_epsilon=llc_config.get('min_epsilon', 3e-3),
+        max_epsilon=llc_config.get('max_epsilon', 3e-1),
+        epsilon_samples=llc_config.get('epsilon_samples', 5),
+        beta_samples=llc_config.get('beta_samples', 5),
+        device=next(model.parameters()).device
+    )
+    
+    llc_epsilon = tuning_results['recommended_epsilon']
+    llc_nbeta = tuning_results['recommended_beta']
+    
+    # Measure LLC for each condition
+    inference_results = {}
+    
+    for condition_name, dataloader in dataloaders.items():
+        log(f"Measuring LLC for {condition_name}...")
+        
+        # Extract epsilon from condition name (e.g., 'eps_0.1' -> 0.1)
+        if condition_name == 'clean':
+            eps_value = 0.0
+        else:
+            try:
+                eps_value = float(condition_name.split('_')[-1])
+            except:
+                eps_value = 0.0
+        
+        # Measure LLC multiple times for statistics
+        llc_measurements = []
+        for run in range(3):  # Multiple runs for statistical analysis
+            llc_stats = estimate_llc(
+                model=model,
+                data_loader=dataloader,
+                llc_epsilon=llc_epsilon,
+                llc_nbeta=llc_nbeta,
+                gamma=llc_config.get('gamma', 5.0),
+                num_chains=llc_config.get('num_chains', 3),
+                num_draws=llc_config.get('num_draws', 1500),
+                device=str(next(model.parameters()).device),
+                online=True  # Use online stats to get traces
+            )
+            
+            if llc_stats is not None:
+                llc_measurements.append(llc_stats['llc_average_mean'])
+        
+        if llc_measurements:
+            # Store results in format expected by plotting functions
+            inference_results[eps_value] = {
+                'means': np.array(llc_measurements),
+                'mean': np.mean(llc_measurements),
+                'std': np.std(llc_measurements),
+                'trace': llc_stats['loss/trace'] if llc_stats else None  # From last measurement
+            }
+    
+    # Save results
+    if save_dir:
+        save_dir.mkdir(parents=True, exist_ok=True)
+        
+        results_path = save_dir / "inference_llc_results.json"
+        with open(results_path, 'w') as f:
+            # Convert numpy arrays to lists for JSON serialization
+            json_results = {}
+            for k, v in inference_results.items():
+                json_results[str(k)] = {
+                    'means': v['means'].tolist() if isinstance(v['means'], np.ndarray) else v['means'],
+                    'mean': float(v['mean']),
+                    'std': float(v['std']),
+                    'trace': v['trace'].tolist() if isinstance(v['trace'], np.ndarray) else v['trace']
+                }
+            json.dump(json_results, f, indent=4)
+        
+        log(f"Inference-time LLC results saved to: {results_path}")
+    
+    return inference_results
+

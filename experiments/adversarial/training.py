@@ -1,5 +1,5 @@
 # %%
-"""Training utilities for adversarial robustness experiments."""
+"""Training utilities for adversarial robustness experiments with checkpoint support."""
 
 import torch
 import torch.nn as nn
@@ -7,6 +7,8 @@ from pathlib import Path
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from typing import Dict, List, Optional, Tuple, Callable, NamedTuple
+import copy
+import json
 
 from models import create_model, ModelConfig
 from attacks import AttackConfig, generate_adversarial_examples
@@ -25,11 +27,12 @@ class TrainingConfig(NamedTuple):
     early_stopping_patience: int = 20
     min_epochs: int = 0
     use_early_stopping: bool = True  # Whether to use early stopping at all
+    # NEW: Checkpoint configuration
+    save_checkpoints: bool = False  # Whether to save checkpoints for later analysis
+    checkpoint_frequency: int = 5   # How often to save checkpoints
 
 # %%
 
-
-# %%
 def train_step(
     model: nn.Module, 
     inputs: torch.Tensor, 
@@ -216,6 +219,98 @@ def evaluate_model(
     return metrics
 
 # %%
+def save_checkpoint(
+    model: nn.Module,
+    model_config: ModelConfig,
+    epoch: int,
+    checkpoint_dir: Path,
+    optimizer: Optional[torch.optim.Optimizer] = None,
+    training_stats: Optional[Dict] = None
+) -> Path:
+    """Save model checkpoint for later analysis.
+    
+    Args:
+        model: Model to save
+        model_config: Model configuration
+        epoch: Current epoch
+        checkpoint_dir: Directory to save checkpoint
+        optimizer: Optional optimizer state
+        training_stats: Optional training statistics
+        
+    Returns:
+        Path to saved checkpoint
+    """
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = checkpoint_dir / f"checkpoint_epoch_{epoch}.pt"
+    
+    checkpoint_data = {
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'model_config': model_config._asdict(),
+    }
+    
+    if optimizer is not None:
+        checkpoint_data['optimizer_state_dict'] = optimizer.state_dict()
+    
+    if training_stats is not None:
+        checkpoint_data['training_stats'] = training_stats
+    
+    torch.save(checkpoint_data, checkpoint_path)
+    return checkpoint_path
+
+def load_checkpoint(
+    checkpoint_path: Path,
+    device: Optional[torch.device] = None
+) -> Tuple[nn.Module, ModelConfig, Dict]:
+    """Load model checkpoint.
+    
+    Args:
+        checkpoint_path: Path to checkpoint
+        device: Device to load model on
+        
+    Returns:
+        Tuple of (model, model_config, checkpoint_data)
+    """
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    
+    # Reconstruct model config
+    model_config = ModelConfig(**checkpoint['model_config'])
+    
+    # Create and load model
+    model = create_model(
+        model_type=model_config.model_type,
+        input_channels=model_config.input_channels,
+        hidden_dim=model_config.hidden_dim,
+        image_size=model_config.image_size,
+        output_dim=model_config.output_dim,
+        use_nnsight=False
+    )
+    
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model = model.to(device)
+    
+    return model, model_config, checkpoint
+
+'''
+# previous implementation
+ def save_checkpoint(self):
+        """Save current model state."""
+        checkpoint = copy.deepcopy(self.model.state_dict())
+        self.model_checkpoints.append(checkpoint)
+        self.checkpoint_epochs.append(len(self.checkpoint_epochs))
+
+ def load_checkpoint(self, checkpoint):
+    """Load model state from checkpoint."""
+    self.model.load_state_dict(checkpoint)
+    self.model.to(self.device)
+'''
+
+
+
+# %%
 def train_model(
     train_loader: DataLoader,
     val_loader: DataLoader,
@@ -225,9 +320,10 @@ def train_model(
     attack_config: Optional[AttackConfig] = None,
     alpha: float = 0.5,
     device: Optional[torch.device] = None,
-    logger: Optional[logging.Logger] = None
+    logger: Optional[logging.Logger] = None,
+    save_dir: Optional[Path] = None  # NEW: Directory to save checkpoints
 ) -> nn.Module:
-    """Train a model with optional adversarial training.
+    """Train a model with optional adversarial training and checkpoint saving.
     
     Args:
         train_loader: DataLoader with training data
@@ -239,6 +335,7 @@ def train_model(
         alpha: Weight for clean vs adversarial loss
         device: Device to train on
         logger: Optional logger for training progress
+        save_dir: Optional directory to save checkpoints
         
     Returns:
         Trained model
@@ -300,6 +397,14 @@ def train_model(
         'val_adv_acc': []
     }
     
+    # NEW: Checkpoint setup
+    checkpoint_dir = None
+    saved_checkpoints = []
+    if training_config.save_checkpoints and save_dir is not None:
+        checkpoint_dir = save_dir / "checkpoints"
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        log(f"Checkpoints will be saved to: {checkpoint_dir}")
+    
     # Training loop
     for epoch in range(training_config.n_epochs):
         # Train for one epoch
@@ -348,6 +453,25 @@ def train_model(
                 model.load_state_dict(best_state_dict)
                 break
         
+        # NEW: Save checkpoints if requested
+        if (training_config.save_checkpoints and 
+            checkpoint_dir is not None and 
+            epoch % training_config.checkpoint_frequency == 0):
+            
+            checkpoint_path = save_checkpoint(
+                model=model,
+                model_config=model_config,
+                epoch=epoch,
+                checkpoint_dir=checkpoint_dir,
+                optimizer=optimizer,
+                training_stats={
+                    'train_loss': train_stats['loss'],
+                    'val_acc': val_metrics['accuracy'],
+                    'val_adv_acc': val_adv_acc
+                }
+            )
+            saved_checkpoints.append(checkpoint_path)
+            
         # Log progress at regular intervals
         if epoch % max(1, training_config.n_epochs // 10) == 0 or epoch == training_config.n_epochs - 1:
             log_message = f"\tEpoch {epoch+1:04d}/{training_config.n_epochs}"
@@ -370,6 +494,34 @@ def train_model(
             log(f"\t\tBest model from epoch {best_epoch+1} with adversarial accuracy: {best_adv_acc:.2f}%")
         else:
             log(f"\t\tBest model from epoch {best_epoch+1} with validation accuracy: {best_val_acc:.2f}%")
+    
+    # NEW: Save final checkpoint and summary
+    if training_config.save_checkpoints and checkpoint_dir is not None:
+        # Save final model
+        final_checkpoint = save_checkpoint(
+            model=model,
+            model_config=model_config,
+            epoch=epoch,
+            checkpoint_dir=checkpoint_dir,
+            optimizer=optimizer,
+            training_stats=history
+        )
+        saved_checkpoints.append(final_checkpoint)
+        
+        # Save checkpoint summary
+        checkpoint_summary = {
+            'saved_checkpoints': [str(cp) for cp in saved_checkpoints],
+            'checkpoint_frequency': training_config.checkpoint_frequency,
+            'training_history': history,
+            'best_epoch': best_epoch,
+            'final_epoch': epoch
+        }
+        
+        with open(checkpoint_dir / "checkpoint_summary.json", 'w') as f:
+            json.dump(checkpoint_summary, f, indent=4)
+        
+        log(f"Saved {len(saved_checkpoints)} checkpoints to {checkpoint_dir}")
+    
     return model
 
 def evaluate_model_performance(
@@ -396,6 +548,7 @@ def evaluate_model_performance(
     
     # Use default attack config if none provided
     if attack_config is None:
+        from attacks import AttackConfig
         attack_config = AttackConfig()
     
     model.eval()
@@ -489,3 +642,103 @@ def load_model(
     model = model.to(device)
     
     return model, model_config
+
+# ============================================================================
+# NEW LLC-SPECIFIC FUNCTIONALITY
+# ============================================================================
+
+def create_adversarial_dataloader(
+    model: nn.Module,
+    clean_dataloader: DataLoader,
+    epsilon: float,
+    attack_config: AttackConfig
+) -> DataLoader:
+    """Create a DataLoader with adversarial examples for LLC analysis.
+    
+    Args:
+        model: Model to generate adversarial examples with
+        clean_dataloader: Original dataloader
+        epsilon: Perturbation strength
+        attack_config: Attack configuration
+        
+    Returns:
+        DataLoader with adversarial examples
+    """
+    if epsilon == 0.0:
+        return clean_dataloader
+        
+    from torch.utils.data import TensorDataset
+    
+    adv_examples = []
+    adv_targets = []
+    
+    model.eval()
+    device = next(model.parameters()).device
+    
+    for inputs, targets in clean_dataloader:
+        inputs, targets = inputs.to(device), targets.to(device)
+        
+        perturbed_inputs = generate_adversarial_examples(
+            model, inputs, targets, epsilon, attack_config
+        )
+        
+        adv_examples.append(perturbed_inputs.cpu())
+        adv_targets.append(targets.cpu())
+    
+    adv_examples = torch.cat(adv_examples)
+    adv_targets = torch.cat(adv_targets)
+    
+    adv_dataset = TensorDataset(adv_examples, adv_targets)
+    adv_loader = DataLoader(
+        adv_dataset, 
+        batch_size=clean_dataloader.batch_size,
+        shuffle=False,  # Maintain order for analysis
+        num_workers=getattr(clean_dataloader, 'num_workers', 0)
+    )
+    
+    return adv_loader
+
+# PREVIOUS IMPLEMENTATION
+def create_adversarial_dataloader(self, dataloader: DataLoader, epsilon: float) -> DataLoader:
+        """Creates a dataloader with adversarially perturbed examples."""
+        if epsilon == 0.0:
+            return dataloader
+            
+        adv_data = []
+        adv_targets = []
+        self.model.eval()
+        
+        for inputs, targets in dataloader:
+            inputs = inputs.to(self.device)
+            targets = targets.to(self.device)
+            
+            # Generate adversarial examples with FGSM
+            inputs = inputs.clone().detach().requires_grad_(True)  # Ensure we have a fresh tensor for each batch with gradients
+            outputs = self.model(inputs)
+            
+            if outputs.size(-1) == 1:
+                loss = nn.BCEWithLogitsLoss()(outputs.squeeze(), targets.float())
+            else:
+                loss = nn.CrossEntropyLoss()(outputs, targets)
+            
+            loss.backward()
+            
+            # FGSM attack
+            with torch.no_grad():  # Only wrap the perturbation creation
+                perturbed_inputs = inputs + epsilon * inputs.grad.sign()
+                perturbed_inputs = torch.clamp(perturbed_inputs, 0, 1)
+                
+                adv_data.append(perturbed_inputs.cpu().detach())
+                adv_targets.append(targets.cpu())
+            
+            # Clear gradients
+            if inputs.grad is not None:
+                inputs.grad.zero_()
+        
+        # Create new dataset and loader
+        adv_data = torch.cat(adv_data)
+        adv_targets = torch.cat(adv_targets)
+        adv_dataset = torch.utils.data.TensorDataset(adv_data, adv_targets)
+        
+        return DataLoader(adv_dataset, batch_size=dataloader.batch_size, shuffle=True)
+            

@@ -162,6 +162,22 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
         "l1_lambda": 0.1,
     }
 
+    # LLC configuration 
+    llc_config = {
+        "gamma": 5.0,                    # Localization parameter
+        "num_chains": 3,                 # Number of SGLD chains
+        "num_draws": 1500,               # Number of draws per chain
+        "num_burnin_steps": 0,           # Burnin steps
+        "num_steps_bw_draws": 1,         # Steps between draws
+        "measure_frequency": 5,          # How often to save checkpoints during training
+        "tune_hyperparams": True,        # Whether to tune epsilon and beta automatically
+        "min_epsilon": 3e-3,             # Minimum epsilon for hyperparameter search
+        "max_epsilon": 3e-1,             # Maximum epsilon for hyperparameter search
+        "epsilon_samples": 5,            # Number of epsilon values to test
+        "beta_samples": 5,               # Number of beta values to test
+        "online_stats": False,           # Use offline stats for final measurements
+    }
+
     comment = ""
     
     # Assemble complete configuration
@@ -174,6 +190,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
         "training": training_config,
         "adversarial": adversarial_config,
         "sae": sae_config,
+        "llc": llc_config,
         "testing_mode": testing_mode,
         "comment": comment,
     }
@@ -258,6 +275,7 @@ if __name__ == "__main__":
     custom_updates = {
         "model": {"hidden_dim": 64},
         "dataset": {"dataset_type": "mnist", "selected_classes": (0, 1, 2)},
+        "llc": {"num_chains": 5, "gamma": 10.0}  
     }
     
     updated_config = update_config(config, custom_updates)
@@ -267,3 +285,13 @@ if __name__ == "__main__":
     print(f"Input channels: {updated_config['model']['input_channels']}")
     print(f"Hidden dimension: {updated_config['model']['hidden_dim']}")
     print(f"Selected classes: {updated_config['dataset']['selected_classes']}")
+    print(f"LLC gamma: {updated_config['llc']['gamma']}")
+    print(f"LLC num_chains: {updated_config['llc']['num_chains']}")
+    print(f"LLC num_draws: {updated_config['llc']['num_draws']}")
+    print(f"LLC measure_frequency: {updated_config['llc']['measure_frequency']}")
+    print(f"LLC tune_hyperparams: {updated_config['llc']['tune_hyperparams']}")
+    print(f"LLC min_epsilon: {updated_config['llc']['min_epsilon']}")
+    print(f"LLC max_epsilon: {updated_config['llc']['max_epsilon']}")
+    print(f"LLC beta_samples: {updated_config['llc']['beta_samples']}")
+    
+    
