@@ -21,7 +21,7 @@ from utils import json_serializer, setup_results_dir, save_config, get_config_an
 
 # Import components for different phases 
 from training import train_model, evaluate_model_performance, load_model, save_model, TrainingConfig
-from evaluation import measure_superposition, analyze_checkpoints_with_llc
+from evaluation import measure_superposition, analyze_checkpoints_with_llc, measure_inference_time_llc
 from analysis import generate_plots
 from attacks import AttackConfig, generate_adversarial_examples, get_adversarial_dataloader
 from models import ModelConfig, create_model
@@ -99,15 +99,7 @@ def create_dataloaders_from_config(config: Dict[str, Any]):
 
 
 def run_training_phase(config: Dict[str, Any], results_dir: Optional[Path] = None) -> Path:
-    """Run training phase with optional checkpoint saving for LLC analysis.
-    
-    Args:
-        config: Experiment configuration
-        results_dir: Optional custom results directory
-        
-    Returns:
-        Path to results directory
-    """
+    """Run training phase with optional checkpoint saving for LLC analysis."""
     # Create results directory if not provided
     if results_dir is None:
         results_dir = setup_results_dir(config)
@@ -228,8 +220,9 @@ def run_evaluation_phase(
     search_string: Optional[str] = None,
     results_dir: Optional[Path] = None,
     dataset_type: Optional[str] = None,
-    enable_llc: bool = True,  # NEW: Option to enable/disable LLC analysis
-    enable_sae: bool = True   # NEW: Option to enable/disable SAE analysis
+    enable_llc: bool = True,
+    enable_sae: bool = True,
+    enable_inference_llc: bool = True  # NEW: Option for inference-time LLC
 ) -> Path:
     """Run evaluation phase with both SAE and LLC analysis.
     
@@ -239,6 +232,7 @@ def run_evaluation_phase(
         dataset_type: Dataset type
         enable_llc: Whether to perform LLC analysis
         enable_sae: Whether to perform SAE analysis
+        enable_inference_llc: Whether to perform inference-time LLC analysis
     Returns:
         Path to results directory
     """
@@ -254,6 +248,7 @@ def run_evaluation_phase(
     log(f"Results directory: {results_dir}")
     log(f"SAE analysis: {'enabled' if enable_sae else 'disabled'}")
     log(f"LLC analysis: {'enabled' if enable_llc else 'disabled'}")
+    log(f"Inference-time LLC analysis: {'enabled' if enable_inference_llc else 'disabled'}")
     
     # Log configuration summary
     log("\n=== Configuration Summary ===")
@@ -284,8 +279,9 @@ def run_evaluation_phase(
         results[str(epsilon)] = {
             'robustness_score': [],
             'layers': {},  # SAE results organized by layer
-            'llc_clean': [],  # LLC results for clean data (will be filled by checkpoint analysis)
-            'llc_adversarial': []  # LLC results for adversarial data (will be filled by checkpoint analysis)
+            'llc_clean': [],  # LLC results for clean data
+            'llc_adversarial': [],  # LLC results for adversarial data
+            'inference_llc': {}  # NEW: Inference-time LLC results
         }
         
         # Get layer names for SAE analysis only
@@ -371,8 +367,41 @@ def run_evaluation_phase(
                         log(f"\tError in SAE evaluation for layer {layer_name}: {e}")
                         results[str(epsilon)]['layers'][layer_name]['clean_feature_count'].append(None)
                         results[str(epsilon)]['layers'][layer_name]['adv_feature_count'].append(None)
+
+            # NEW: INFERENCE-TIME LLC EVALUATION (Optional)
+            if enable_inference_llc:
+                log(f"Performing inference-time LLC analysis...")
+                
+                try:
+                    # Create dataloaders for different conditions
+                    inference_dataloaders = {
+                        'clean': train_loader,
+                        f'eps_{epsilon}': adv_loader
+                    }
+                    
+                    # Add additional epsilon conditions for comprehensive analysis
+                    for test_eps in [0.05, 0.1, 0.2] if epsilon > 0 else [0.1, 0.2]:
+                        if test_eps != epsilon:
+                            test_loader = get_adversarial_dataloader(model, train_loader, attack_config, test_eps)
+                            inference_dataloaders[f'eps_{test_eps}'] = test_loader
+                    
+                    # Perform inference-time LLC analysis
+                    inference_llc_results = measure_inference_time_llc(
+                        model=model,
+                        dataloaders=inference_dataloaders,
+                        llc_config=config['llc'],
+                        save_dir=run_dir / "inference_llc",
+                        logger=logger
+                    )
+                    
+                    if inference_llc_results:
+                        results[str(epsilon)]['inference_llc'][f'run_{run_idx}'] = inference_llc_results
+                        log(f"\t  Inference LLC analysis completed")
+                    
+                except Exception as e:
+                    log(f"\tError in inference-time LLC analysis: {e}")
     
-    # LLC EVALUATION (Separate, post-hoc analysis)
+    # LLC EVALUATION (Separate, post-hoc analysis on checkpoints)
     if enable_llc:
         log(f"\n=== Starting LLC Checkpoint Analysis ===")
         
@@ -713,6 +742,78 @@ def run_analysis_phase(
                         title=f"SAE vs LLC Correlation - {layer_name} - {model_type.upper()} {n_classes}-class",
                         save_path=plots_dir / f"sae_llc_correlation_{layer_name.replace('.', '_')}.png"
                     )
+
+    # NEW: *** INFERENCE-TIME LLC ANALYSIS PLOTS ***
+    has_inference_llc_data = any('inference_llc' in results[str(eps)] and results[str(eps)]['inference_llc']
+                                for eps in epsilons)
+    
+    if has_inference_llc_data:
+        logger.info("Generating inference-time LLC analysis plots...")
+        
+        # Aggregate inference LLC data across runs
+        aggregated_inference_llc = {}
+        
+        for eps in epsilons:
+            eps_str = str(eps)
+            if 'inference_llc' in results[eps_str]:
+                
+                # Collect data from all runs
+                for run_key, run_data in results[eps_str]['inference_llc'].items():
+                    for condition, llc_data in run_data.items():
+                        # Extract epsilon value from condition name
+                        if condition == 'clean':
+                            condition_eps = 0.0
+                        else:
+                            try:
+                                condition_eps = float(condition.split('_')[-1])
+                            except:
+                                condition_eps = 0.0
+                        
+                        if condition_eps not in aggregated_inference_llc:
+                            aggregated_inference_llc[condition_eps] = {
+                                'means': [],
+                                'traces': []
+                            }
+                        
+                        # Collect means and traces
+                        aggregated_inference_llc[condition_eps]['means'].append(llc_data['mean'])
+                        if 'trace' in llc_data and llc_data['trace'] is not None:
+                            aggregated_inference_llc[condition_eps]['traces'].append(llc_data['trace'])
+        
+        # Generate inference-time plots if we have data
+        if aggregated_inference_llc:
+            # Convert to the format expected by plotting functions
+            inference_plot_data = {}
+            for eps, data in aggregated_inference_llc.items():
+                inference_plot_data[eps] = {
+                    'means': np.array(data['means']),
+                    'mean': np.mean(data['means']),
+                    'std': np.std(data['means']),
+                    'trace': data['traces'][0] if data['traces'] else None  # Use first available trace
+                }
+            
+            # 1. Plot LLC traces
+            plot_llc_traces(
+                llc_results=inference_plot_data,
+                save_path=plots_dir / "inference_llc_traces.png",
+                show=False
+            )
+            
+            # 2. Plot LLC distribution
+            plot_llc_distribution(
+                llc_results=inference_plot_data,
+                save_path=plots_dir / "inference_llc_distribution.png",
+                show=False
+            )
+            
+            # 3. Plot LLC mean vs std
+            plot_llc_mean_std(
+                llc_results=inference_plot_data,
+                save_path=plots_dir / "inference_llc_mean_std.png",
+                show=False
+            )
+            
+            logger.info("Inference-time LLC plots generated successfully")
     
     logger.info(f"\n=== Analysis Phase Completed ===")
     logger.info(f"Results saved to: {plots_dir}")
@@ -727,7 +828,8 @@ def run_model_class_experiment(
     attack_types: List[str],
     testing_mode: bool = False,
     enable_llc: bool = True,
-    enable_sae: bool = True
+    enable_sae: bool = True,
+    enable_inference_llc: bool = False  # NEW: Control inference-time LLC
 ):
     """Run experiments across model types, class counts, and attack types.
     
@@ -751,6 +853,8 @@ def run_model_class_experiment(
                         text += " (SAE disabled)"
                     if not enable_llc:
                         text += " (LLC disabled)"
+                    if enable_inference_llc:
+                        text += " (Inference LLC enabled)"
                     
                     print(f"\n{'='*len(text)}")
                     print(text)
@@ -774,11 +878,17 @@ def run_model_class_experiment(
                     })
 
                     results_dir = run_training_phase(config)
-                    run_evaluation_phase(results_dir=results_dir, dataset_type=dataset_type, enable_llc=enable_llc, enable_sae=enable_sae)
+                    run_evaluation_phase(
+                        results_dir=results_dir, 
+                        dataset_type=dataset_type, 
+                        enable_llc=enable_llc, 
+                        enable_sae=enable_sae,
+                        enable_inference_llc=enable_inference_llc
+                    )
                     run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
 
  
-def quick_test(model_type: str = None, dataset_type: str = "cifar10", testing_mode: bool = True):
+def quick_test(model_type: str = None, dataset_type: str = "cifar10", testing_mode: bool = True, enable_inference_llc: bool = False):
     """Run a quick test with standard adversarial training configuration.
     
     Args:
@@ -799,8 +909,12 @@ def quick_test(model_type: str = None, dataset_type: str = "cifar10", testing_mo
         })
     
     # Add comment
+    comment_parts = [f'quick_test_{dataset_type}_{config["model"]["model_type"]}_with_llc_sae']
+    if enable_inference_llc:
+        comment_parts.append('inference_llc')
+    
     config = update_config(config, {
-        'comment': f'quick_test_{dataset_type}_{config["model"]["model_type"]}_with_llc_sae'
+        'comment': '_'.join(comment_parts)
     })
 
     # Print key configuration
@@ -810,12 +924,19 @@ def quick_test(model_type: str = None, dataset_type: str = "cifar10", testing_mo
     print(f"Epsilon: {config['adversarial']['train_epsilons']}")
     print(f"Epochs: {config['training']['n_epochs']}")
     print(f"LLC checkpointing: every {config['llc']['measure_frequency']} epochs")
+    print(f"Inference-time LLC: {'enabled' if enable_inference_llc else 'disabled'}")
 
     # Run training phase
     results_dir = run_training_phase(config)
     
     # Run evaluation on the trained model (with both SAE and LLC)
-    run_evaluation_phase(results_dir=results_dir, dataset_type=dataset_type, enable_llc=True, enable_sae=True)
+    run_evaluation_phase(
+        results_dir=results_dir, 
+        dataset_type=dataset_type, 
+        enable_llc=True, 
+        enable_sae=True,
+        enable_inference_llc=enable_inference_llc
+    )
     
     # Generate analysis plots
     run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
@@ -825,10 +946,10 @@ def quick_test(model_type: str = None, dataset_type: str = "cifar10", testing_mo
 
 # %%
 if __name__ == "__main__":
-     # Example usage - Quick test with both SAE and LLC
-    quick_test(model_type='mlp', dataset_type="mnist", testing_mode=True)
+    # Example usage - Quick test with both SAE, LLC, and optional inference-time LLC
+    quick_test(model_type='mlp', dataset_type="mnist", testing_mode=True, enable_inference_llc=True)
     
-    # Example usage - Full experiment with both analyses
+    # Example usage - Full experiment with all analyses
     run_model_class_experiment(
         model_types=['cnn', 'mlp'],
         class_counts=[2, 3],
@@ -836,7 +957,8 @@ if __name__ == "__main__":
         attack_types=['pgd'],
         testing_mode=False,
         enable_llc=True,
-        enable_sae=True
+        enable_sae=True,
+        enable_inference_llc=True  # Enable inference-time LLC for detailed analysis
     )
 
 
