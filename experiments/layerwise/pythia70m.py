@@ -67,7 +67,8 @@ layers = list(saes.keys())
 dataset_name = "monology/pile-uncopyrighted"
 subset_name = "default"
 max_length = 512
-n_samples = 20000
+# n_samples = 20000
+n_samples = 1
 
 # Load and process dataset for multiple seeds
 n_seeds = 3
@@ -148,6 +149,8 @@ with open(results_path, 'w') as f:
 
 print(f"\nResults saved to {results_path}")
 
+# %%
+n_samples =20000
 # %%
 import numpy as np
 import matplotlib.pyplot as plt

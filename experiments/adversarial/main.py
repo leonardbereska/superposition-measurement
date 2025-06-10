@@ -224,8 +224,8 @@ def run_evaluation_phase(
     dataset_type: Optional[str] = None,
     enable_llc: bool = True,
     enable_sae: bool = True,
-    enable_inference_llc: bool = True,  # Option for inference-time LLC
-    enable_sae_checkpoints: bool = False  # Enable SAE checkpoint analysis
+    enable_inference_llc: bool = False,
+    enable_sae_checkpoints: bool = False  # NEW: Enable SAE analysis on checkpoints
 ) -> Path:
     """Run evaluation phase with both SAE and LLC analysis.
     
@@ -236,13 +236,14 @@ def run_evaluation_phase(
         enable_llc: Whether to perform LLC analysis
         enable_sae: Whether to perform SAE analysis
         enable_inference_llc: Whether to perform inference-time LLC analysis
-        enable_sae_checkpoints: Whether to perform SAE checkpoint analysis
+        enable_sae_checkpoints: Whether to perform SAE analysis on checkpoints (for comparison with LLC)
     Returns:
         Path to results directory
     """
     config = get_default_config(dataset_type=dataset_type)
-    config, results_dir = get_config_and_results_dir(base_dir=Path(config['base_dir']), results_dir=results_dir, search_string=search_string)
-    
+    base_dir = Path(config['base_dir'])
+    config, results_dir = get_config_and_results_dir(base_dir=base_dir, results_dir=results_dir, search_string=search_string)
+
     # Set up logger
     logger = setup_logger(results_dir)
     log = logger.info
@@ -325,6 +326,7 @@ def run_evaluation_phase(
             # Store detailed robustness
             if 'detailed_robustness' not in results[str(epsilon)]:
                 results[str(epsilon)]['detailed_robustness'] = {}
+            
             for test_eps, score in robustness.items():
                 if test_eps not in results[str(epsilon)]['detailed_robustness']:
                     results[str(epsilon)]['detailed_robustness'][test_eps] = []
@@ -332,46 +334,44 @@ def run_evaluation_phase(
             
             # SAE EVALUATION (Per-run, independent)
             if enable_sae:
+                # Evaluate each layer
                 for layer_name in layer_names:
                     log(f"SAE evaluation for layer: {layer_name}")
                     
-                    try:
-                        # Clean data SAE analysis
-                        clean_sae_results = measure_superposition(
-                            model=model,
-                            dataloader=train_loader,
-                            layer_name=layer_name,
-                            sae_config=sae_config,
-                            save_dir=run_dir / f"sae_clean_{layer_name}",
-                            logger=logger
-                        )
+                    # Measure feature organization for clean data
+                    log(f"Clean data")
+                    clean_metrics = measure_superposition(
+                        model=model,
+                        dataloader=train_loader,
+                        layer_name=layer_name,
+                        sae_config=sae_config,
+                        save_dir=run_dir / "saes_clean",
+                        logger=logger
+                    )
+                    
+                    # Measure feature organization for adversarial data
+                    log(f"Adversarial data")
+                    adv_metrics = measure_superposition(
+                        model=model,
+                        dataloader=adv_loader,
+                        layer_name=layer_name,
+                        sae_config=sae_config,
+                        save_dir=run_dir / "saes_adv",
+                        logger=logger
+                    )
+
+                    # Store results in cleaner nested structure
+                    results[str(epsilon)]['layers'][layer_name]['clean_feature_count'].append(
+                        clean_metrics['feature_count']
+                    )
+                    results[str(epsilon)]['layers'][layer_name]['adv_feature_count'].append(
+                        adv_metrics['feature_count']
+                    )
+                    
+                    log(f"\tClean features: {clean_metrics['feature_count']:.2f}")
+                    log(f"\tAdversarial features: {adv_metrics['feature_count']:.2f}")
+                    log(f"\tFeature ratio (adv/clean): {adv_metrics['feature_count']/clean_metrics['feature_count']:.2f}")
                         
-                        # Adversarial data SAE analysis
-                        adv_sae_results = measure_superposition(
-                            model=model,
-                            dataloader=adv_loader,
-                            layer_name=layer_name,
-                            sae_config=sae_config,
-                            save_dir=run_dir / f"sae_adv_{layer_name}",
-                            logger=logger
-                        )
-                        
-                        # Store SAE results
-                        results[str(epsilon)]['layers'][layer_name]['clean_feature_count'].append(
-                            clean_sae_results['feature_count']
-                        )
-                        results[str(epsilon)]['layers'][layer_name]['adv_feature_count'].append(
-                            adv_sae_results['feature_count']
-                        )
-                        
-                        log(f"\t  Clean features: {clean_sae_results['feature_count']:.2f}")
-                        log(f"\t  Adversarial features: {adv_sae_results['feature_count']:.2f}")
-                        
-                    except Exception as e:
-                        log(f"\tError in SAE evaluation for layer {layer_name}: {e}")
-                        results[str(epsilon)]['layers'][layer_name]['clean_feature_count'].append(None)
-                        results[str(epsilon)]['layers'][layer_name]['adv_feature_count'].append(None)
-            
             # NEW: SAE CHECKPOINT ANALYSIS
             if enable_sae_checkpoints:
                 checkpoint_dir = run_dir / "checkpoints"
@@ -427,9 +427,10 @@ def run_evaluation_phase(
                     
                 except Exception as e:
                     log(f"\tError in inference-time LLC analysis: {e}")
-    
+                
+
     # LLC EVALUATION (Separate, post-hoc analysis on checkpoints)
-    if enable_llc:
+    if enable_llc or enable_sae_checkpoints:
         log(f"\n=== Starting LLC Checkpoint Analysis ===")
         
         # Process each epsilon's checkpoint data
@@ -582,11 +583,20 @@ def get_layer_names_for_model(model_type: str) -> List[str]:
             'relu2', 
             'relu3',
         ]
+    elif model_type == 'simplemlp':
+        layer_names = [
+            'relu',
+        ]
     elif model_type == 'cnn': # for MNIST
         layer_names = [
-            'conv1.2', # post-ReLU after first conv (28×28)
-            'conv2.2', # post-ReLU after second conv (14×14)
+            'conv1.1', # post-ReLU after first conv (28×28)
+            'conv2.1', # post-ReLU after second conv (14×14)
             'fc1.1', # post-ReLU after first fc 
+        ]
+    elif model_type == 'simplecnn':
+        layer_names = [
+            'relu',
+            'fc',
         ]
     elif model_type == 'resnet18': # for CIFAR-10
         # Input (3×32×32) 
@@ -616,7 +626,7 @@ def get_layer_names_for_model(model_type: str) -> List[str]:
 def run_analysis_phase(
     search_string: Optional[str] = None,
     results_dir: Optional[Path] = None,
-    dataset_type: Optional[str] = None
+    dataset_type: Optional[str] = None,
 ) -> Path:
     """Run analysis phase with direct consumption of evaluation results.
     
@@ -952,15 +962,21 @@ def run_model_class_experiment(
                     })
 
                     results_dir = run_training_phase(config)
-                    run_evaluation_phase(
-                        results_dir=results_dir, 
-                        dataset_type=dataset_type, 
-                        enable_llc=enable_llc, 
-                        enable_sae=enable_sae,
-                        enable_sae_checkpoints=enable_sae_checkpoints,
-                        enable_inference_llc=enable_inference_llc
-                    )
-                    run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
+                    try: 
+                        run_evaluation_phase(
+                            results_dir=results_dir, 
+                            dataset_type=dataset_type, 
+                            enable_llc=enable_llc, 
+                            enable_sae=enable_sae,
+                            enable_sae_checkpoints=enable_sae_checkpoints,
+                            enable_inference_llc=enable_inference_llc
+                        )
+                    except Exception as e:
+                        print(f"Error running evaluation phase: {e}")
+                    try:
+                        run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
+                    except Exception as e:
+                        print(f"Error running analysis phase: {e}")
 
  
 def quick_test(
@@ -1006,6 +1022,7 @@ def quick_test(
     print(f"Epochs: {config['training']['n_epochs']}")
     print(f"LLC checkpointing: every {config['llc']['measure_frequency']} epochs")
     print(f"Inference-time LLC: {'enabled' if enable_inference_llc else 'disabled'}")
+    print(f"SAE checkpoint analysis: {'enabled' if enable_sae_checkpoints else 'disabled'}")
 
     # Run training phase
     results_dir = run_training_phase(config)
@@ -1016,8 +1033,8 @@ def quick_test(
         dataset_type=dataset_type, 
         enable_llc=True, 
         enable_sae=True,
-        enable_sae_checkpoints=enable_sae_checkpoints,
-        enable_inference_llc=enable_inference_llc
+        enable_inference_llc=enable_inference_llc,
+        enable_sae_checkpoints=enable_sae_checkpoints  # Enable SAE checkpoint analysis
     )
     
     # Generate analysis plots
@@ -1052,26 +1069,52 @@ if __name__ == "__main__":
 
 
 
+    # analyze cifar10 cnn 2-class pgd
+    # run evaluation for resnet18 2, 3, 5, 10 class pgd, and fgsm and analyze
+    # model_types = ['resnet18']
+    # class_counts = [2, 3, 5, 10]
+    # dataset_types = ['cifar10']
+    # attack_types = ['pgd', 'fgsm']
+    # # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode=False)
+    # for model_type in model_types:
+    #     for class_count in class_counts:
+    #         for dataset_type in dataset_types:
+    #             for attack_type in attack_types:
+    #                 run_evaluation_phase(search_string=f"{model_type}_{class_count}-class_{attack_type}", dataset_type=dataset_type)
+    #                 run_analysis_phase(search_string=f"{model_type}_{class_count}-class_{attack_type}", dataset_type=dataset_type)
+
+
+    # run a single experiment with simplemlp 
+    model_types = ['simplemlp', 'simplecnn']
+    class_counts = [2, 10]
+    dataset_types = ['mnist']
+    attack_types = ['fgsm', 'pgd']
+    testing_mode = False
+    run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode)
+    # run_evaluation_phase(search_string="simplemlp_2-class_fgsm", dataset_type="mnist")
+    # run_analysis_phase(search_string="simplemlp_2-class_fgsm", dataset_type="mnist")
+
     # run_model_class_experiment(
-    #     model_types=['cnn', 'mlp'],
+    #     model_types=['simplemlp', 'simplecnn'],
     #     class_counts=[2, 3, 5, 10],
     #     dataset_types=['mnist'],
     #     attack_types=['pgd'],
     #     testing_mode=False
     # )
-    
+# %% 
     # MNIST experiment
     # config = get_default_config(
-    #     dataset_type="mnist", 
-    #     testing_mode=False,
+    #     dataset_type="cifar10", 
+    #     testing_mode=True,
     #     selected_classes=(0, 1)
     # )
     # config = update_config(config, {
-    #     'comment': 'standard_pgd40_eps0.3'
+    #     'model': {'model_type': 'resnet18'},
+    #     'adversarial': {'attack_type': 'fgsm', 'train_epsilons': [0.0, 0.1, 0.2], 'test_epsilons': [0.0, 0.1, 0.2], 'n_runs': 1},
     # })
     # results_dir = run_training_phase(config)
-    # run_evaluation_phase(results_dir=results_dir, dataset_type=dataset_type)
-    # run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
+    # run_evaluation_phase(results_dir=results_dir, dataset_type="cifar10")
+    # run_analysis_phase(results_dir=results_dir, dataset_type="cifar10")
 
     # === PREVIOUS EXPERIMENTS (commented out) ===
     # experiments to start:
@@ -1079,7 +1122,7 @@ if __name__ == "__main__":
     # mnist cnn 2-class fgsm - 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0 - 100 epochs, 1 run  
 
     # Run quick test
-    # quick_test(model_type='mlp', dataset_type="mnist", testing_mode=True)
+    # quick_test(model_type='resnet18', dataset_type="cifar10", testing_mode=True)
     # quick_test(model_type='cnn', dataset_type="mnist", testing_mode=True)
     # quick_test(model_type='mlp', dataset_type="cifar10", testing_mode=True)
     # quick_test(model_type='cnn', dataset_type="cifar10", testing_mode=True)
@@ -1129,6 +1172,11 @@ if __name__ == "__main__":
     #     run_evaluation_phase(results_dir=results_dir, dataset_type="mnist")
     #     run_analysis_phase(results_dir=results_dir, dataset_type="mnist")
 
+    # analyze mnist cnn
+    # for n_classes in [2, 3, 5, 10]:
+    #     for attack_type in ['fgsm', 'pgd']:
+    #         for model_type in ['cnn', 'mlp']:
+    #             run_analysis_phase(search_string=f"{model_type}_{n_classes}-class_{attack_type}", dataset_type="mnist")
 
     # 2025-05-23 16-05  NOTE current experiment
     # model_types = ['mlp', 'cnn']
