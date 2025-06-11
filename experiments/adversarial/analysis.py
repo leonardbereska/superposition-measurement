@@ -188,52 +188,52 @@ def plot_combined_feature_counts(
     return fig
 
 
-def plot_feature_counts(
-    results: Dict[float, List[float]],
-    title: str = 'Feature Count vs Adversarial Training Strength',
-    save_path: Optional[Path] = None,
-    figsize: Tuple[int, int] = (8, 6),
-    color: str = '#88A7B2'
-) -> plt.Figure:
-    """Plot feature counts across different epsilon values.
+# def plot_feature_counts(
+#     results: Dict[float, List[float]],
+#     title: str = 'Feature Count vs Adversarial Training Strength',
+#     save_path: Optional[Path] = None,
+#     figsize: Tuple[int, int] = (8, 6),
+#     color: str = '#88A7B2'
+# ) -> plt.Figure:
+#     """Plot feature counts across different epsilon values.
     
-    Args:
-        results: Dictionary mapping epsilon values to list of feature counts
-        title: Plot title
-        save_path: Path to save figure
-        figsize: Figure size
-        color: Line color
+#     Args:
+#         results: Dictionary mapping epsilon values to list of feature counts
+#         title: Plot title
+#         save_path: Path to save figure
+#         figsize: Figure size
+#         color: Line color
         
-    Returns:
-        Matplotlib figure
-    """
-    fig, ax = plt.subplots(figsize=figsize)
+#     Returns:
+#         Matplotlib figure
+#     """
+#     fig, ax = plt.subplots(figsize=figsize)
     
-    # Calculate mean and std for each epsilon
-    epsilons = sorted(results.keys())
-    means = [np.mean(results[eps]) for eps in epsilons]
-    stds = [np.std(results[eps]) for eps in epsilons]
+#     # Calculate mean and std for each epsilon
+#     epsilons = sorted(results.keys())
+#     means = [np.mean(results[eps]) for eps in epsilons]
+#     stds = [np.std(results[eps]) for eps in epsilons]
     
-    # Plot
-    ax.errorbar(
-        epsilons, means, yerr=stds, fmt='o-',
-        color=color, linewidth=2, capsize=5, markersize=8
-    )
+#     # Plot
+#     ax.errorbar(
+#         epsilons, means, yerr=stds, fmt='o-',
+#         color=color, linewidth=2, capsize=5, markersize=8
+#     )
     
-    ax.set_xlabel('Adversarial Training Strength (ε)', fontsize=14)
-    ax.set_ylabel('Feature Count', fontsize=14)
-    ax.set_title(title, fontsize=16)
-    ax.grid(True, alpha=0.3)
+#     ax.set_xlabel('Adversarial Training Strength (ε)', fontsize=14)
+#     ax.set_ylabel('Feature Count', fontsize=14)
+#     ax.set_title(title, fontsize=16)
+#     ax.grid(True, alpha=0.3)
     
-    # Set tick parameters
-    ax.tick_params(labelsize=12)
+#     # Set tick parameters
+#     ax.tick_params(labelsize=12)
     
-    plt.tight_layout()
+#     plt.tight_layout()
     
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
+#     if save_path:
+#         plt.savefig(save_path, bbox_inches='tight')
     
-    return fig
+#     return fig
 
 # %%
 def plot_feature_vs_robustness(
@@ -389,52 +389,52 @@ def plot_llc_vs_robustness(
 
 
 
-def generate_plots(results: Dict, output_dir: Path, results_dir: Path) -> Dict[str, plt.Figure]:
-    """Generate analysis plots for results.
+# def generate_plots(results: Dict, output_dir: Path, results_dir: Path) -> Dict[str, plt.Figure]:
+#     """Generate analysis plots for results.
     
-    Args:
-        results: Dictionary with results
-        output_dir: Directory to save plots
-        results_dir: Path to the results directory for loading metadata
+#     Args:
+#         results: Dictionary with results
+#         output_dir: Directory to save plots
+#         results_dir: Path to the results directory for loading metadata
         
-    Returns:
-        Dictionary mapping plot names to figures
-    """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    figures = {}
+#     Returns:
+#         Dictionary mapping plot names to figures
+#     """
+#     output_dir.mkdir(parents=True, exist_ok=True)
+#     figures = {}
 
-    # Load metadata
-    metadata = load_config(results_dir)
+#     # Load metadata
+#     metadata = load_config(results_dir)
 
-    # Get model type and number of classes
-    model_type = metadata['model']['model_type']
-    n_classes = len(list(metadata['dataset']['selected_classes']))
-    attack_type = metadata['adversarial']['attack_type']
-    experiment_name = f"{model_type.upper()} {n_classes}-class {attack_type.upper()}"  
+#     # Get model type and number of classes
+#     model_type = metadata['model']['model_type']
+#     n_classes = len(list(metadata['dataset']['selected_classes']))
+#     attack_type = metadata['adversarial']['attack_type']
+#     experiment_name = f"{model_type.upper()} {n_classes}-class {attack_type.upper()}"  
 
-    def save_path(name):
-        experiment_string = f"{model_type}_{n_classes}-class_{attack_type}"
-        return output_dir / f"{experiment_string}_{name}.pdf"
+#     def save_path(name):
+#         experiment_string = f"{model_type}_{n_classes}-class_{attack_type}"
+#         return output_dir / f"{experiment_string}_{name}.pdf"
     
-    epsilons = sorted([float(eps) for eps in results.keys()])
+#     epsilons = sorted([float(eps) for eps in results.keys()])
     
-    layers = results[str(epsilons[0])]['layers'].keys()
+#     layers = results[str(epsilons[0])]['layers'].keys()
     
-    # 1. Generate comprehensive overview plot with all layers and distributions
-    fig = plot_feature_counts(
-        results, layers, epsilons,
-        title=f"{experiment_name}",
-        save_path=save_path("feature_counts")
-    )
-    figures["feature_counts"] = fig
+#     # 1. Generate comprehensive overview plot with all layers and distributions
+#     fig = plot_feature_counts(
+#         results, layers, epsilons,
+#         title=f"{experiment_name}",
+#         save_path=save_path("feature_counts")
+#     )
+#     figures["feature_counts"] = fig
 
-    # 2. Generate comprehensive robustness overview plot
-    fig = plot_robustness(
-        results, epsilons,
-        title=f"{experiment_name}",
-        save_path=save_path("robustness")
-    )
-    figures["robustness"] = fig
+#     # 2. Generate comprehensive robustness overview plot
+#     fig = plot_robustness(
+#         results, epsilons,
+#         title=f"{experiment_name}",
+#         save_path=save_path("robustness")
+#     )
+#     figures["robustness"] = fig
   
 def plot_feature_counts(
     results: Dict, 
@@ -951,6 +951,23 @@ def generate_plots(results: Dict, output_dir: Path, results_dir: Path) -> Dict[s
     # Generate all plot types
     all_figures = {}
     
+    # Robust detection of nested results structure
+    epsilons = sorted([float(eps) for eps in results.keys()])
+    first_result = results[str(epsilons[0])]
+    has_nested_structure = ('layers' in first_result or 'detailed_robustness' in first_result)
+    
+    if has_nested_structure:
+        print("Detected nested results structure - generating comprehensive plots...")
+        # New nested format - use the dedicated function
+        nested_figures = generate_plots_from_nested_results(
+            results, output_dir, 
+            config['model']['model_type'], 
+            len(config['dataset']['selected_classes'])
+        )
+        all_figures.update(nested_figures)
+    else:
+        print("Detected legacy results structure - using basic plotting...")
+    
     # 1. SAE-specific plots
     sae_figures = generate_sae_plots(results, output_dir, results_dir)
     all_figures.update(sae_figures)
@@ -964,6 +981,7 @@ def generate_plots(results: Dict, output_dir: Path, results_dir: Path) -> Dict[s
     all_figures.update(combined_figures)
     
     return all_figures
+
 
 # ============================================================================
 #  LLC-SPECIFIC PLOTTING FUNCTIONS 
@@ -1595,24 +1613,443 @@ def plot_combined_llc_sae_evolution(
     
     return fig
 
-def plot_llc_vs_sae_correlation_during_training(
-    llc_checkpoint_results: Dict[str, Any],
-    sae_checkpoint_results: Dict[str, Any],
-    layer_name: str, 
+
+def plot_aggregated_llc_sae_evolution(
+    llc_data: List[Dict],
+    sae_data: List[Dict],
+    layer_name: str,
     epsilon: float,
-    title: str = 'LLC vs SAE Feature Count Correlation During Training',
+    n_runs: int,
+    title: str = 'Aggregated LLC vs SAE Evolution During Training',
+    save_path: Optional[Path] = None,
+    figsize: Tuple[int, int] = (16, 6)
+) -> plt.Figure:
+    """Plot aggregated LLC vs SAE evolution across multiple runs.
+    
+    This gives you the comparison plot you wanted, aggregated across all runs!
+    
+    Args:
+        llc_data: List of LLC measurement dictionaries from all runs
+        sae_data: List of SAE measurement dictionaries from all runs
+        layer_name: Layer name for SAE analysis
+        epsilon: Epsilon value being plotted
+        n_runs: Number of runs for proper averaging
+        title: Plot title
+        save_path: Path to save the plot
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure
+    """
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    
+    # ============================================================================
+    # LEFT PLOT: LLC Evolution (Aggregated across runs)
+    # ============================================================================
+    
+    # Group LLC data by epoch
+    llc_by_epoch = {}
+    for entry in llc_data:
+        epoch = entry['epoch']
+        if epoch not in llc_by_epoch:
+            llc_by_epoch[epoch] = []
+        llc_by_epoch[epoch].append(entry['llc_mean'])
+    
+    # Calculate means and stds
+    llc_epochs = sorted(llc_by_epoch.keys())
+    llc_means = [np.mean(llc_by_epoch[epoch]) for epoch in llc_epochs]
+    llc_stds = [np.std(llc_by_epoch[epoch]) for epoch in llc_epochs]
+    
+    # Plot LLC with error bars
+    ax1.errorbar(llc_epochs, llc_means, yerr=llc_stds,
+                marker='o', linewidth=ScientificPlotStyle.LINE_WIDTH, 
+                markersize=ScientificPlotStyle.MARKER_SIZE,
+                capsize=ScientificPlotStyle.CAPSIZE,
+                color=ScientificPlotStyle.COLORS[0], 
+                label=f'LLC (n={n_runs})')
+    
+    ax1.set_title(f'Learning Coefficient Evolution\nε={epsilon}', 
+                 fontsize=ScientificPlotStyle.FONT_SIZE_LABELS, fontweight='bold')
+    ax1.set_xlabel('Training Epoch', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax1.set_ylabel('Learning Coefficient (LLC)', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax1.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+    ax1.grid(True, alpha=ScientificPlotStyle.GRID_ALPHA)
+    ax1.legend(fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND)
+    
+    # ============================================================================
+    # RIGHT PLOT: SAE Feature Count Evolution (Aggregated across runs)
+    # ============================================================================
+    
+    # Group SAE data by epoch
+    sae_by_epoch = {}
+    for entry in sae_data:
+        if entry['feature_count'] is not None:
+            epoch = entry['epoch']
+            if epoch not in sae_by_epoch:
+                sae_by_epoch[epoch] = []
+            sae_by_epoch[epoch].append(entry['feature_count'])
+    
+    # Calculate means and stds
+    sae_epochs = sorted(sae_by_epoch.keys())
+    sae_means = [np.mean(sae_by_epoch[epoch]) for epoch in sae_epochs]
+    sae_stds = [np.std(sae_by_epoch[epoch]) for epoch in sae_epochs]
+    
+    # Plot SAE with error bars
+    ax2.errorbar(sae_epochs, sae_means, yerr=sae_stds,
+                marker='s', linewidth=ScientificPlotStyle.LINE_WIDTH,
+                markersize=ScientificPlotStyle.MARKER_SIZE,
+                capsize=ScientificPlotStyle.CAPSIZE,
+                color=ScientificPlotStyle.COLORS[1], 
+                label=f'SAE Features (n={n_runs})')
+    
+    ax2.set_title(f'SAE Feature Count Evolution\nε={epsilon}, {layer_name}', 
+                 fontsize=ScientificPlotStyle.FONT_SIZE_LABELS, fontweight='bold')
+    ax2.set_xlabel('Training Epoch', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax2.set_ylabel('Feature Count', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax2.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+    ax2.grid(True, alpha=ScientificPlotStyle.GRID_ALPHA)
+    ax2.legend(fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND)
+    
+    plt.suptitle(title, fontsize=ScientificPlotStyle.FONT_SIZE_TITLE, fontweight='bold')
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+    
+    return fig
+
+
+def plot_llc_sae_dual_axis_evolution(
+    llc_data: List[Dict],
+    sae_data: List[Dict], 
+    layer_name: str,
+    epsilon: float,
+    n_runs: int,
+    title: str = 'LLC vs SAE Evolution - Dual Axis',
     save_path: Optional[Path] = None,
     figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE
 ) -> plt.Figure:
-    """Plot LLC vs SAE feature count as a scatter plot with epoch progression.
+    """Plot LLC and SAE on the same plot with dual y-axes.
     
-    This shows the correlation between the two metrics and how it evolves.
+    This version overlays both metrics to see their relationship more clearly.
+    
+    Args:
+        llc_data: List of LLC measurement dictionaries from all runs
+        sae_data: List of SAE measurement dictionaries from all runs
+        layer_name: Layer name for SAE analysis
+        epsilon: Epsilon value being plotted
+        n_runs: Number of runs for proper averaging
+        title: Plot title
+        save_path: Path to save the plot
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure
+    """
+    fig, ax1 = plt.subplots(figsize=figsize)
+    
+    # Process LLC data
+    llc_by_epoch = {}
+    for entry in llc_data:
+        epoch = entry['epoch']
+        if epoch not in llc_by_epoch:
+            llc_by_epoch[epoch] = []
+        llc_by_epoch[epoch].append(entry['llc_mean'])
+    
+    llc_epochs = sorted(llc_by_epoch.keys())
+    llc_means = [np.mean(llc_by_epoch[epoch]) for epoch in llc_epochs]
+    llc_stds = [np.std(llc_by_epoch[epoch]) for epoch in llc_epochs]
+    
+    # Plot LLC on left y-axis
+    color1 = ScientificPlotStyle.COLORS[0]
+    ax1.set_xlabel('Training Epoch', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax1.set_ylabel('Learning Coefficient (LLC)', color=color1, fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    
+    line1 = ax1.errorbar(llc_epochs, llc_means, yerr=llc_stds,
+                        marker='o', linewidth=ScientificPlotStyle.LINE_WIDTH,
+                        markersize=ScientificPlotStyle.MARKER_SIZE,
+                        color=color1, label='LLC',
+                        capsize=ScientificPlotStyle.CAPSIZE)
+    ax1.tick_params(axis='y', labelcolor=color1, labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+    ax1.tick_params(axis='x', labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+    
+    # Create second y-axis for SAE data
+    ax2 = ax1.twinx()
+    
+    # Process SAE data
+    sae_by_epoch = {}
+    for entry in sae_data:
+        if entry['feature_count'] is not None:
+            epoch = entry['epoch']
+            if epoch not in sae_by_epoch:
+                sae_by_epoch[epoch] = []
+            sae_by_epoch[epoch].append(entry['feature_count'])
+    
+    sae_epochs = sorted(sae_by_epoch.keys())
+    sae_means = [np.mean(sae_by_epoch[epoch]) for epoch in sae_epochs]
+    sae_stds = [np.std(sae_by_epoch[epoch]) for epoch in sae_epochs]
+    
+    # Plot SAE on right y-axis
+    color2 = ScientificPlotStyle.COLORS[1]
+    ax2.set_ylabel('SAE Feature Count', color=color2, fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    
+    line2 = ax2.errorbar(sae_epochs, sae_means, yerr=sae_stds,
+                        marker='s', linewidth=ScientificPlotStyle.LINE_WIDTH,
+                        markersize=ScientificPlotStyle.MARKER_SIZE,
+                        color=color2, label='SAE Features',
+                        capsize=ScientificPlotStyle.CAPSIZE)
+    ax2.tick_params(axis='y', labelcolor=color2, labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+    
+    # Add combined legend
+    lines = [line1, line2]
+    labels = ['LLC', f'SAE Features ({layer_name})']
+    ax1.legend(lines, labels, loc='upper left', fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND)
+    
+    # Add grid and title
+    ax1.grid(True, alpha=ScientificPlotStyle.GRID_ALPHA)
+    plt.title(f'{title}\nε={epsilon}, {layer_name}', 
+             fontsize=ScientificPlotStyle.FONT_SIZE_TITLE, fontweight='bold')
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+    
+    return fig
+
+
+def plot_comprehensive_robustness_overview(
+    results: Dict, 
+    epsilons: List[float], 
+    title: str,
+    save_path: Optional[Path] = None,
+    figsize: Tuple[int, int] = (20, 12)
+) -> plt.Figure:
+    """Plot comprehensive overview of robustness scores across all test epsilons and training epsilons.
+
+    Args:
+        results: Nested results dictionary containing detailed_robustness for each training epsilon
+        epsilons: List of training epsilon values
+        title: Plot title
+        save_path: Path to save the plot
+        figsize: Figure size
+
+    Returns:
+        Matplotlib figure
+    """
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Get all test epsilons from the first training epsilon
+    test_epsilons = sorted([float(eps) for eps in results[str(epsilons[0])]['detailed_robustness'].keys()])
+
+    # Define line styles for different test epsilons
+    line_styles = ['-', '--', '-.', ':']
+    marker_styles = ['o', 's', '^', 'D', 'v', '<', '>', 'p', '*']
+
+    for i, test_eps in enumerate(test_epsilons):
+        # Extract data for this test epsilon across all training epsilons
+        test_data = {}
+        for eps in epsilons:
+            test_data[eps] = results[str(eps)]['detailed_robustness'][str(test_eps)]
+
+        # Calculate means and standard deviations
+        means = [np.mean(test_data[eps]) for eps in epsilons]
+        stds = [np.std(test_data[eps]) for eps in epsilons]
+
+        # Determine color and marker
+        color_idx = i % len(ScientificPlotStyle.COLORS)
+        marker = marker_styles[i % len(marker_styles)]
+        linestyle = line_styles[i % len(line_styles)]
+
+        # Create label
+        label = f"Test ε={test_eps}"
+
+        # Plot
+        ax.errorbar(
+            epsilons, means, yerr=stds,
+            label=label,
+            color=ScientificPlotStyle.COLORS[color_idx],
+            marker=marker,
+            linestyle=linestyle,
+            markersize=ScientificPlotStyle.MARKER_SIZE,
+            linewidth=ScientificPlotStyle.LINE_WIDTH,
+            capsize=ScientificPlotStyle.CAPSIZE,
+            capthick=ScientificPlotStyle.CAPTHICK,
+            elinewidth=ScientificPlotStyle.LINE_WIDTH
+        )
+
+    # Apply styling with adjusted legend
+    ax.set_title(title, fontsize=ScientificPlotStyle.FONT_SIZE_TITLE, fontweight='bold')
+    ax.set_xlabel('Training Epsilon (ε)', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax.set_ylabel('Robustness Score', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+    ax.grid(True, alpha=ScientificPlotStyle.GRID_ALPHA)
+
+    # Adjust legend based on number of entries
+    if len(test_epsilons) > 8:
+        # Use two-column legend for many entries
+        ax.legend(fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND * 0.8, 
+                 loc='best', ncol=2)
+    else:
+        ax.legend(fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND, loc='best')
+
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+
+    return fig
+
+
+def plot_comprehensive_feature_overview(
+    results: Dict, 
+    layers: List[str], 
+    epsilons: List[float], 
+    title: str,
+    save_path: Optional[Path] = None,
+    figsize: Tuple[int, int] = (20, 12)
+) -> plt.Figure:
+    """Plot comprehensive overview of feature counts across all layers and distributions.
+    
+    Args:
+        results: Nested results dictionary
+        layers: List of layer names
+        epsilons: List of epsilon values
+        title: Plot title
+        save_path: Path to save the plot
+        figsize: Figure size
+        
+    Returns:
+        Matplotlib figure
+    """
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Define line styles for different data distributions
+    distributions = {
+        "clean_feature_count": {"linestyle": "-", "name": "Clean"},
+        "adv_feature_count": {"linestyle": "--", "name": "Adversarial"}
+    }
+    
+    # Plot each layer and distribution combination
+    marker_styles = ['o', 's', '^', 'D', 'v', '<', '>', 'p', '*']
+    line_count = 0
+    
+    for i, layer_name in enumerate(layers):
+        for j, (dist_key, dist_props) in enumerate(distributions.items()):
+            # Extract data for this layer and distribution
+            layer_data = {}
+            for eps in epsilons:
+                layer_data[eps] = results[str(eps)]['layers'][layer_name][dist_key]
+            
+            # Calculate means and standard deviations
+            means = [np.mean(layer_data[eps]) for eps in epsilons]
+            stds = [np.std(layer_data[eps]) for eps in epsilons]
+            
+            # Determine color and marker
+            color_idx = i % len(ScientificPlotStyle.COLORS)
+            marker = marker_styles[i % len(marker_styles)]
+            
+            # Create label
+            label = f"{layer_name} - {dist_props['name']}"
+            
+            # Plot
+            ax.errorbar(
+                epsilons, means, yerr=stds,
+                label=label,
+                color=ScientificPlotStyle.COLORS[color_idx],
+                marker=marker,
+                linestyle=dist_props['linestyle'],
+                markersize=ScientificPlotStyle.MARKER_SIZE,
+                linewidth=ScientificPlotStyle.LINE_WIDTH,
+                capsize=ScientificPlotStyle.CAPSIZE,
+                capthick=ScientificPlotStyle.CAPTHICK,
+                elinewidth=ScientificPlotStyle.LINE_WIDTH
+            )
+            
+            line_count += 1
+    
+    # Apply styling with adjusted legend
+    ax.set_title(title, fontsize=ScientificPlotStyle.FONT_SIZE_TITLE, fontweight='bold')
+    ax.set_xlabel('Adversarial Training Strength (ε)', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax.set_ylabel('Feature Count', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+    ax.grid(True, alpha=ScientificPlotStyle.GRID_ALPHA)
+    
+    # Adjust legend based on number of entries
+    if line_count > 8:
+        # Use two-column legend for many entries
+        ax.legend(fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND * 0.8, 
+                 loc='best', ncol=2)
+    else:
+        ax.legend(fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND, loc='best')
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+    
+    return fig
+
+def generate_plots_from_nested_results(results: Dict, output_dir: Path, model_type: str, n_classes: int) -> Dict[str, plt.Figure]:
+    """Generate plots from the nested results structure with layer-wise analysis.
+    
+    Args:
+        results: Nested results dictionary
+        output_dir: Directory to save plots
+        model_type: Type of model used
+        n_classes: Number of classes in the dataset
+        
+    Returns:
+        Dictionary mapping plot names to figures
+    """
+    figures = {}
+    experiment_name = f"{model_type.upper()} {n_classes}-class"
+    
+    def save_path(name):
+        experiment_string = f"{model_type}_{n_classes}-class"
+        return output_dir / f"{experiment_string}_{name}.pdf"
+    
+    # Extract epsilons and sort them
+    epsilons = sorted([float(eps) for eps in results.keys()])
+    
+    # 1. Generate comprehensive overview plot with all layers and distributions
+    if 'layers' in results[str(epsilons[0])]:
+        layers = list(results[str(epsilons[0])]['layers'].keys())
+        fig = plot_comprehensive_feature_overview(
+            results, layers, epsilons,
+            title=f"Feature Count Overview - {experiment_name}",
+            save_path=save_path("comprehensive_feature_overview")
+        )
+        figures["comprehensive_feature_overview"] = fig
+
+    # 2. Generate comprehensive robustness overview plot
+    if any('detailed_robustness' in results[str(eps)] for eps in epsilons):
+        fig = plot_comprehensive_robustness_overview(
+            results, epsilons,
+            title=f"Robustness Overview - {experiment_name}",
+            save_path=save_path("comprehensive_robustness_overview")
+        )
+        figures["comprehensive_robustness_overview"] = fig
+    
+    return figures
+
+
+def plot_llc_vs_sae_correlation_over_time(
+    llc_checkpoint_results: Dict[str, Any],
+    sae_checkpoint_results: Dict[str, Any],
+    layer_name: str,
+    epsilon: float,
+    title: str = 'LLC vs SAE Correlation Over Time',
+    save_path: Optional[Path] = None,
+    figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE
+) -> plt.Figure:
+    """Plot correlation between LLC (global) and SAE features (layer-specific) over training time.
     
     Args:
         llc_checkpoint_results: Results from analyze_checkpoints_with_llc
         sae_checkpoint_results: Results from analyze_checkpoints_with_sae
         layer_name: Layer name for SAE analysis
-        epsilon: Epsilon value to plot
+        epsilon: Epsilon value to analyze
         title: Plot title
         save_path: Path to save the plot
         figsize: Figure size
@@ -1624,52 +2061,59 @@ def plot_llc_vs_sae_correlation_during_training(
     
     eps_str = str(epsilon)
     
-    # Extract data
+    # Extract LLC data (global model property)
     if ('epsilon_analysis' in llc_checkpoint_results and 
-        eps_str in llc_checkpoint_results['epsilon_analysis'] and
-        'epsilon_analysis' in sae_checkpoint_results and 
+        eps_str in llc_checkpoint_results['epsilon_analysis']):
+        
+        llc_data = llc_checkpoint_results['epsilon_analysis'][eps_str]
+        llc_dict = {entry['epoch']: entry['llc_mean'] for entry in llc_data}
+    else:
+        llc_dict = {}
+    
+    # Extract SAE data (layer-specific)
+    if ('epsilon_analysis' in sae_checkpoint_results and 
         eps_str in sae_checkpoint_results['epsilon_analysis'] and
         layer_name in sae_checkpoint_results['epsilon_analysis'][eps_str]):
         
-        llc_data = llc_checkpoint_results['epsilon_analysis'][eps_str]
         sae_data = sae_checkpoint_results['epsilon_analysis'][eps_str][layer_name]
-        
-        # Align data by epoch
-        llc_dict = {entry['epoch']: entry['llc_mean'] for entry in llc_data}
         sae_dict = {entry['epoch']: entry['feature_count'] for entry in sae_data 
                    if entry['feature_count'] is not None}
+    else:
+        sae_dict = {}
+    
+    # Get common epochs and create time series
+    common_epochs = sorted(set(llc_dict.keys()) & set(sae_dict.keys()))
+    
+    if common_epochs:
+        llc_values = [llc_dict[epoch] for epoch in common_epochs]
+        sae_values = [sae_dict[epoch] for epoch in common_epochs]
         
-        # Get common epochs
-        common_epochs = sorted(set(llc_dict.keys()) & set(sae_dict.keys()))
+        # Calculate correlation coefficient
+        correlation = np.corrcoef(llc_values, sae_values)[0, 1] if len(llc_values) > 1 else 0
         
-        if common_epochs:
-            llc_values = [llc_dict[epoch] for epoch in common_epochs]
-            sae_values = [sae_dict[epoch] for epoch in common_epochs]
-            
-            # Create scatter plot with color gradient for epochs
-            scatter = ax.scatter(sae_values, llc_values, 
-                               c=common_epochs, cmap='viridis', 
-                               s=100, alpha=0.7, edgecolors='black')
-            
-            # Add colorbar to show epoch progression
-            cbar = plt.colorbar(scatter)
-            cbar.set_label('Training Epoch', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-            
-            # Add trend line
-            z = np.polyfit(sae_values, llc_values, 1)
-            p = np.poly1d(z)
-            ax.plot(sae_values, p(sae_values), "--", alpha=0.8, linewidth=2, color='red')
-            
-            # Calculate correlation
-            correlation = np.corrcoef(sae_values, llc_values)[0, 1]
-            ax.text(0.05, 0.95, f'Correlation: {correlation:.3f}', 
-                   transform=ax.transAxes, fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND,
-                   bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+        # Create scatter plot with color gradient for time
+        scatter = ax.scatter(sae_values, llc_values, 
+                           c=common_epochs, cmap='viridis', 
+                           s=100, alpha=0.7, edgecolors='black')
+        
+        # Add colorbar
+        cbar = plt.colorbar(scatter)
+        cbar.set_label('Training Epoch', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+        
+        # Add trend line
+        z = np.polyfit(sae_values, llc_values, 1)
+        p = np.poly1d(z)
+        ax.plot(sae_values, p(sae_values), "--", alpha=0.8, linewidth=2, color='red')
+        
+        # Add correlation annotation
+        ax.text(0.05, 0.95, f'Correlation: {correlation:.3f}', 
+               transform=ax.transAxes, fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND,
+               bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
     
     ax.set_title(f'{title}\nε={epsilon}, {layer_name}', 
                 fontsize=ScientificPlotStyle.FONT_SIZE_TITLE, fontweight='bold')
-    ax.set_xlabel('SAE Feature Count', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-    ax.set_ylabel('Learning Coefficient (LLC)', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax.set_xlabel(f'SAE Feature Count ({layer_name})', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax.set_ylabel('LLC (Global Model)', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
     ax.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
     ax.grid(True, alpha=ScientificPlotStyle.GRID_ALPHA)
     

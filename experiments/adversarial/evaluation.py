@@ -184,127 +184,6 @@ def measure_superposition_on_mixed_distribution is nowhere
 '''
 
 
-# ============================================================================
-# ADDITIONAL SAE FUNCTIONALITY FOR RETROACTIVE CHECKPOINT MEASUREMENTS
-# ============================================================================
-
-
-def analyze_checkpoints_with_sae(
-    checkpoint_dir: Path,
-    train_loader: DataLoader,
-    sae_config: SAEConfig,
-    layer_names: List[str],
-    epsilons_to_test: List[float],
-    device: Optional[torch.device] = None,
-    logger: Optional[logging.Logger] = None
-) -> Dict[str, Any]:
-    """Analyze saved checkpoints with SAE measurement.
-    
-    Args:
-        checkpoint_dir: Directory containing checkpoints
-        train_loader: Training data loader
-        sae_config: SAE configuration
-        layer_names: List of layers to analyze
-        epsilons_to_test: List of perturbation strengths to test
-        device: Device for computation
-        logger: Optional logger
-        
-    Returns:
-        Dictionary with SAE analysis results organized by epsilon, layer, and epoch
-    """
-    from training import load_checkpoint, create_adversarial_dataloader
-    from attacks import AttackConfig
-    
-    log = logger.info if logger else print
-    
-    if device is None:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
-    # Load checkpoint summary
-    summary_path = checkpoint_dir / "checkpoint_summary.json"
-    if not summary_path.exists():
-        raise FileNotFoundError(f"Checkpoint summary not found: {summary_path}")
-    
-    with open(summary_path, 'r') as f:
-        checkpoint_summary = json.load(f)
-    
-    checkpoint_paths = [Path(cp) for cp in checkpoint_summary['saved_checkpoints']]
-    attack_config = AttackConfig()
-    
-    # Results organized by epsilon -> layer -> epoch
-    results = {
-        'epsilon_analysis': {},
-        'layer_analysis': {},
-        'evolution_analysis': {}
-    }
-    
-    for epsilon in epsilons_to_test:
-        log(f"SAE analysis for epsilon={epsilon} across {len(checkpoint_paths)} checkpoints")
-        epsilon_results = {}
-        
-        for layer_name in layer_names:
-            log(f"  Analyzing layer: {layer_name}")
-            layer_results = []
-            
-            for checkpoint_path in checkpoint_paths:
-                # Load checkpoint
-                model, model_config, checkpoint_data = load_checkpoint(checkpoint_path, device)
-                epoch = checkpoint_data['epoch']
-                
-                log(f"    Processing checkpoint from epoch {epoch}")
-                
-                # Create appropriate dataloader
-                if epsilon > 0:
-                    test_loader = create_adversarial_dataloader(
-                        model, train_loader, epsilon, attack_config
-                    )
-                else:
-                    test_loader = train_loader
-                
-                # Measure SAE features
-                try:
-                    sae_results = measure_superposition(
-                        model=model,
-                        dataloader=test_loader,
-                        layer_name=layer_name,
-                        sae_config=sae_config,
-                        save_dir=checkpoint_dir / f"sae_analysis_eps_{epsilon}_layer_{layer_name}_epoch_{epoch}",
-                        logger=logger
-                    )
-                    
-                    layer_results.append({
-                        'epoch': epoch,
-                        'feature_count': sae_results['feature_count'],
-                        'entropy': sae_results['entropy'],
-                        'checkpoint_path': str(checkpoint_path)
-                    })
-                    
-                    log(f"      Epoch {epoch}: Feature count = {sae_results['feature_count']:.2f}")
-                    
-                except Exception as e:
-                    log(f"      Error in epoch {epoch}: {e}")
-                    layer_results.append({
-                        'epoch': epoch,
-                        'feature_count': None,
-                        'entropy': None,
-                        'checkpoint_path': str(checkpoint_path),
-                        'error': str(e)
-                    })
-            
-            epsilon_results[layer_name] = layer_results
-        
-        results['epsilon_analysis'][str(epsilon)] = epsilon_results
-    
-    # Save results
-    results_path = checkpoint_dir / "sae_checkpoint_analysis_results.json"
-    with open(results_path, 'w') as f:
-        json.dump(results, f, indent=4, default=lambda x: x.tolist() if isinstance(x, np.ndarray) else str(x))
-    
-    log(f"SAE checkpoint analysis results saved to: {results_path}")
-    
-    return results
-
-
 
 # ============================================================================
 # LLC FUNCTIONALITIES
@@ -1059,157 +938,79 @@ def analyze_checkpoints_with_sae(
     return results
 
 
-def plot_combined_llc_sae_evolution(
-    llc_checkpoint_results: Dict[str, Any],
-    sae_checkpoint_results: Dict[str, Any],
-    layer_name: str,
-    epsilon: float,
-    title: Optional[str] = None,
-    save_path: Optional[Path] = None,
-    figsize: Tuple[int, int] = (15, 10)
-) -> plt.Figure:
-    """Plot LLC and SAE feature count evolution side by side during training.
+
+def analyze_checkpoints_combined_sae_llc(
+    checkpoint_dir: Path,
+    train_loader: DataLoader,
+    sae_config: SAEConfig,
+    llc_config: Dict[str, Any],
+    layer_names: List[str],
+    epsilons_to_test: List[float],
+    device: Optional[torch.device] = None,
+    logger: Optional[logging.Logger] = None
+) -> Dict[str, Any]:
+    """Analyze saved checkpoints with BOTH SAE and LLC measurements.
+    
+    This gives us both metrics at the same training epochs for comparison.
     
     Args:
-        llc_checkpoint_results: Results from analyze_checkpoints_with_llc
-        sae_checkpoint_results: Results from analyze_checkpoints_with_sae
-        layer_name: Layer name for SAE analysis
-        epsilon: Epsilon value to analyze
-        title: Plot title
-        save_path: Path to save the plot
-        figsize: Figure size
+        checkpoint_dir: Directory containing checkpoints
+        train_loader: Training data loader
+        sae_config: SAE configuration
+        llc_config: LLC configuration
+        layer_names: List of layers to analyze (for SAE)
+        epsilons_to_test: List of perturbation strengths to test
+        device: Device for computation
+        logger: Optional logger
         
     Returns:
-        Matplotlib figure
+        Dictionary with both SAE and LLC analysis results
     """
-    from analysis import ScientificPlotStyle
+    log = logger.info if logger else print
+    log("Starting combined SAE + LLC checkpoint analysis...")
     
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
-    
-    if title is None:
-        title = f'LLC vs SAE Evolution During Training - ε={epsilon}, Layer: {layer_name}'
-    
-    # Extract LLC data
-    llc_data = llc_checkpoint_results['epsilon_analysis'][str(epsilon)]
-    llc_epochs = [entry['epoch'] for entry in llc_data]
-    llc_means = [entry['llc_mean'] for entry in llc_data]
-    llc_stds = [entry['llc_std'] for entry in llc_data]
-    
-    # Extract SAE data
-    sae_layer_data = sae_checkpoint_results['epsilon_analysis'][str(epsilon)][layer_name]
-    sae_epochs = [entry['epoch'] for entry in sae_layer_data if entry['feature_count'] is not None]
-    sae_features = [entry['feature_count'] for entry in sae_layer_data if entry['feature_count'] is not None]
-    
-    # Plot LLC evolution
-    ax1.errorbar(llc_epochs, llc_means, yerr=llc_stds,
-                marker='o', linewidth=ScientificPlotStyle.LINE_WIDTH,
-                markersize=ScientificPlotStyle.MARKER_SIZE,
-                color=ScientificPlotStyle.COLORS[0],
-                capsize=ScientificPlotStyle.CAPSIZE,
-                capthick=ScientificPlotStyle.CAPTHICK)
-    
-    ax1.set_title('LLC Evolution', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS, fontweight='bold')
-    ax1.set_xlabel('Training Epoch', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-    ax1.set_ylabel('Learning Coefficient', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-    ax1.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
-    ax1.grid(True, alpha=ScientificPlotStyle.GRID_ALPHA)
-    
-    # Plot SAE feature count evolution
-    ax2.plot(sae_epochs, sae_features,
-            marker='s', linewidth=ScientificPlotStyle.LINE_WIDTH,
-            markersize=ScientificPlotStyle.MARKER_SIZE,
-            color=ScientificPlotStyle.COLORS[1])
-    
-    ax2.set_title(f'SAE Feature Count Evolution\n({layer_name})', 
-                 fontsize=ScientificPlotStyle.FONT_SIZE_LABELS, fontweight='bold')
-    ax2.set_xlabel('Training Epoch', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-    ax2.set_ylabel('Feature Count', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-    ax2.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
-    ax2.grid(True, alpha=ScientificPlotStyle.GRID_ALPHA)
-    
-    plt.suptitle(title, fontsize=ScientificPlotStyle.FONT_SIZE_TITLE, fontweight='bold')
-    plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight', dpi=300)
-    
-    return fig
-
-
-def plot_llc_vs_sae_correlation_over_time(
-    llc_checkpoint_results: Dict[str, Any],
-    sae_checkpoint_results: Dict[str, Any], 
-    layer_name: str,
-    epsilon: float,
-    title: Optional[str] = None,
-    save_path: Optional[Path] = None,
-    figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE
-) -> plt.Figure:
-    """Plot correlation between LLC and SAE feature count over training time.
-    
-    Args:
-        llc_checkpoint_results: Results from analyze_checkpoints_with_llc
-        sae_checkpoint_results: Results from analyze_checkpoints_with_sae
-        layer_name: Layer name for SAE analysis
-        epsilon: Epsilon value to analyze
-        title: Plot title
-        save_path: Path to save the plot
-        figsize: Figure size
-        
-    Returns:
-        Matplotlib figure
-    """
-    fig, ax = plt.subplots(figsize=figsize)
-    
-    if title is None:
-        title = f'LLC vs SAE Feature Count Correlation - ε={epsilon}, Layer: {layer_name}'
-    
-    # Extract and align data by epoch
-    llc_data = {entry['epoch']: entry['llc_mean'] 
-                for entry in llc_checkpoint_results['epsilon_analysis'][str(epsilon)]}
-    
-    sae_data = {entry['epoch']: entry['feature_count'] 
-                for entry in sae_checkpoint_results['epsilon_analysis'][str(epsilon)][layer_name]
-                if entry['feature_count'] is not None}
-    
-    # Find common epochs
-    common_epochs = sorted(set(llc_data.keys()) & set(sae_data.keys()))
-    
-    if len(common_epochs) < 2:
-        ax.text(0.5, 0.5, 'Insufficient data for correlation plot', 
-                ha='center', va='center', transform=ax.transAxes)
-        return fig
-    
-    llc_values = [llc_data[epoch] for epoch in common_epochs]
-    sae_values = [sae_data[epoch] for epoch in common_epochs]
-    
-    # Create scatter plot with epoch progression shown by color
-    scatter = ax.scatter(sae_values, llc_values, 
-                        c=common_epochs, cmap='viridis',
-                        s=ScientificPlotStyle.MARKER_SIZE**2,
-                        alpha=0.8, edgecolors='black', linewidth=1)
-    
-    # Add colorbar for epochs
-    cbar = plt.colorbar(scatter, ax=ax)
-    cbar.set_label('Training Epoch', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-    cbar.ax.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
-    
-    # Add arrows to show progression
-    for i in range(len(common_epochs)-1):
-        ax.annotate('', xy=(sae_values[i+1], llc_values[i+1]), 
-                   xytext=(sae_values[i], llc_values[i]),
-                   arrowprops=dict(arrowstyle='->', color='red', alpha=0.6, lw=2))
-    
-    # Apply styling
-    ScientificPlotStyle.apply_axis_style(
-        ax=ax,
-        title=title,
-        xlabel=f'SAE Feature Count ({layer_name})',
-        ylabel='Learning Coefficient',
-        legend=False
+    # Do LLC analysis
+    log("Phase 1: LLC checkpoint analysis...")
+    llc_results = analyze_checkpoints_with_llc(
+        checkpoint_dir=checkpoint_dir,
+        train_loader=train_loader,
+        llc_config=llc_config,
+        epsilons_to_test=epsilons_to_test,
+        device=device,
+        logger=logger
     )
     
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+    # Do SAE analysis
+    log("Phase 2: SAE checkpoint analysis...")
+    sae_results = analyze_checkpoints_with_sae(
+        checkpoint_dir=checkpoint_dir,
+        train_loader=train_loader,
+        sae_config=sae_config,
+        layer_names=layer_names,
+        epsilons_to_test=epsilons_to_test,
+        device=device,
+        logger=logger
+    )
     
-    return fig
+    # Combine results
+    combined_results = {
+        'llc_analysis': llc_results,
+        'sae_analysis': sae_results,
+        'combined_evolution': {}  # Will be populated by plotting function
+    }
+    
+    # Save combined results
+    results_path = checkpoint_dir / "combined_sae_llc_analysis_results.json"
+    with open(results_path, 'w') as f:
+        def json_serializer(obj):
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif hasattr(obj, 'item'):
+                return obj.item()
+            return obj
+        json.dump(combined_results, f, indent=4, default=json_serializer)
+    
+    log(f"Combined analysis results saved to: {results_path}")
+    
+    return combined_results
+
