@@ -395,13 +395,13 @@ def get_layer_names_for_model(model_type: str) -> List[str]:
         # → Global pooling (avgpool) + classification (fc)
         layer_names = [
             'relu',           # early_features: edges/textures (32×32) (post-ReLU)
-            'layer1.1.bn2',   # low_level: basic patterns (32×32) (pre-ReLU, residual)
+            # 'layer1.1.bn2',   # low_level: basic patterns (32×32) (pre-ReLU, residual)
             'layer1.1',       # low_level: basic patterns (32×32) (post-ReLU, combines skip and residual)
-            'layer2.1.bn2',   # mid_level: object parts (16×16) (pre-ReLU, residual)
+            # 'layer2.1.bn2',   # mid_level: object parts (16×16) (pre-ReLU, residual)
             'layer2.1',       # mid_level: object parts (16×16) (post-ReLU, combines skip and residual)
-            'layer3.1.bn2',   # high_level: object concepts (8×8) (pre-ReLU, residual)
+            # 'layer3.1.bn2',   # high_level: object concepts (8×8) (pre-ReLU, residual)
             'layer3.1',       # high_level: object concepts (8×8) (post-ReLU, combines skip and residual)
-            'layer4.1.bn2',   # semantic: class-relevant features (4×4) (pre-ReLU, residual)
+            # 'layer4.1.bn2',   # semantic: class-relevant features (4×4) (pre-ReLU, residual)
             'layer4.1',       # semantic: class-relevant features (4×4) (post-ReLU, combines skip and residual)
             'avgpool'         # Global features (512ch, 1×1)
         ]
@@ -414,6 +414,7 @@ def run_analysis_phase(
     search_string: Optional[str] = None,
     results_dir: Optional[Path] = None,
     dataset_type: Optional[str] = None,
+    plot_args: Optional[Dict[str, Any]] = None
 ) -> Path:
     """Run analysis phase with direct consumption of evaluation results.
     
@@ -437,16 +438,34 @@ def run_analysis_phase(
     # Load evaluation results directly (using new format)
     results_file = results_dir / "results.json"
     if not results_file.exists():
-        raise FileNotFoundError(f"Results file not found: {results_file}")
+        # raise FileNotFoundError(f"Results file not found: {results_file}")
+        print(f"Results file not found: {results_file}")
+        return results_dir
     
     with open(results_file, 'r') as f:
         results = json.load(f)
+
+    # Only include layers specified by get_layer_names based on model type
+    model_type = config['model']['model_type']
+    layer_names = get_layer_names_for_model(model_type)
+    # print(f"Layer names: {layer_names}")
+    # Extract available layers from results
+    available_layers = next(iter(results.values())).get('layers', {}).keys()
+    
+    # Filter results to only include the specified layers
+    for epsilon_key in results:
+        if 'layers' in results[epsilon_key]:
+            filtered_layers = {}
+            for layer_name in layer_names:
+                if layer_name in results[epsilon_key]['layers']:
+                    filtered_layers[layer_name] = results[epsilon_key]['layers'][layer_name]
+            results[epsilon_key]['layers'] = filtered_layers
     
     # Create plots directory
     plots_dir = results_dir / "plots"
     plots_dir.mkdir(exist_ok=True)
     
-    generate_plots(results, plots_dir, results_dir)
+    generate_plots(results, plots_dir, results_dir, plot_args)
     
     logger.info(f"\n=== Analysis Phase Completed ===")
     logger.info(f"Results saved to: {plots_dir}")
@@ -571,14 +590,37 @@ if __name__ == "__main__":
 
 
     # run a single experiment with simplemlp 
-    model_types = ['simplemlp', 'simplecnn']
-    class_counts = [2, 10]
-    dataset_types = ['mnist']
-    attack_types = ['fgsm', 'pgd']
-    testing_mode = False
-    run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode)
+    # model_types = ['simplemlp', 'simplecnn']
+    # class_counts = [3, 5]
+    # dataset_types = ['mnist']
+    # attack_types = ['fgsm', 'pgd']
+    # testing_mode = False
+    # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode)
     # run_evaluation_phase(search_string="simplemlp_2-class_fgsm", dataset_type="mnist")
-    # run_analysis_phase(search_string="simplemlp_2-class_fgsm", dataset_type="mnist")
+
+    plot_args = {
+        'plot_legend': False,
+        'plot_adversarial': True,
+        'legend_alpha': 1.0, 
+        # 'y_lim': (0.35, 8.),
+        'y_ticks': [0.5, 1.0, 2.0],
+        'y_tick_labels': ['0.5', '1', '2'],
+        'y_scale': 'log',
+        'plot_feature_counts': False,
+        'plot_robustness': False,
+        'plot_normalized_feature_counts': True,
+    }
+    # for model_type in ['simplemlp', 'simplecnn']:
+    # for model_type in ['_mlp', '_cnn']: # 'simplemlp', 'simplecnn']:
+    # dataset_type = 'cifar10'
+    dataset_type = 'mnist'
+    # for model_type in ['_mlp', '_cnn']: # 'simplemlp', 'simplecnn']:
+    # for model_type in ['simplemlp', 'simplecnn']: 
+    #     for n_classes in [2, 10]:
+    #         for attack_type in ['fgsm', 'pgd']:
+    #             run_analysis_phase(search_string=f"{model_type}_{n_classes}-class_{attack_type}", dataset_type=dataset_type, plot_args=plot_args)
+    run_analysis_phase(search_string="simplecnn_3-class_pgd", dataset_type="mnist", plot_args=plot_args)
+
 
     # run_model_class_experiment(
     #     model_types=['simplemlp', 'simplecnn'],
