@@ -698,47 +698,47 @@ def create_adversarial_dataloader(
     
     return adv_loader
 
-# PREVIOUS IMPLEMENTATION
-def create_adversarial_dataloader(self, dataloader: DataLoader, epsilon: float) -> DataLoader:
-        """Creates a dataloader with adversarially perturbed examples."""
-        if epsilon == 0.0:
-            return dataloader
+# # PREVIOUS IMPLEMENTATION
+# def create_adversarial_dataloader(self, dataloader: DataLoader, epsilon: float) -> DataLoader:
+#         """Creates a dataloader with adversarially perturbed examples."""
+#         if epsilon == 0.0:
+#             return dataloader
             
-        adv_data = []
-        adv_targets = []
-        self.model.eval()
+#         adv_data = []
+#         adv_targets = []
+#         self.model.eval()
         
-        for inputs, targets in dataloader:
-            inputs = inputs.to(self.device)
-            targets = targets.to(self.device)
+#         for inputs, targets in dataloader:
+#             inputs = inputs.to(self.device)
+#             targets = targets.to(self.device)
             
-            # Generate adversarial examples with FGSM
-            inputs = inputs.clone().detach().requires_grad_(True)  # Ensure we have a fresh tensor for each batch with gradients
-            outputs = self.model(inputs)
+#             # Generate adversarial examples with FGSM
+#             inputs = inputs.clone().detach().requires_grad_(True)  # Ensure we have a fresh tensor for each batch with gradients
+#             outputs = self.model(inputs)
             
-            if outputs.size(-1) == 1:
-                loss = nn.BCEWithLogitsLoss()(outputs.squeeze(), targets.float())
-            else:
-                loss = nn.CrossEntropyLoss()(outputs, targets)
+#             if outputs.size(-1) == 1:
+#                 loss = nn.BCEWithLogitsLoss()(outputs.squeeze(), targets.float())
+#             else:
+#                 loss = nn.CrossEntropyLoss()(outputs, targets)
             
-            loss.backward()
+#             loss.backward()
             
-            # FGSM attack
-            with torch.no_grad():  # Only wrap the perturbation creation
-                perturbed_inputs = inputs + epsilon * inputs.grad.sign()
-                perturbed_inputs = torch.clamp(perturbed_inputs, 0, 1)
+#             # FGSM attack
+#             with torch.no_grad():  # Only wrap the perturbation creation
+#                 perturbed_inputs = inputs + epsilon * inputs.grad.sign()
+#                 perturbed_inputs = torch.clamp(perturbed_inputs, 0, 1)
                 
-                adv_data.append(perturbed_inputs.cpu().detach())
-                adv_targets.append(targets.cpu())
+#                 adv_data.append(perturbed_inputs.cpu().detach())
+#                 adv_targets.append(targets.cpu())
             
-            # Clear gradients
-            if inputs.grad is not None:
-                inputs.grad.zero_()
+#             # Clear gradients
+#             if inputs.grad is not None:
+#                 inputs.grad.zero_()
         
-        # Create new dataset and loader
-        adv_data = torch.cat(adv_data)
-        adv_targets = torch.cat(adv_targets)
-        adv_dataset = torch.utils.data.TensorDataset(adv_data, adv_targets)
+#         # Create new dataset and loader
+#         adv_data = torch.cat(adv_data)
+#         adv_targets = torch.cat(adv_targets)
+#         adv_dataset = torch.utils.data.TensorDataset(adv_data, adv_targets)
         
-        return DataLoader(adv_dataset, batch_size=dataloader.batch_size, shuffle=True)
+#         return DataLoader(adv_dataset, batch_size=dataloader.batch_size, shuffle=True)
             

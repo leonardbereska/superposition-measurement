@@ -11,13 +11,14 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
-from evaluation import analyze_checkpoints_with_sae, analyze_checkpoints_with_llc, analyze_checkpoints_combined_sae_llc
+from evaluation import analyze_checkpoints_with_sae, measure_superposition, analyze_checkpoints_with_llc, measure_inference_time_llc, analyze_checkpoints_combined_sae_llc
+
 from analysis import plot_combined_llc_sae_evolution, plot_aggregated_llc_sae_evolution, plot_llc_vs_sae_correlation_over_time, plot_llc_sae_dual_axis_evolution
-from evaluation import create_adversarial_dataloader
+from training import create_adversarial_dataloader
 from training import load_checkpoint
 from attacks import AttackConfig
-from utils import get_default_config, get_config_and_results_dir, setup_logger
-from adversarial_robustness.training import estimate_llc
+from utils import get_config_and_results_dir, setup_logger
+from evaluation import estimate_llc
 
 # Ensure working directory is script directory
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -30,7 +31,6 @@ from utils import json_serializer, setup_results_dir, save_config, get_config_an
 
 # Import components for different phases 
 from training import train_model, evaluate_model_performance, load_model, save_model, TrainingConfig
-from evaluation import measure_superposition, analyze_checkpoints_with_llc, measure_inference_time_llc, analyze_checkpoints_with_sae, plot_combined_llc_sae_evolution, plot_llc_vs_sae_correlation_over_time
 from attacks import AttackConfig, generate_adversarial_examples, get_adversarial_dataloader
 from models import ModelConfig, create_model
 from sae import SAEConfig
@@ -500,8 +500,26 @@ def run_evaluation_phase(
                             # Store combined results
                             if 'combined_checkpoint_analysis' not in results[str(epsilon)]:
                                 results[str(epsilon)]['combined_checkpoint_analysis'] = []
-                            results[str(epsilon)]['combined_checkpoint_analysis'].append(combined_results)
                             
+                            # Clean results to avoid circular references
+                            cleaned_results = {
+                                'llc_analysis': {},
+                                'sae_analysis': combined_results['sae_analysis']
+                            }
+                            # Clean LLC analysis (remove analyzer object)
+                            for key, value in combined_results['llc_analysis'].items():
+                                if key == 'tuning_results':
+                                    cleaned_results['llc_analysis'][key] = {
+                                        'recommended_epsilon': value['recommended_epsilon'],
+                                        'recommended_beta': value['recommended_beta']
+                                        # Skip 'analyzer' and 'figures' to avoid circular refs
+                                    }
+                                else:
+                                    cleaned_results['llc_analysis'][key] = value
+                            
+                            results[str(epsilon)]['combined_checkpoint_analysis'].append(cleaned_results)
+        
+                                                
                         elif enable_llc:
                             # *** LLC-only analysis (original code) ***
                             checkpoint_results = analyze_checkpoints_with_llc(
@@ -553,6 +571,21 @@ def run_evaluation_phase(
                                         else:
                                             log(f"\t  Could not generate LLC sampling plot - no trace data available")
                                             log(f"\t  Available keys: {list(sample_llc_stats.keys())}")
+
+                                        if 'loss/trace' in sample_llc_stats:
+                                            # Convert offline stats format to format expected by plot_sampling_evolution
+                                            plotting_stats = {
+                                                'loss/trace': sample_llc_stats['loss/trace'],
+                                                'llc_average_mean': sample_llc_stats['llc/mean']  # Note: different key names
+                                            }
+                                            plot_sampling_evolution(
+                                                llc_stats=plotting_stats,
+                                                save_path=run_plots_dir / f"llc_sampling_evolution_eps_{epsilon}_run_{run_idx}.png",
+                                                show=False
+                                            )
+                                            log(f"\t  Generated LLC sampling evolution plot")
+                                    
+                                    
                                     else:
                                         log(f"\t  LLC estimation failed - could not generate sampling plot")
                             
@@ -647,7 +680,9 @@ def run_evaluation_phase(
                             results[str(epsilon)]['sae_checkpoint_analysis'].append(sae_checkpoint_results)
                     
                     except Exception as e:
-                        log(f"Error in checkpoint analysis: {e}")    
+                        log(f"Error in checkpoint analysis: {e}")  
+                        import traceback
+                        log(f"Full traceback: {traceback.format_exc()}")  
     
     # Save results
     results_file = results_dir / "results.json"
@@ -755,19 +790,19 @@ def run_analysis_phase(
     # *** LLC-specific analysis plots ***
     epsilons = sorted([float(eps) for eps in results.keys()])
     
+    # Extract LLC data for multi-epsilon plots
+    llc_checkpoint_evolution = {}
+
     # Check if LLC data is available
     has_llc_data = any('checkpoint_llc_analysis' in results[str(eps)] 
                        for eps in epsilons)
-    
+
     # Check if SAE checkpoint data is available
     has_sae_checkpoint_data = any('sae_checkpoint_analysis' in results[str(eps)]
                                  for eps in epsilons)
-    
+
     if has_llc_data:
         logger.info("Generating LLC-specific analysis plots...")
-        
-        # Extract LLC data for multi-epsilon plots
-        llc_checkpoint_evolution = {}
         
         for eps in epsilons:
             eps_str = str(eps)
@@ -783,21 +818,6 @@ def run_analysis_phase(
                 
                 if llc_values:
                     llc_checkpoint_evolution[eps] = llc_values
-        
-        # 1. Plot LLC evolution across training for multiple epsilons
-        if llc_checkpoint_evolution:
-            # Create checkpoints list
-            max_checkpoints = max(len(values) for values in llc_checkpoint_evolution.values())
-            checkpoints = list(range(0, max_checkpoints * config['llc']['measure_frequency'], 
-                             config['llc']['measure_frequency']))[:max_checkpoints]
-            
-            plot_llc_across_training_multiple_eps(
-                llc_results=llc_checkpoint_evolution,
-                checkpoints=checkpoints,
-                title="LLC Evolution During Training - Multi-Epsilon Comparison",
-                save_path=plots_dir / "llc_evolution_multi_epsilon.png",
-                n_runs=config['adversarial']['n_runs']
-            )
 
     # *** NEW: Combined LLC and SAE CHECKPOINT EVOLUTION ANALYSIS ***
     has_combined_checkpoint_data = any('combined_checkpoint_analysis' in results[str(eps)] 
@@ -1138,6 +1158,8 @@ def quick_test(
     model_type: str = None, 
     dataset_type: str = "cifar10", 
     testing_mode: bool = True, 
+    enable_llc: bool = True,
+    enable_sae: bool = True,
     enable_inference_llc: bool = False,
     enable_sae_checkpoints: bool = False  # NEW: Enable SAE checkpoint analysis
 ):
@@ -1186,8 +1208,8 @@ def quick_test(
     run_evaluation_phase(
         results_dir=results_dir, 
         dataset_type=dataset_type, 
-        enable_llc=True, 
-        enable_sae=True,
+        enable_llc=enable_llc, 
+        enable_sae=enable_sae,
         enable_inference_llc=enable_inference_llc,
         enable_sae_checkpoints=enable_sae_checkpoints  # Enable SAE checkpoint analysis
     )
@@ -1205,8 +1227,10 @@ if __name__ == "__main__":
         model_type='simplemlp', 
         dataset_type="mnist", 
         testing_mode=True, 
+        enable_sae=False,
+        enable_llc=True,
         enable_inference_llc=False,
-        enable_sae_checkpoints=True  
+        enable_sae_checkpoints=False  
     )
 
     '''Example usage - Full experiment with all analyses'''
@@ -1323,57 +1347,6 @@ if __name__ == "__main__":
     #     config = get_default_config(testing_mode=False, dataset_type="mnist")
     #     config = update_config(config, {
     #         'model': {'model_type': 'cnn', 'hidden_dim': base_channel}
-    #     })
-    #     results_dir = run_training_phase(config)
-    #     run_evaluation_phase(results_dir=results_dir, dataset_type="mnist")
-    #     run_analysis_phase(results_dir=results_dir, dataset_type="mnist")
-
-    # analyze mnist cnn
-    # for n_classes in [2, 3, 5, 10]:
-    #     for attack_type in ['fgsm', 'pgd']:
-    #         for model_type in ['cnn', 'mlp']:
-    #             run_analysis_phase(search_string=f"{model_type}_{n_classes}-class_{attack_type}", dataset_type="mnist")
-
-    # 2025-05-23 16-05  NOTE current experiment
-    # model_types = ['mlp', 'cnn']
-    # class_counts = [2, 3, 5, 10]
-    # dataset_types = ['mnist']
-    # attack_types = ['fgsm', 'pgd']
-    # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode=False)
-
-    # 2025-05-23 16-04  NOTE current experiment
-    # model_types = ['resnet18']
-    # class_counts = [2, 3, 5, 10]
-    # dataset_types = ['cifar10']
-    # attack_types = ['fgsm', 'pgd']
-    # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode=False)
-
-
-
-    # 2025-05-20 10-25
-    # Run single experiment: capacity scaling
-    # dataset_type = "mnist"
-    # for hidden_dim in [16, 32, 64, 128, 256]:
-    #     comment = f"h{hidden_dim}"
-    #     config = get_default_config(testing_mode=False, dataset_type=dataset_type)
-    #     config = update_config(config, {
-    #         'model': {
-    #             'model_type': 'mlp',
-    #             'hidden_dim': hidden_dim 
-    #         },
-    #         'dataset': {
-    #             'selected_classes': tuple(i for i in range(10)) 
-    #         },
-    #         'training': {
-    #             'n_epochs': 100 
-    #         },
-    #         'adversarial': {
-    #             'train_epsilons': [0.0, 0.1, 0.2],
-    #             'test_epsilons': [0.0, 0.1, 0.2],
-    #             'n_runs': 2,
-    #             'attack_type': 'fgsm',
-    #         },
-    #         'comment': comment
     #     })
     #     results_dir = run_training_phase(config)
     #     run_evaluation_phase(results_dir=results_dir, dataset_type=dataset_type)

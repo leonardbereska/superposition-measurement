@@ -1,7 +1,7 @@
 name: devinterp_env
 channels:
-  - pytorch
   - nvidia
+  - pytorch
   - conda-forge
   - defaults
 dependencies:

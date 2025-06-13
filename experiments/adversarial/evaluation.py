@@ -497,6 +497,7 @@ def estimate_llc(
         if not initialize_distributed_training():
             print("Failed to initialize distributed process group")
             return None
+        print("Distributed process group initialized")
     
         # Estimate LLC
         llc_stats = estimate_learning_coeff_with_summary(
@@ -594,8 +595,8 @@ def analyze_checkpoints_with_llc(
     Returns:
         Dictionary with LLC analysis results
     """
-    from evaluation import estimate_llc, tune_llc_hyperparameters
     from attacks import AttackConfig
+    from training import load_checkpoint
     
     log = logger.info if logger else print
     

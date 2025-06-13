@@ -99,7 +99,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
         training_config = {
             "batch_size": 256,     # Standard for CIFAR-10
             "learning_rate": 0.1,      # Standard for CIFAR-10 with SGD
-            "n_epochs": 1 if testing_mode else 200,  # Standard: 200 epochs
+            "n_epochs": 12 if testing_mode else 200,  # Standard: 200 epochs
             "optimizer_type": "sgd",   # SGD with momentum for CIFAR-10
             "weight_decay": 5e-4,      # Standard weight decay for CIFAR-10
             "momentum": 0.9,           # Standard momentum
@@ -114,7 +114,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
         training_config = {
             "batch_size": 256,     # Standard for MNIST
             "learning_rate": 0.01,     # Standard for MNIST
-            "n_epochs": 1 if testing_mode else 100,  # Standard: 100 epochs for MNIST
+            "n_epochs": 12 if testing_mode else 100,  # Standard: 100 epochs for MNIST
             "optimizer_type": "sgd",   # SGD is standard
             "weight_decay": 1e-4,      # Standard weight decay for MNIST
             "momentum": 0.9,           # Standard momentum
@@ -156,7 +156,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
     # SAE configuration
     sae_config = {
         "expansion_factor": 4,  
-        "n_epochs": 1 if testing_mode else 800,  # early stopping usually around 500
+        "n_epochs": 12 if testing_mode else 800,  # early stopping usually around 500
         "learning_rate": 1e-3,
         "batch_size": 128,
         "l1_lambda": 0.1,
@@ -166,7 +166,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
     llc_config = {
         "gamma": 5.0,                    # Localization parameter
         "num_chains": 3,                 # Number of SGLD chains
-        "num_draws": 1500,               # Number of draws per chain
+        "num_draws": 1500 if not testing_mode else 200,# Number of draws per chain
         "num_burnin_steps": 0,           # Burnin steps
         "num_steps_bw_draws": 1,         # Steps between draws
         "measure_frequency": 5,          # How often to save checkpoints during training
