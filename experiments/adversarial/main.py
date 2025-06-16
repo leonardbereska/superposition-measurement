@@ -426,6 +426,18 @@ def run_analysis_phase(
     Returns:
         Path to results directory
     """
+    if not plot_args:
+        plot_args = {
+            'plot_legend': True,
+            'plot_adversarial': True,
+            'legend_alpha': 0.7,
+            'plot_feature_counts': True,
+            'y_ticks': [0.5, 1.0, 2.0],
+            'y_tick_labels': ['0.5', '1', '2'],
+            'plot_robustness': True,
+            'plot_normalized_feature_counts': True,
+        }
+    
     config = get_default_config(dataset_type=dataset_type)
     config, results_dir = get_config_and_results_dir(base_dir=Path(config['base_dir']), results_dir=results_dir, search_string=search_string)
     
@@ -477,6 +489,7 @@ def run_model_class_experiment(
     class_counts: List[int],
     dataset_types: List[str],
     attack_types: List[str],
+    hidden_dims: Optional[List[int]] = None,
     testing_mode: bool = False
 ):
     """Run experiments across model types, class counts, and attack types.
@@ -499,32 +512,53 @@ def run_model_class_experiment(
                     print(text)
                     print(f"{'='*len(text)}\n")
 
-                    # if CNN, set hidden_dim to 16
-                    # if MLP, set hidden_dim to 32
-                    if model_type == 'cnn':
-                        config = update_config(config, {
-                            'model': {'hidden_dim': 16}
-                        })
-                    elif model_type == 'mlp':
-                        config = update_config(config, {
-                            'model': {'hidden_dim': 32}
-                        })
+                    # Use provided hidden_dims if available, otherwise use defaults
+                    if hidden_dims:
+                        # Run experiments for each hidden dimension
+                        dims_to_test = hidden_dims
+                    else:
+                        # Use default hidden_dim based on model type
+                        if model_type == 'cnn':
+                            dims_to_test = [16]
+                        elif model_type == 'mlp':
+                            dims_to_test = [32]
+                        elif model_type == 'simplemlp':
+                            dims_to_test = [128]
+                        elif model_type == 'simplecnn':
+                            dims_to_test = [8]
+                        else:
+                            dims_to_test = [32]  # Default fallback
                     
-                    config = update_config(config, {
-                        'model': {'model_type': model_type},
-                        'adversarial': {'attack_type': attack_type},
-                        'dataset': {'selected_classes': tuple(range(n_classes))},
-                    })
+                    for hidden_dim in dims_to_test:
+                        dim_text = f"Training with hidden_dim={hidden_dim}"
+                        print(f"\n{'-'*len(dim_text)}")
+                        print(dim_text)
+                        print(f"{'-'*len(dim_text)}\n")
+                        
+                        # Update config with current hidden_dim and other settings
+                        config = update_config(config, {
+                            'model': {
+                                'model_type': model_type,
+                                'hidden_dim': hidden_dim
+                            },
+                            'adversarial': {'attack_type': attack_type},
+                            'dataset': {'selected_classes': tuple(range(n_classes))},
+                        })
 
-                    results_dir = run_training_phase(config)
-                    try:
-                        run_evaluation_phase(results_dir=results_dir, dataset_type=dataset_type)
-                    except Exception as e:
-                        print(f"Error running evaluation phase: {e}")
-                    try:
-                        run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
-                    except Exception as e:
-                        print(f"Error running analysis phase: {e}")
+                        # Add comment
+                        config = update_config(config, {
+                            'comment': f"h{hidden_dim}"
+                        })
+
+                        results_dir = run_training_phase(config)
+                        try:
+                            run_evaluation_phase(results_dir=results_dir, dataset_type=dataset_type)
+                        except Exception as e:
+                            print(f"Error running evaluation phase: {e}")
+                        try:
+                            run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
+                        except Exception as e:
+                            print(f"Error running analysis phase: {e}")
 
  
 def quick_test(model_type: str = None, dataset_type: str = "cifar10", testing_mode: bool = True):
@@ -598,28 +632,55 @@ if __name__ == "__main__":
     # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode)
     # run_evaluation_phase(search_string="simplemlp_2-class_fgsm", dataset_type="mnist")
 
-    plot_args = {
-        'plot_legend': False,
-        'plot_adversarial': True,
-        'legend_alpha': 1.0, 
-        # 'y_lim': (0.35, 8.),
-        'y_ticks': [0.5, 1.0, 2.0],
-        'y_tick_labels': ['0.5', '1', '2'],
-        'y_scale': 'log',
-        'plot_feature_counts': False,
-        'plot_robustness': False,
-        'plot_normalized_feature_counts': True,
-    }
+    # run mnist mlp 2-class pgd to train with progressive epsilon
+    # model_types = ['mlp']
+    # class_counts = [2, 3, 5, 10]
+    # dataset_types = ['mnist']
+    # attack_types = ['pgd']
+    # testing_mode = False
+    # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode)
+
+    # simplemlp 2-class pgd
+    # model_types = ['simplemlp']
+    # class_counts = [2]
+    # dataset_types = ['mnist']
+    # attack_types = ['fgsm']
+    # testing_mode = False
+    # hidden_dims = [8, 32, 128, 512]
+    # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, hidden_dims, testing_mode)
+
+    # mlp 2-class pgd
+    # model_types = ['mlp']
+    # class_counts = [2]
+    # dataset_types = ['mnist']
+    # attack_types = ['pgd']
+    # testing_mode = False
+    # # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode)
+    # run_analysis_phase(search_string="43_mlp_2-class_pgd", dataset_type="mnist")
+    for hidden_dim in [8, 32]:
+        run_analysis_phase(search_string=f"simplemlp_2-class_fgsm_h{hidden_dim}", dataset_type="mnist")
+    # plot_args = {
+    #     'plot_legend': False,
+    #     'plot_adversarial': True,
+    #     'legend_alpha': 1.0, 
+    #     # 'y_lim': (0.35, 8.),
+    #     'y_ticks': [0.5, 1.0, 2.0],
+    #     'y_tick_labels': ['0.5', '1', '2'],
+    #     'y_scale': 'log',
+    #     'plot_feature_counts': False,
+    #     'plot_robustness': False,
+    #     'plot_normalized_feature_counts': True,
+    # }
     # for model_type in ['simplemlp', 'simplecnn']:
     # for model_type in ['_mlp', '_cnn']: # 'simplemlp', 'simplecnn']:
     # dataset_type = 'cifar10'
-    dataset_type = 'mnist'
+    # dataset_type = 'mnist'
     # for model_type in ['_mlp', '_cnn']: # 'simplemlp', 'simplecnn']:
     # for model_type in ['simplemlp', 'simplecnn']: 
     #     for n_classes in [2, 10]:
     #         for attack_type in ['fgsm', 'pgd']:
     #             run_analysis_phase(search_string=f"{model_type}_{n_classes}-class_{attack_type}", dataset_type=dataset_type, plot_args=plot_args)
-    run_analysis_phase(search_string="simplecnn_3-class_pgd", dataset_type="mnist", plot_args=plot_args)
+    # run_analysis_phase(search_string="simplecnn_5-class_pgd", dataset_type="mnist", plot_args=plot_args)
 
 
     # run_model_class_experiment(

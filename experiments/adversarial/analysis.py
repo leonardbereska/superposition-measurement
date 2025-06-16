@@ -88,310 +88,310 @@ class ScientificPlotStyle:
             'elinewidth': ScientificPlotStyle.LINE_WIDTH
         }
 
-def plot_robustness_curve(
-    results: Dict[float, List[float]],
-    title: str = 'Adversarial Robustness',
-    save_path: Optional[Path] = None,
-    figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE,
-    color_idx: int = 0
-) -> plt.Figure:
-    """Plot robustness curve across different epsilon values.
+# def plot_robustness_curve(
+#     results: Dict[float, List[float]],
+#     title: str = 'Adversarial Robustness',
+#     save_path: Optional[Path] = None,
+#     figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE,
+#     color_idx: int = 0
+# ) -> plt.Figure:
+#     """Plot robustness curve across different epsilon values.
     
-    Args:
-        results: Dictionary mapping epsilon values to list of accuracies
-        title: Plot title
-        save_path: Path to save figure
-        figsize: Figure size
-        color_idx: Index for color selection from ScientificPlotStyle
+#     Args:
+#         results: Dictionary mapping epsilon values to list of accuracies
+#         title: Plot title
+#         save_path: Path to save figure
+#         figsize: Figure size
+#         color_idx: Index for color selection from ScientificPlotStyle
         
-    Returns:
-        Matplotlib figure
-    """
-    fig, ax = plt.subplots(figsize=figsize)
+#     Returns:
+#         Matplotlib figure
+#     """
+#     fig, ax = plt.subplots(figsize=figsize)
     
-    # Calculate mean and std for each epsilon
-    epsilons = sorted(results.keys())
-    means = [np.mean(results[eps]) for eps in epsilons]
-    stds = [np.std(results[eps]) for eps in epsilons]
+#     # Calculate mean and std for each epsilon
+#     epsilons = sorted(results.keys())
+#     means = [np.mean(results[eps]) for eps in epsilons]
+#     stds = [np.std(results[eps]) for eps in epsilons]
     
-    # Get style parameters
-    style_kwargs = ScientificPlotStyle.errorbar_kwargs(color_idx)
+#     # Get style parameters
+#     style_kwargs = ScientificPlotStyle.errorbar_kwargs(color_idx)
     
-    # Plot
-    ax.errorbar(
-        epsilons, means, yerr=stds,
-        **style_kwargs
-    )
+#     # Plot
+#     ax.errorbar(
+#         epsilons, means, yerr=stds,
+#         **style_kwargs
+#     )
     
-    # Apply scientific plot styling
-    ScientificPlotStyle.apply_axis_style(
-        ax=ax,
-        title=title,
-        xlabel='Perturbation Size (ε)',
-        ylabel='Accuracy (%)',
-        legend=False
-    )
+#     # Apply scientific plot styling
+#     ScientificPlotStyle.apply_axis_style(
+#         ax=ax,
+#         title=title,
+#         xlabel='Perturbation Size (ε)',
+#         ylabel='Accuracy (%)',
+#         legend=False
+#     )
     
-    plt.tight_layout()
+#     plt.tight_layout()
     
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+#     if save_path:
+#         plt.savefig(save_path, bbox_inches='tight', dpi=300)
     
-    return fig
+#     return fig
 
 
-def plot_combined_feature_counts(
-    results: Dict[str, Dict[float, List[float]]],
-    title: str = 'Feature Counts vs Adversarial Training Strength',
-    save_path: Optional[Path] = None,
-    figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE
-) -> plt.Figure:
-    """Plot all feature counts (clean, adversarial, mixed) on one plot.
+# def plot_combined_feature_counts(
+#     results: Dict[str, Dict[float, List[float]]],
+#     title: str = 'Feature Counts vs Adversarial Training Strength',
+#     save_path: Optional[Path] = None,
+#     figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE
+# ) -> plt.Figure:
+#     """Plot all feature counts (clean, adversarial, mixed) on one plot.
     
-    Args:
-        results: Dictionary with feature count results
-        title: Plot title
-        save_path: Path to save figure
-        figsize: Figure size
+#     Args:
+#         results: Dictionary with feature count results
+#         title: Plot title
+#         save_path: Path to save figure
+#         figsize: Figure size
         
-    Returns:
-        Matplotlib figure
-    """
-    fig, ax = plt.subplots(figsize=figsize)
+#     Returns:
+#         Matplotlib figure
+#     """
+#     fig, ax = plt.subplots(figsize=figsize)
     
-    # Labels for the legend
-    labels = {
-        'clean_feature_count': 'Clean Inputs',
-        'adversarial_feature_count': 'Adversarial Inputs',
-        'mixed_feature_count': 'Mixed Inputs'
-    }
+#     # Labels for the legend
+#     labels = {
+#         'clean_feature_count': 'Clean Inputs',
+#         'adversarial_feature_count': 'Adversarial Inputs',
+#         'mixed_feature_count': 'Mixed Inputs'
+#     }
     
-    # Get set of all epsilons across all metrics
-    all_epsilons = set()
-    for metric in results:
-        if metric.endswith('_feature_count'):
-            all_epsilons.update(results[metric].keys())
+#     # Get set of all epsilons across all metrics
+#     all_epsilons = set()
+#     for metric in results:
+#         if metric.endswith('_feature_count'):
+#             all_epsilons.update(results[metric].keys())
     
-    # Sort epsilons
-    all_epsilons = sorted(all_epsilons)
+#     # Sort epsilons
+#     all_epsilons = sorted(all_epsilons)
     
-    # Plot each feature count metric
-    for i, metric_name in enumerate(['clean_feature_count', 'adversarial_feature_count', 'mixed_feature_count']):
-        if metric_name not in results:
-            continue
+#     # Plot each feature count metric
+#     for i, metric_name in enumerate(['clean_feature_count', 'adversarial_feature_count', 'mixed_feature_count']):
+#         if metric_name not in results:
+#             continue
             
-        metric_data = results[metric_name]
+#         metric_data = results[metric_name]
         
-        # Calculate mean and std for each epsilon
-        epsilons = sorted(metric_data.keys())
-        means = [np.mean(metric_data[eps]) for eps in epsilons]
-        stds = [np.std(metric_data[eps]) for eps in epsilons]
+#         # Calculate mean and std for each epsilon
+#         epsilons = sorted(metric_data.keys())
+#         means = [np.mean(metric_data[eps]) for eps in epsilons]
+#         stds = [np.std(metric_data[eps]) for eps in epsilons]
         
-        # Plot with error bars using ScientificPlotStyle
-        ax.errorbar(
-            epsilons, means, yerr=stds,
-            label=labels[metric_name],
-            **ScientificPlotStyle.errorbar_kwargs(i)
-        )
+#         # Plot with error bars using ScientificPlotStyle
+#         ax.errorbar(
+#             epsilons, means, yerr=stds,
+#             label=labels[metric_name],
+#             **ScientificPlotStyle.errorbar_kwargs(i)
+#         )
     
-    # Apply scientific plot styling
-    ScientificPlotStyle.apply_axis_style(
-        ax=ax,
-        title=title,
-        xlabel='Adversarial Training Strength (ε)',
-        ylabel='Feature Count'
-    )
+#     # Apply scientific plot styling
+#     ScientificPlotStyle.apply_axis_style(
+#         ax=ax,
+#         title=title,
+#         xlabel='Adversarial Training Strength (ε)',
+#         ylabel='Feature Count'
+#     )
     
-    plt.tight_layout()
+#     plt.tight_layout()
     
-    # Save if path provided
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+#     # Save if path provided
+#     if save_path:
+#         plt.savefig(save_path, bbox_inches='tight', dpi=300)
     
-    return fig
+#     return fig
 
 
-def plot_feature_distribution_matrix(
-    results: Dict[str, Dict[float, List[float]]],
-    epsilon: float,
-    title: str = 'Feature Distribution Matrix',
-    save_path: Optional[Path] = None,
-    figsize: Tuple[int, int] = (8, 6)
-) -> plt.Figure:
-    """Plot a heatmap of feature counts for a specific epsilon value.
+# def plot_feature_distribution_matrix(
+#     results: Dict[str, Dict[float, List[float]]],
+#     epsilon: float,
+#     title: str = 'Feature Distribution Matrix',
+#     save_path: Optional[Path] = None,
+#     figsize: Tuple[int, int] = (8, 6)
+# ) -> plt.Figure:
+#     """Plot a heatmap of feature counts for a specific epsilon value.
     
-    Args:
-        results: Dictionary with feature count results
-        epsilon: Epsilon value to visualize
-        save_path: Path to save figure
-        figsize: Figure size
+#     Args:
+#         results: Dictionary with feature count results
+#         epsilon: Epsilon value to visualize
+#         save_path: Path to save figure
+#         figsize: Figure size
         
-    Returns:
-        Matplotlib figure
-    """
-    # Get feature counts for this epsilon
-    labels = ['Clean', 'Adversarial', 'Mixed']
-    feature_counts = []
+#     Returns:
+#         Matplotlib figure
+#     """
+#     # Get feature counts for this epsilon
+#     labels = ['Clean', 'Adversarial', 'Mixed']
+#     feature_counts = []
     
-    for metric in ['clean_feature_count', 'adversarial_feature_count', 'mixed_feature_count']:
-        if metric in results and epsilon in results[metric]:
-            mean_count = np.mean(results[metric][epsilon])
-            feature_counts.append(mean_count)
+#     for metric in ['clean_feature_count', 'adversarial_feature_count', 'mixed_feature_count']:
+#         if metric in results and epsilon in results[metric]:
+#             mean_count = np.mean(results[metric][epsilon])
+#             feature_counts.append(mean_count)
     
-    # Create figure
-    fig, ax = plt.subplots(figsize=figsize)
+#     # Create figure
+#     fig, ax = plt.subplots(figsize=figsize)
     
-    # Create data matrix (just a 1D array in this case)
-    data = np.array(feature_counts).reshape(-1, 1)
+#     # Create data matrix (just a 1D array in this case)
+#     data = np.array(feature_counts).reshape(-1, 1)
     
-    # Create heatmap
-    im = ax.imshow(data, cmap='YlGnBu')
+#     # Create heatmap
+#     im = ax.imshow(data, cmap='YlGnBu')
     
-    # Add colorbar
-    cbar = ax.figure.colorbar(im, ax=ax)
-    cbar.ax.set_ylabel('Feature Count', rotation=-90, va="bottom", fontsize=12)
+#     # Add colorbar
+#     cbar = ax.figure.colorbar(im, ax=ax)
+#     cbar.ax.set_ylabel('Feature Count', rotation=-90, va="bottom", fontsize=12)
     
-    # Show all ticks and label them
-    ax.set_yticks(np.arange(len(labels)))
-    ax.set_yticklabels(labels, fontsize=12)
-    ax.set_xticks([])  # No x-ticks needed
+#     # Show all ticks and label them
+#     ax.set_yticks(np.arange(len(labels)))
+#     ax.set_yticklabels(labels, fontsize=12)
+#     ax.set_xticks([])  # No x-ticks needed
     
-    # Add feature count text in each cell
-    for i in range(len(labels)):
-        ax.text(0, i, f"{feature_counts[i]:.2f}", 
-                ha="center", va="center", color="black", fontsize=14)
+#     # Add feature count text in each cell
+#     for i in range(len(labels)):
+#         ax.text(0, i, f"{feature_counts[i]:.2f}", 
+#                 ha="center", va="center", color="black", fontsize=14)
     
-    # Set title and adjust layout
-    ax.set_title(f'Feature Distribution (ε={epsilon})', fontsize=16)
-    fig.tight_layout()
+#     # Set title and adjust layout
+#     ax.set_title(f'Feature Distribution (ε={epsilon})', fontsize=16)
+#     fig.tight_layout()
     
-    # Save if path provided
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
+#     # Save if path provided
+#     if save_path:
+#         plt.savefig(save_path, bbox_inches='tight')
     
-    return fig
-# %%
-def plot_feature_counts(
-    results: Dict[float, List[float]],
-    title: str = 'Feature Count vs Adversarial Training Strength',
-    save_path: Optional[Path] = None,
-    figsize: Tuple[int, int] = (8, 6),
-    color: str = '#88A7B2'
-) -> plt.Figure:
-    """Plot feature counts across different epsilon values.
+#     return fig
+# # %%
+# def plot_feature_counts(
+#     results: Dict[float, List[float]],
+#     title: str = 'Feature Count vs Adversarial Training Strength',
+#     save_path: Optional[Path] = None,
+#     figsize: Tuple[int, int] = (8, 6),
+#     color: str = '#88A7B2'
+# ) -> plt.Figure:
+#     """Plot feature counts across different epsilon values.
     
-    Args:
-        results: Dictionary mapping epsilon values to list of feature counts
-        title: Plot title
-        save_path: Path to save figure
-        figsize: Figure size
-        color: Line color
+#     Args:
+#         results: Dictionary mapping epsilon values to list of feature counts
+#         title: Plot title
+#         save_path: Path to save figure
+#         figsize: Figure size
+#         color: Line color
         
-    Returns:
-        Matplotlib figure
-    """
-    fig, ax = plt.subplots(figsize=figsize)
+#     Returns:
+#         Matplotlib figure
+#     """
+#     fig, ax = plt.subplots(figsize=figsize)
     
-    # Calculate mean and std for each epsilon
-    epsilons = sorted(results.keys())
-    means = [np.mean(results[eps]) for eps in epsilons]
-    stds = [np.std(results[eps]) for eps in epsilons]
+#     # Calculate mean and std for each epsilon
+#     epsilons = sorted(results.keys())
+#     means = [np.mean(results[eps]) for eps in epsilons]
+#     stds = [np.std(results[eps]) for eps in epsilons]
     
-    # Plot
-    ax.errorbar(
-        epsilons, means, yerr=stds, fmt='o-',
-        color=color, linewidth=2, capsize=5, markersize=8
-    )
+#     # Plot
+#     ax.errorbar(
+#         epsilons, means, yerr=stds, fmt='o-',
+#         color=color, linewidth=2, capsize=5, markersize=8
+#     )
     
-    ax.set_xlabel('Adversarial Training Strength (ε)', fontsize=14)
-    ax.set_ylabel('Feature Count', fontsize=14)
-    ax.set_title(title, fontsize=16)
-    ax.grid(True, alpha=0.3)
+#     ax.set_xlabel('Adversarial Training Strength (ε)', fontsize=14)
+#     ax.set_ylabel('Feature Count', fontsize=14)
+#     ax.set_title(title, fontsize=16)
+#     ax.grid(True, alpha=0.3)
     
-    # Set tick parameters
-    ax.tick_params(labelsize=12)
+#     # Set tick parameters
+#     ax.tick_params(labelsize=12)
     
-    plt.tight_layout()
+#     plt.tight_layout()
     
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight')
+#     if save_path:
+#         plt.savefig(save_path, bbox_inches='tight')
     
-    return fig
+#     return fig
 
-# %%
-def plot_feature_vs_robustness(
-    feature_results: Dict[float, List[float]],
-    robustness_results: Dict[float, List[float]],
-    title: str = 'Feature Count vs Model Robustness',
-    save_path: Optional[Path] = None,
-    figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE,
-    color_idx: int = 0,
-    add_annotations: bool = True
-) -> plt.Figure:
-    """Plot feature counts vs robustness.
+# # %%
+# def plot_feature_vs_robustness(
+#     feature_results: Dict[float, List[float]],
+#     robustness_results: Dict[float, List[float]],
+#     title: str = 'Feature Count vs Model Robustness',
+#     save_path: Optional[Path] = None,
+#     figsize: Tuple[int, int] = ScientificPlotStyle.FIGURE_SIZE,
+#     color_idx: int = 0,
+#     add_annotations: bool = True
+# ) -> plt.Figure:
+#     """Plot feature counts vs robustness.
     
-    Args:
-        feature_results: Dictionary mapping epsilon values to list of feature counts
-        robustness_results: Dictionary mapping epsilon values to list of accuracies
-        title: Plot title
-        save_path: Path to save figure
-        figsize: Figure size
-        color_idx: Index for color selection from ScientificPlotStyle
-        add_annotations: Whether to add epsilon annotations
+#     Args:
+#         feature_results: Dictionary mapping epsilon values to list of feature counts
+#         robustness_results: Dictionary mapping epsilon values to list of accuracies
+#         title: Plot title
+#         save_path: Path to save figure
+#         figsize: Figure size
+#         color_idx: Index for color selection from ScientificPlotStyle
+#         add_annotations: Whether to add epsilon annotations
         
-    Returns:
-        Matplotlib figure
-    """
-    fig, ax = plt.subplots(figsize=figsize)
+#     Returns:
+#         Matplotlib figure
+#     """
+#     fig, ax = plt.subplots(figsize=figsize)
     
-    # Calculate mean and std for each epsilon
-    epsilons = sorted(set(feature_results.keys()) & set(robustness_results.keys()))
-    feature_means = [np.mean(feature_results[eps]) for eps in epsilons]
-    feature_stds = [np.std(feature_results[eps]) for eps in epsilons]
-    robustness_means = [np.mean(robustness_results[eps]) for eps in epsilons]
-    robustness_stds = [np.std(robustness_results[eps]) for eps in epsilons]
+#     # Calculate mean and std for each epsilon
+#     epsilons = sorted(set(feature_results.keys()) & set(robustness_results.keys()))
+#     feature_means = [np.mean(feature_results[eps]) for eps in epsilons]
+#     feature_stds = [np.std(feature_results[eps]) for eps in epsilons]
+#     robustness_means = [np.mean(robustness_results[eps]) for eps in epsilons]
+#     robustness_stds = [np.std(robustness_results[eps]) for eps in epsilons]
     
-    # Get style parameters
-    style_kwargs = ScientificPlotStyle.errorbar_kwargs(color_idx)
+#     # Get style parameters
+#     style_kwargs = ScientificPlotStyle.errorbar_kwargs(color_idx)
     
-    # Plot
-    ax.errorbar(
-        feature_means, robustness_means, 
-        xerr=feature_stds, yerr=robustness_stds,
-        fmt='.', capsize=ScientificPlotStyle.CAPSIZE, 
-        markersize=ScientificPlotStyle.MARKER_SIZE,
-        color=style_kwargs['color'],
-        elinewidth=style_kwargs['linewidth'],
-        capthick=ScientificPlotStyle.CAPTHICK
-    )
+#     # Plot
+#     ax.errorbar(
+#         feature_means, robustness_means, 
+#         xerr=feature_stds, yerr=robustness_stds,
+#         fmt='.', capsize=ScientificPlotStyle.CAPSIZE, 
+#         markersize=ScientificPlotStyle.MARKER_SIZE,
+#         color=style_kwargs['color'],
+#         elinewidth=style_kwargs['linewidth'],
+#         capthick=ScientificPlotStyle.CAPTHICK
+#     )
     
-    # Add epsilon annotations
-    if add_annotations:
-        for i, eps in enumerate(epsilons):
-            ax.annotate(
-                f'ε={eps}', 
-                (feature_means[i], robustness_means[i]),
-                xytext=(10, -25), 
-                textcoords='offset points', 
-                color=style_kwargs['color'], 
-                fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND
-            )
+#     # Add epsilon annotations
+#     if add_annotations:
+#         for i, eps in enumerate(epsilons):
+#             ax.annotate(
+#                 f'ε={eps}', 
+#                 (feature_means[i], robustness_means[i]),
+#                 xytext=(10, -25), 
+#                 textcoords='offset points', 
+#                 color=style_kwargs['color'], 
+#                 fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND
+#             )
     
-    # Apply scientific plot styling
-    ScientificPlotStyle.apply_axis_style(
-        ax=ax,
-        title=title,
-        xlabel='Feature Count',
-        ylabel='Average Robustness',
-        legend=False
-    )
+#     # Apply scientific plot styling
+#     ScientificPlotStyle.apply_axis_style(
+#         ax=ax,
+#         title=title,
+#         xlabel='Feature Count',
+#         ylabel='Average Robustness',
+#         legend=False
+#     )
     
-    plt.tight_layout()
+#     plt.tight_layout()
     
-    if save_path:
-        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+#     if save_path:
+#         plt.savefig(save_path, bbox_inches='tight', dpi=300)
     
-    return fig
+#     return fig
 
 def generate_plots(results: Dict, output_dir: Path, results_dir: Path, plot_args: Optional[Dict[str, Any]] = None) -> Dict[str, plt.Figure]:
     """Generate analysis plots for results.
@@ -680,10 +680,8 @@ def plot_normalized_feature_counts(
     ax.grid(True, alpha=ScientificPlotStyle.GRID_ALPHA)
     
     # Set fixed y-axis limits between 0.2 and 3
-    if plot_args['y_scale'] == 'log':
-        ax.set_yscale('log')
-    else:
-        ax.set_yscale('linear')
+    ax.set_yscale('log')
+    # ax.set_yscale('linear')
     try:
         if plot_args['y_lim']:
             ax.set_ylim(plot_args['y_lim'])
@@ -693,12 +691,15 @@ def plot_normalized_feature_counts(
     # ax.set_ylim(0.15, 7.)
     # set yticks to 0.5, 1.0, 2.0
     # Explicitly set y-ticks to ensure no other ticks appear
-    if plot_args['y_ticks']:
-        ax.set_yticks(plot_args['y_ticks'])
-        ax.set_yticklabels(plot_args['y_tick_labels'])
-    else:
-        ax.set_yticks([0.5, 1.0, 2.0])
-        ax.set_yticklabels(['0.5', '1.0', '2.0'])
+    try:
+        if plot_args['y_ticks']:
+            ax.set_yticks(plot_args['y_ticks'])
+            ax.set_yticklabels(plot_args['y_tick_labels'])
+        else:
+            ax.set_yticks([0.5, 1.0, 2.0])
+            ax.set_yticklabels(['0.5', '1.0', '2.0'])
+    except:
+        pass
     # Remove minor ticks which might be showing in log scale
     ax.yaxis.set_minor_locator(plt.NullLocator())
     
@@ -843,7 +844,9 @@ def plot_robustness(
             capthick=ScientificPlotStyle.CAPTHICK,
             elinewidth=ScientificPlotStyle.LINE_WIDTH
         )
-    
+    # y lim 0, 100
+    ax.set_ylim(0, 104)
+
     # Apply styling with adjusted legend
     ax.set_title(title, fontsize=ScientificPlotStyle.FONT_SIZE_TITLE, fontweight='bold')
     ax.set_xlabel('training epsilon (ε)', fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)

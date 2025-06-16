@@ -215,6 +215,15 @@ def evaluate_model(
     
     return metrics
 
+
+def get_progressive_epsilon(epoch, target_epsilon, total_epochs):
+    """Gradually increase epsilon during training"""
+    if epoch < total_epochs * 0.2:
+        return 0.33 * target_epsilon
+    elif epoch < total_epochs * 0.5:
+        return 0.66 * target_epsilon
+    else:
+        return target_epsilon
 # %%
 def train_model(
     train_loader: DataLoader,
@@ -302,10 +311,14 @@ def train_model(
     
     # Training loop
     for epoch in range(training_config.n_epochs):
+
+        # Progressively increase epsilon during training
+        train_epsilon = get_progressive_epsilon(epoch, epsilon, training_config.n_epochs)
+
         # Train for one epoch
         train_stats = train_epoch(
             model, train_loader, optimizer, criterion, 
-            epsilon, attack_config, alpha
+            train_epsilon, attack_config, alpha
         )
         
         # Step scheduler if present
