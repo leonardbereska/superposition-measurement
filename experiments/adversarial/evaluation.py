@@ -627,15 +627,19 @@ def analyze_checkpoints_with_llc(
         beta_samples=llc_config.get('beta_samples', 5),
         device=device
     )
-    
     llc_epsilon = tuning_results['recommended_epsilon']
     llc_nbeta = tuning_results['recommended_beta']
     
     log(f"Recommended LLC parameters: epsilon={llc_epsilon:.2e}, beta={llc_nbeta:.2f}")
     
+    cleaned_tuning_results = {
+        'recommended_epsilon': tuning_results['recommended_epsilon'],
+        'recommended_beta': tuning_results['recommended_beta']
+        # Don't include 'analyzer' or 'figures' - they contain circular refs
+    }
     # Analyze each checkpoint
     results = {
-        'tuning_results': tuning_results,
+        'tuning_results': cleaned_tuning_results,
         'checkpoint_analysis': {},
         'epsilon_analysis': {}
     }
@@ -673,7 +677,7 @@ def analyze_checkpoints_with_llc(
                 num_chains=llc_config.get('num_chains', 3),
                 num_draws=llc_config.get('num_draws', 1500),
                 device=str(device),
-                online=llc_config.get('online_stats', False)
+                online=False # run OFFLINE stats on ALL checkpoints (for accuracy)
             )
             
             if llc_results is not None:

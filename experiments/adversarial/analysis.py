@@ -1020,9 +1020,9 @@ def plot_training_evolution(
     all_epochs = np.arange(len(training_history['train_loss']))
     
     # First subplot: Accuracy vs LLC
-    ax1.plot(all_epochs, training_history['val_accuracy'], 
+    ax1.plot(all_epochs, training_history['val_acc'], 
             label='Validation Accuracy', color='blue', alpha=0.7, linewidth=2)
-    ax1.plot(all_epochs, training_history['train_accuracy'], 
+    ax1.plot(all_epochs, training_history['train_acc'], 
             label='Train Accuracy', color='purple', alpha=0.7, linewidth=2)
     ax1.set_ylabel('Accuracy (%)', fontsize=14)
     

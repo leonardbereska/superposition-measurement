@@ -394,7 +394,8 @@ def train_model(
         'train_loss': [],
         'val_loss': [],
         'val_acc': [],
-        'val_adv_acc': []
+        'val_adv_acc': [],
+        'train_acc': []
     }
     
     # NEW: Checkpoint setup
@@ -419,6 +420,8 @@ def train_model(
         
         # Evaluate on validation set
         val_metrics = evaluate_model(model, val_loader, criterion)
+        train_metrics = evaluate_model(model, train_loader, criterion)
+        history['train_acc'].append(train_metrics['accuracy'])
         
         # Track metrics
         history['train_loss'].append(train_stats['loss'])
