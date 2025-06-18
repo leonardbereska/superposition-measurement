@@ -165,13 +165,13 @@ class StandardMLP(nn.Module):
         
         # Define layers with 2 hidden layers for better MNIST performance
         input_dim = input_channels * image_size * image_size  # 784 for MNIST
-        self.fc1 = nn.Linear(input_dim, hidden_dim * 4)
+        self.fc1 = nn.Linear(input_dim, hidden_dim * 4)  # 128 = 32 * 4
         self.relu1 = nn.ReLU()
-        self.fc2 = nn.Linear(hidden_dim * 4, hidden_dim * 2)
+        self.fc2 = nn.Linear(hidden_dim * 4, hidden_dim * 2)  # 64 = 32 * 2
         self.relu2 = nn.ReLU()
-        self.fc3 = nn.Linear(hidden_dim * 2, hidden_dim)
+        self.fc3 = nn.Linear(hidden_dim * 2, hidden_dim)  # 32 
         self.relu3 = nn.ReLU()
-        self.fc4 = nn.Linear(hidden_dim, output_dim)
+        self.fc4 = nn.Linear(hidden_dim, output_dim)  # 10 
 
     def forward(self, x):
         x = self.flatten(x)
@@ -359,6 +359,7 @@ def create_model(model_type='mlp', use_nnsight=False, **kwargs):
         model = SimpleMLP(
             input_channels=kwargs['input_channels'],
             image_size=kwargs['image_size'],
+            hidden_dim=kwargs['hidden_dim'],
             output_dim=kwargs['output_dim']
         )
     elif model_type.lower() == 'mlp':
@@ -368,10 +369,12 @@ def create_model(model_type='mlp', use_nnsight=False, **kwargs):
             hidden_dim=kwargs['hidden_dim'],
             output_dim=kwargs['output_dim']
         )
+        print(f"MLP model created with {kwargs['hidden_dim']} hidden units")
     elif model_type.lower() == 'simplecnn':
         model = SimpleCNN(
             input_channels=kwargs['input_channels'],
             image_size=kwargs['image_size'],
+            hidden_dim=kwargs['hidden_dim'],
             output_dim=kwargs['output_dim']
         )
     elif model_type.lower() == 'cnn':  # standard CNN

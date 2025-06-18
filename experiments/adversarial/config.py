@@ -130,6 +130,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
     if dataset_type.lower() == "mnist":
         # Standard epsilon values for MNIST (in [0,1] pixel range)
         train_epsilons = [0.0, 0.1, 0.2, 0.3] if not testing_mode else [0.0, 0.1]
+        # train_epsilons = [0.3]
         test_epsilons = [0.0, 0.1, 0.2, 0.3] if not testing_mode else [0.0, 0.1]
         pgd_steps = 40       # Standard: 40 steps for MNIST
         pgd_alpha = 0.01     # Standard step size for MNIST
@@ -194,6 +195,7 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
         "testing_mode": testing_mode,
         "comment": comment,
     }
+    
     return config
 
 # %%
