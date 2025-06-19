@@ -6,6 +6,7 @@ import torch.nn as nn
 from nnsight import NNsight
 import torchvision.models as models
 from typing import NamedTuple, Optional
+import numpy as np
 
 class ModelConfig(NamedTuple):
     """Configuration for model creation."""
@@ -23,20 +24,112 @@ class NNsightModelWrapper:
         self.device = device or next(model.parameters()).device
         self._base_model = model  # Store reference to original model
     
-    # def get_activations(self, dataloader, layer_name, max_activations=10000):
-    #     total_samples = 0
-    #     activations = []
-    #     for i, (inputs, _) in enumerate(dataloader):
-    #         batch_size = inputs.shape[0]
-    #         # hot fix: reduce batch size to 1
-    #         # batch_size = 1
-    #         # inputs = inputs[:1]
-    #         total_samples += batch_size
-    #         if max_activations and total_samples >= max_activations:
-    #             break
-    #         layer_output = self.get_layer_output(inputs, layer_name)
-    #         activations.append(layer_output.cpu())
-    #     return torch.cat(activations, dim=0)
+    def __del__(self):
+        """Clean up any weak references when the wrapper is destroyed."""
+        # Remove any hooks or weak references
+        if hasattr(self.model, '_model'):
+            # Clear any hooks that might have been registered
+            for module in self.model._model.modules():
+                module._forward_hooks.clear()
+                module._backward_hooks.clear()
+                module._forward_pre_hooks.clear()
+    
+    def get_clean_model_copy(self):
+        """Create a clean copy of the base model without any hooks or weak references.
+        
+        This method creates a fresh model instance with the same architecture and weights,
+        but without any hooks, weak references, or non-serializable attributes.
+        
+        Returns:
+            Clean model copy suitable for deepcopy operations
+        """
+        from .training import create_model, ModelConfig
+        
+        # Get model configuration from the base model
+        if hasattr(self._base_model, 'config'):
+            config = self._base_model.config
+        else:
+            # Infer configuration from model structure
+            config = ModelConfig(
+                model_type=self._get_model_type(),
+                input_channels=self._get_input_channels(),
+                hidden_dim=self._get_hidden_dim(),
+                image_size=self._get_image_size(),
+                output_dim=self._get_output_dim()
+            )
+        
+        # Create a fresh model instance
+        clean_model = create_model(
+            model_type=config.model_type,
+            input_channels=config.input_channels,
+            hidden_dim=config.hidden_dim,
+            image_size=config.image_size,
+            output_dim=config.output_dim,
+            use_nnsight=False
+        )
+        
+        # Copy weights from the original model
+        clean_model.load_state_dict(self._base_model.state_dict())
+        
+        # Move to the same device
+        clean_model = clean_model.to(self.device)
+        
+        return clean_model
+    
+    def _get_model_type(self):
+        """Infer model type from the base model."""
+        model_class = self._base_model.__class__.__name__
+        if 'SimpleMLP' in model_class:
+            return 'simplemlp'
+        elif 'StandardCNN' in model_class:
+            return 'standard_cnn'
+        elif 'StandardMLP' in model_class:
+            return 'mlp'
+        elif 'ResNet' in model_class:
+            return 'resnet18'
+        else:
+            return 'simplemlp'  # default
+    
+    def _get_input_channels(self):
+        """Infer input channels from the base model."""
+        # Try to get from first conv layer
+        for module in self._base_model.modules():
+            if isinstance(module, nn.Conv2d):
+                return module.in_channels
+        return 1  # default for MNIST
+    
+    def _get_hidden_dim(self):
+        """Infer hidden dimension from the base model."""
+        # Try to get from first linear layer
+        for module in self._base_model.modules():
+            if isinstance(module, nn.Linear):
+                return module.out_features
+        return 128  # default
+    
+    def _get_image_size(self):
+        """Infer image size from the base model."""
+        # Try to infer from the first linear layer's input dimension
+        for module in self._base_model.modules():
+            if isinstance(module, nn.Linear):
+                input_dim = module.in_features
+                # Calculate image size from input dimension
+                if input_dim == 784:  # MNIST: 1*28*28
+                    return 28
+                elif input_dim == 3072:  # CIFAR-10: 3*32*32
+                    return 32
+                else:
+                    # Try to infer from the shape
+                    input_channels = self._get_input_channels()
+                    return int(np.sqrt(input_dim / input_channels))
+        return 28  # default for MNIST
+    
+    def _get_output_dim(self):
+        """Infer output dimension from the base model."""
+        # Try to get from last linear layer
+        for module in reversed(list(self._base_model.modules())):
+            if isinstance(module, nn.Linear):
+                return module.out_features
+        return 1  # default
     
     def get_activations(self, dataloader, layer_name, max_activations=10000):
         """Extract activations with streaming and periodic memory cleanup."""

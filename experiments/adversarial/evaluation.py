@@ -19,6 +19,8 @@ from functools import partial
 from sae import train_sae, SAEConfig
 from models import NNsightModelWrapper
 from training import create_adversarial_dataloader, load_checkpoint
+from analysis import plot_sampling_evolution
+
 
 from analysis import ScientificPlotStyle
 from matplotlib import pyplot as plt
@@ -38,6 +40,164 @@ except ImportError:
 # ============================================================================
 # SAE FUNCTIONALITY 
 # ============================================================================
+
+def create_safe_model_checkpoint(model: nn.Module) -> nn.Module:
+    """Create a safe checkpoint of a model without weak references or hooks.
+    
+    This function creates a clean copy of the model that can be safely deepcopied
+    without encountering weak reference errors.
+    
+    Args:
+        model: Model to checkpoint
+        
+    Returns:
+        Clean model copy suitable for deepcopy operations
+    """
+    # If the model is wrapped with NNsightModelWrapper, get a clean copy
+    if hasattr(model, 'get_clean_model_copy'):
+        return model.get_clean_model_copy()
+    
+    # For regular models, create a fresh instance
+    from training import create_model, ModelConfig
+    
+    # Try to infer model configuration from the actual model structure
+    model_class = model.__class__.__name__
+    
+    if 'SimpleMLP' in model_class:
+        # Extract actual configuration from the model
+        input_channels = 1  # default for MNIST
+        image_size = 28     # default for MNIST
+        
+        # Find the first linear layer to get input dimension
+        for module in model.modules():
+            if isinstance(module, nn.Linear):
+                input_dim = module.in_features
+                # Calculate hidden_dim from input_dim (assuming MNIST: 784 = 1*28*28)
+                if input_dim == 784:  # MNIST
+                    input_channels = 1
+                    image_size = 28
+                elif input_dim == 3072:  # CIFAR-10
+                    input_channels = 3
+                    image_size = 32
+                else:
+                    # Try to infer from the shape
+                    image_size = int(np.sqrt(input_dim / input_channels))
+                break
+        
+        # Find the first linear layer to get hidden_dim
+        hidden_dim = None
+        for module in model.modules():
+            if isinstance(module, nn.Linear):
+                hidden_dim = module.out_features
+                break
+        
+        # Find the last linear layer to get output_dim
+        output_dim = None
+        for module in reversed(list(model.modules())):
+            if isinstance(module, nn.Linear):
+                output_dim = module.out_features
+                break
+        
+        # Use defaults if we couldn't extract the values
+        if hidden_dim is None:
+            hidden_dim = 128
+        if output_dim is None:
+            output_dim = 10
+        
+        clean_model = create_model(
+            model_type='simplemlp',
+            input_channels=input_channels,
+            hidden_dim=hidden_dim,
+            image_size=image_size,
+            output_dim=output_dim,
+            use_nnsight=False
+        )
+        
+    elif 'StandardCNN' in model_class:
+        # Infer configuration from model structure
+        input_channels = 1  # default for MNIST
+        output_dim = 1      # default for binary classification
+        
+        for module in model.modules():
+            if isinstance(module, nn.Conv2d):
+                input_channels = module.in_channels
+                break
+        
+        for module in reversed(list(model.modules())):
+            if isinstance(module, nn.Linear):
+                output_dim = module.out_features
+                break
+        
+        clean_model = create_model(
+            model_type='standard_cnn',
+            input_channels=input_channels,
+            hidden_dim=128,  # default
+            image_size=28,   # default for MNIST
+            output_dim=output_dim,
+            use_nnsight=False
+        )
+        
+    elif 'StandardMLP' in model_class:
+        # Extract actual configuration from the model
+        input_channels = 1  # default for MNIST
+        image_size = 28     # default for MNIST
+        
+        # Find the first linear layer to get input dimension
+        for module in model.modules():
+            if isinstance(module, nn.Linear):
+                input_dim = module.in_features
+                # Calculate hidden_dim from input_dim (assuming MNIST: 784 = 1*28*28)
+                if input_dim == 784:  # MNIST
+                    input_channels = 1
+                    image_size = 28
+                elif input_dim == 3072:  # CIFAR-10
+                    input_channels = 3
+                    image_size = 32
+                else:
+                    # Try to infer from the shape
+                    image_size = int(np.sqrt(input_dim / input_channels))
+                break
+        
+        # Find the first linear layer to get hidden_dim
+        hidden_dim = None
+        for module in model.modules():
+            if isinstance(module, nn.Linear):
+                hidden_dim = module.out_features
+                break
+        
+        # Find the last linear layer to get output_dim
+        output_dim = None
+        for module in reversed(list(model.modules())):
+            if isinstance(module, nn.Linear):
+                output_dim = module.out_features
+                break
+        
+        # Use defaults if we couldn't extract the values
+        if hidden_dim is None:
+            hidden_dim = 128
+        if output_dim is None:
+            output_dim = 10
+        
+        clean_model = create_model(
+            model_type='mlp',
+            input_channels=input_channels,
+            hidden_dim=hidden_dim,
+            image_size=image_size,
+            output_dim=output_dim,
+            use_nnsight=False
+        )
+        
+    else:
+        # For other model types, create a basic copy
+        clean_model = type(model)()
+        # Copy state dict
+        clean_model.load_state_dict(model.state_dict())
+    
+    # Copy to same device
+    device = next(model.parameters()).device
+    clean_model = clean_model.to(device)
+    
+    return clean_model
 
 def measure_superposition(
     model: nn.Module,
@@ -63,14 +223,21 @@ def measure_superposition(
     """
     
     device = torch.device("cpu")  # because it's faster and saves memory on the GPU
-    # model.to(device)
-    model_wrapper = NNsightModelWrapper(model)
+    
+    # Create a safe copy of the model to avoid weak reference issues
+    safe_model = create_safe_model_checkpoint(model)
+    model_wrapper = NNsightModelWrapper(safe_model)
     
     # Extract activations
     activations = model_wrapper.get_activations(
         dataloader, layer_name, max_activations=max_samples
     )
     activations = activations.detach().cpu()
+    
+    # Clean up the wrapper to remove any weak references
+    del model_wrapper
+    del safe_model
+    torch.cuda.empty_cache()
     
     # Check if the activations are from a convolutional layer
     is_conv = activations.dim() == 4
@@ -632,6 +799,43 @@ def analyze_checkpoints_with_llc(
     
     log(f"Recommended LLC parameters: epsilon={llc_epsilon:.2e}, beta={llc_nbeta:.2f}")
     
+    # make a Single test run with chosen hyperparameters, still on FINAL model
+    print("Now making a single test run with chosen hyperparameters, still on FINAL model to check if the hyperparams are good")
+    llc_stats = estimate_llc(
+        model=final_model,
+        data_loader=train_loader,
+        llc_epsilon=llc_epsilon,
+        llc_nbeta=llc_nbeta,
+        device=device,
+        tune_hyperparams=False,
+        online=True # run ONLINE stats on the final model to check if the hyperparams are good
+    )
+
+    # plot the trace of the llc stats
+    # THIS IS THE ALTERNATIVE TO WHEN PLOTTING sampling_evolution 
+    from devinterp.utils import plot_trace
+    
+    # Debug print
+    print("Available keys in llc_stats:", llc_stats.keys())
+
+    plot_trace(
+        llc_stats['llc/trace'],
+        "LLC Loss",
+        x_axis="Step",
+        title=f"Loss Trace, avg LLC = {sum(llc_stats['llc/means']) / len(llc_stats['llc/means']):.2f}",
+        # title=f"Loss Trace, avg LLC = {sum(llc_stats['llc/mean']) / len(llc_stats['llc/mean']):.2f}",
+        plot_mean=False,
+        plot_std=False,
+        fig_size=(12, 9),
+        true_lc=None,
+    )
+    # Alternative:
+    # Plot LLC evolution
+    plot_path = checkpoint_dir / "llc_trace.pdf"
+    plot_sampling_evolution(llc_stats, save_path=str(plot_path), show=True)
+    
+
+
     cleaned_tuning_results = {
         'recommended_epsilon': tuning_results['recommended_epsilon'],
         'recommended_beta': tuning_results['recommended_beta']
