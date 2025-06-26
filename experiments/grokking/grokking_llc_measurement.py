@@ -319,92 +319,78 @@ def estimate_llc_given_model(
 
 
 def plot_combined_results(df, llcs, sae_metrics, params):
-    """Plot combined results showing accuracy, LLC, and feature metrics."""
-    
-    # Create figure with subplots
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(20, 16))
-    
-    # Plot 1: Accuracy curves
-    ax1.plot(df["val_acc"], label="test", linewidth=ScientificPlotStyle.LINE_WIDTH, 
-             color=ScientificPlotStyle.COLORS[0])
-    ax1.plot(df["train_acc"], label="train", linewidth=ScientificPlotStyle.LINE_WIDTH,
-             color=ScientificPlotStyle.COLORS[1])
-    ScientificPlotStyle.apply_axis_style(
-        ax1, "Training Accuracy", "Checkpoint", "Accuracy"
-    )
-    
-    # Plot 2: Loss curves
-    ax2.plot(df["val_loss"], label="test", linewidth=ScientificPlotStyle.LINE_WIDTH,
-             color=ScientificPlotStyle.COLORS[0])
-    ax2.plot(df["train_loss"], label="train", linewidth=ScientificPlotStyle.LINE_WIDTH,
-             color=ScientificPlotStyle.COLORS[1])
-    ScientificPlotStyle.apply_axis_style(
-        ax2, "Training Loss", "Checkpoint", "Loss"
-    )
-    
-    # Plot 3: LLC evolution
+    """Plot combined results showing accuracy/loss and LLC/feature metrics."""
+    # Create figure with 1 row, 2 columns
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
+
+    # --- Left plot: Accuracy and Loss ---
+    color_acc_train = ScientificPlotStyle.COLORS[1]
+    color_acc_test = ScientificPlotStyle.COLORS[0]
+    color_loss_train = '#888888'  # gray for loss
+    color_loss_test = '#FFA500'   # orange for loss
+
+    # Accuracy (left y-axis)
+    ax1.plot(df["train_acc"], label="Train Accuracy", linewidth=ScientificPlotStyle.LINE_WIDTH, color=color_acc_train)
+    ax1.plot(df["val_acc"], label="Test Accuracy", linewidth=ScientificPlotStyle.LINE_WIDTH, color=color_acc_test)
+    ax1.set_xlabel("Checkpoint", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax1.set_ylabel("Accuracy", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax1.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+
+    # Loss (right y-axis)
+    ax1b = ax1.twinx()
+    ax1b.plot(df["train_loss"], label="Train Loss", linewidth=ScientificPlotStyle.LINE_WIDTH, linestyle='--', color=color_loss_train)
+    ax1b.plot(df["val_loss"], label="Test Loss", linewidth=ScientificPlotStyle.LINE_WIDTH, linestyle='--', color=color_loss_test)
+    ax1b.set_ylabel("Loss", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax1b.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+
+    # Legends (combine both axes)
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax1b.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND, loc='upper center')
+    ax1.set_title("Training Accuracy & Loss", fontsize=ScientificPlotStyle.FONT_SIZE_TITLE)
+
+    # --- Right plot: LLC and Feature Count ---
     llc_means = [llc["llc/mean"] for llc in llcs]
-    ax3.plot(llc_means, linewidth=ScientificPlotStyle.LINE_WIDTH,
-             color=ScientificPlotStyle.COLORS[2])
-    ScientificPlotStyle.apply_axis_style(
-        ax3, "LLC Evolution", "Checkpoint", "LLC (λ̂)", legend=False
-    )
-    
-    # Plot 4: Feature metrics evolution
     feature_counts = [metrics['feature_count'] for metrics in sae_metrics]
-    entropies = [metrics['entropy'] for metrics in sae_metrics]
-    active_features = [metrics['active_features'] for metrics in sae_metrics]
-    
-    ax4.plot(feature_counts, label="Feature Count", linewidth=ScientificPlotStyle.LINE_WIDTH,
-             color=ScientificPlotStyle.COLORS[0])
-    ax4_twin = ax4.twinx()
-    ax4_twin.plot(active_features, label="Active Features", linewidth=ScientificPlotStyle.LINE_WIDTH,
-                  color=ScientificPlotStyle.COLORS[1])
-    
-    ScientificPlotStyle.apply_axis_style(
-        ax4, "Feature Evolution", "Checkpoint", "Feature Count", legend=False
-    )
-    ax4_twin.set_ylabel("Active Features", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-    ax4_twin.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
-    
-    # Create combined legend for plot 4
-    lines1, labels1 = ax4.get_legend_handles_labels()
-    lines2, labels2 = ax4_twin.get_legend_handles_labels()
-    ax4.legend(lines1 + lines2, labels1 + labels2, 
-               fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND, loc='best')
-    
+    # active_features = [metrics['active_features'] for metrics in sae_metrics]  # Commented out as requested
+
+    ax2.plot(llc_means, label="LLC (λ̂)", linewidth=ScientificPlotStyle.LINE_WIDTH, color=ScientificPlotStyle.COLORS[2])
+    ax2.set_xlabel("Checkpoint", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax2.set_ylabel("LLC (λ̂)", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS, color=ScientificPlotStyle.COLORS[2])
+    ax2.tick_params(axis='y', labelcolor=ScientificPlotStyle.COLORS[2], labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+    ax2.tick_params(axis='x', labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+
+    # Feature count (right y-axis)
+    ax2b = ax2.twinx()
+    ax2b.plot(feature_counts, label="Feature Count", linewidth=ScientificPlotStyle.LINE_WIDTH, color=ScientificPlotStyle.COLORS[0])
+    ax2b.set_ylabel("Feature Count", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS, color=ScientificPlotStyle.COLORS[0])
+    ax2b.tick_params(axis='y', labelcolor=ScientificPlotStyle.COLORS[0], labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+
+    # # Active features (commented out)
+    # ax2b.plot(active_features, label="Active Features", linewidth=ScientificPlotStyle.LINE_WIDTH, color=ScientificPlotStyle.COLORS[1])
+
+    # Legends (combine both axes)
+    lines1, labels1 = ax2.get_legend_handles_labels()
+    lines2, labels2 = ax2b.get_legend_handles_labels()
+    ax2.legend(lines1 + lines2, labels1 + labels2, fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND, loc='upper center')
+    ax2.set_title("LLC & Feature Evolution", fontsize=ScientificPlotStyle.FONT_SIZE_TITLE)
+
     plt.tight_layout()
     plt.savefig("experiments/grokking/combined_grokking_analysis.png", dpi=300, bbox_inches='tight')
     plt.close()
-    
-    # Create a focused plot showing the relationship between accuracy and feature count
-    fig, ax = plt.subplots(figsize=ScientificPlotStyle.FIGURE_SIZE)
-    
-    # Align data (both should have same length since we measure at same checkpoints)
-    test_accs = df["val_acc"].values
-    # We need to interpolate or align the indices
-    checkpoint_indices = np.linspace(0, len(test_accs)-1, len(feature_counts), dtype=int)
-    aligned_test_accs = test_accs[checkpoint_indices]
-    
-    ax.scatter(feature_counts, aligned_test_accs, 
-               s=ScientificPlotStyle.MARKER_SIZE*10, alpha=0.7,
-               color=ScientificPlotStyle.COLORS[0])
-    
-    # Add arrows to show progression
-    for i in range(len(feature_counts)-1):
-        ax.annotate('', xy=(feature_counts[i+1], aligned_test_accs[i+1]), 
-                   xytext=(feature_counts[i], aligned_test_accs[i]),
-                   arrowprops=dict(arrowstyle='->', lw=2, alpha=0.5,
-                                 color=ScientificPlotStyle.COLORS[1]))
-    
-    ScientificPlotStyle.apply_axis_style(
-        ax, "Grokking: Feature Count vs Test Accuracy", 
-        "Feature Count", "Test Accuracy", legend=False
-    )
-    
-    plt.tight_layout()
-    plt.savefig("experiments/grokking/feature_count_vs_accuracy.png", dpi=300, bbox_inches='tight')
-    plt.close()
+
+    # (Optional: keep the feature count vs accuracy plot if desired)
+    # fig, ax = plt.subplots(figsize=ScientificPlotStyle.FIGURE_SIZE)
+    # test_accs = df["val_acc"].values
+    # checkpoint_indices = np.linspace(0, len(test_accs)-1, len(feature_counts), dtype=int)
+    # aligned_test_accs = test_accs[checkpoint_indices]
+    # ax.scatter(feature_counts, aligned_test_accs, s=ScientificPlotStyle.MARKER_SIZE*10, alpha=0.7, color=ScientificPlotStyle.COLORS[0])
+    # for i in range(len(feature_counts)-1):
+    #     ax.annotate('', xy=(feature_counts[i+1], aligned_test_accs[i+1]), xytext=(feature_counts[i], aligned_test_accs[i]), arrowprops=dict(arrowstyle='->', lw=2, alpha=0.5, color=ScientificPlotStyle.COLORS[1]))
+    # ScientificPlotStyle.apply_axis_style(ax, "Grokking: Feature Count vs Test Accuracy", "Feature Count", "Test Accuracy", legend=False)
+    # plt.tight_layout()
+    # plt.savefig("experiments/grokking/feature_count_vs_accuracy.png", dpi=300, bbox_inches='tight')
+    # plt.close()
 
 def main():
     import logging

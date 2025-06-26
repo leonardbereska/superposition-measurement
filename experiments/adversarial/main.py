@@ -629,15 +629,16 @@ def run_analysis_phase(
                     
                     # Create aggregated evolution plot
                     if aggregated_llc_data and aggregated_sae_data:
-                        fig = plot_aggregated_llc_sae_evolution(
-                            llc_data=aggregated_llc_data,
-                            sae_data=aggregated_sae_data,
-                            layer_name=layer_name,
-                            epsilon=eps,
-                            n_runs=config['adversarial']['n_runs'],
-                            title=f"Aggregated LLC vs SAE Evolution - ε={eps}, {layer_name} - {model_type.upper()} {n_classes}-class",
-                            save_path=plots_dir / f"aggregated_llc_sae_evolution_{layer_name.replace('.', '_')}_eps_{eps}.png"
-                        )
+                        # fig = plot_aggregated_llc_sae_evolution(
+                        #     llc_data=aggregated_llc_data,
+                        #     sae_data=aggregated_sae_data,
+                        #     layer_name=layer_name,
+                        #     epsilon=eps,
+                        #     n_runs=config['adversarial']['n_runs'],
+                        #     title=f"Aggregated LLC vs SAE Evolution - ε={eps}, {layer_name} - {model_type.upper()} {n_classes}-class",
+                        #     save_path=plots_dir / f"aggregated_llc_sae_evolution_{layer_name.replace('.', '_')}_eps_{eps}.png"
+                        # )
+
                         # Also: Dual-axis aggregated plot
                         fig_dual = plot_llc_sae_dual_axis_evolution(
                             llc_data=aggregated_llc_data,
@@ -646,7 +647,7 @@ def run_analysis_phase(
                             epsilon=eps,
                             n_runs=config['adversarial']['n_runs'],
                             title=f"Aggregated LLC vs SAE Dual Axis - ε={eps}, {layer_name} - {model_type.upper()} {n_classes}-class",
-                            save_path=plots_dir / f"aggregated_llc_sae_dual_axis_{layer_name.replace('.', '_')}_eps_{eps}.png"
+                            save_path=plots_dir / f"aggregated_llc_sae_dual_axis_{layer_name.replace('.', '_')}_eps_{eps}.pdf"
                         )
     
     if has_llc_data and has_sae_checkpoint_data:
@@ -816,21 +817,21 @@ def run_analysis_phase(
             # 1. Plot LLC traces
             plot_llc_traces(
                 llc_results=inference_plot_data,
-                save_path=plots_dir / "inference_llc_traces.png",
+                save_path=plots_dir / "inference_llc_traces.pdf",
                 show=False
             )
             
             # 2. Plot LLC distribution
             plot_llc_distribution(
                 llc_results=inference_plot_data,
-                save_path=plots_dir / "inference_llc_distribution.png",
+                save_path=plots_dir / "inference_llc_distribution.pdf",
                 show=False
             )
             
             # 3. Plot LLC mean vs std
             plot_llc_mean_std(
                 llc_results=inference_plot_data,
-                save_path=plots_dir / "inference_llc_mean_std.png",
+                save_path=plots_dir / "inference_llc_mean_std.pdf",
                 show=False
             )
             
@@ -1005,18 +1006,104 @@ def quick_test(
     print(f"Quick test completed. Results in: {results_dir}")
     return results_dir
 
+def reanalyze_results(
+    results_dir: Optional[str] = None,
+    search_string: Optional[str] = None,
+    dataset_type: Optional[str] = None,
+    plot_args: Optional[Dict[str, Any]] = None,
+    output_dir: Optional[str] = None
+) -> Dict[str, plt.Figure]:
+    """Reanalyze existing results without re-running training or evaluation."""
+    # Convert results_dir to Path object if provided
+    if results_dir is not None:
+        results_dir = Path(results_dir)
+    
+    # If dataset_type not provided but results_dir is, try to extract it from path
+    if dataset_type is None and results_dir is not None:
+        # Look for known dataset types in the path
+        known_datasets = ['mnist', 'cifar10', 'cifar100']
+        for dataset in known_datasets:
+            if dataset in str(results_dir).lower():
+                dataset_type = dataset
+                break
+        if dataset_type is None:
+            raise ValueError(f"Could not determine dataset_type from results_dir. Please provide dataset_type explicitly.")
+    
+    # Get config and results directory
+    config = get_default_config(dataset_type=dataset_type)
+    base_dir = Path(config['base_dir'])
+    
+    # If results_dir is provided, ensure it exists
+    if results_dir is not None and not results_dir.exists():
+        raise ValueError(f"Results directory does not exist: {results_dir}")
+    
+    # Get config and results directory
+    config, results_dir = get_config_and_results_dir(
+        base_dir=base_dir, 
+        results_dir=results_dir,  # Now it's already a Path object
+        search_string=search_string
+    )
+    
+    # Convert output_dir to Path if provided
+    if output_dir is not None:
+        output_dir = Path(output_dir)
+    
+    # Set up logger - results_dir is now guaranteed to be a Path object
+    logger = setup_logger(results_dir)
+    log = logger.info
+    
+    log(f"\n=== Starting Reanalysis of Results ===")
+    log(f"Loading results from: {results_dir}")
+    log(f"Dataset type: {dataset_type}")
+    
+    # Load and analyze results
+    from analysis import load_and_analyze_existing_results
+    figures = load_and_analyze_existing_results(
+        results_dir=results_dir,
+        plot_args=plot_args,
+        output_dir=output_dir
+    )
+    
+    log(f"Generated {len(figures)} plots")
+    if output_dir:
+        log(f"Plots saved to: {output_dir}")
+    else:
+        log(f"Plots saved to: {results_dir}/plots")
+    
+    return figures
+
 # %%
 if __name__ == "__main__":
-    # Example usage - Quick test with both SAE, LLC, and optional inference-time LLC
-    quick_test(
-        model_type='simplemlp', 
-        dataset_type="mnist", 
-        testing_mode=True, 
-        enable_sae=True,
-        enable_llc=True,
-        enable_inference_llc=True,
-        enable_sae_checkpoints=True  
+    """
+    Example usage - Quick test with both SAE, LLC, and optional inference-time LLC
+    """
+    # quick_test(
+    #     model_type='resnet18', 
+    #     dataset_type="mnist", 
+    #     testing_mode=True, 
+    #     enable_sae=True,
+    #     enable_llc=True,
+    #     enable_inference_llc=True,
+    #     enable_sae_checkpoints=True  
+    # )
+
+    """
+    reanalyze results
+    """
+    plot_args = {
+        'plot_legend': True,
+        'plot_adversarial': True,
+        'legend_alpha': 1.0,
+        'plot_feature_counts': False,
+        'plot_normalized_feature_counts': False,
+        'plot_robustness': True,  # Make sure robustness plot is enabled
+    }
+    
+    figures = reanalyze_results(
+        results_dir="../../results/adversarial_robustness/mnist/2025-06-19_13-01_simplemlp_2-class_pgd_quick_test_mnist_simplemlp_with_llc_sae_inference_llc",
+        plot_args=plot_args
     )
+
 
     '''Example usage - Full experiment with all analyses'''
     # run_model_class_experiment(
@@ -1057,33 +1144,16 @@ if __name__ == "__main__":
     # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode)
     # run_evaluation_phase(search_string="simplemlp_2-class_fgsm", dataset_type="mnist")
 
-    # run mnist mlp 2-class pgd to train with progressive epsilon
+    # run mnist mlp 2-class pgd
     # model_types = ['mlp']
-    # class_counts = [2, 3, 5, 10]
-    # dataset_types = ['mnist']
-    # attack_types = ['pgd']
-    # testing_mode = False
-    # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode)
-
-    # simplemlp 2-class pgd
-    # model_types = ['simplemlp']
-    # class_counts = [2]
-    # dataset_types = ['mnist']
-    # attack_types = ['fgsm']
-    # testing_mode = False
-    # hidden_dims = [8, 32, 128, 512]
-    # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, hidden_dims, testing_mode)
-
-    # mlp 2-class pgd
-    # model_types = ['mlp']
-    # class_counts = [2]
+    # class_counts = [2] or [3, 5, 10]
     # dataset_types = ['mnist']
     # attack_types = ['pgd']
     # testing_mode = False
     # # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode)
     # run_analysis_phase(search_string="43_mlp_2-class_pgd", dataset_type="mnist")
-    for hidden_dim in [8, 32]:
-        run_analysis_phase(search_string=f"simplemlp_2-class_fgsm_h{hidden_dim}", dataset_type="mnist")
+    # for hidden_dim in [8, 32]:
+    #     run_analysis_phase(search_string=f"simplemlp_2-class_fgsm_h{hidden_dim}", dataset_type="mnist")
     # plot_args = {
     #     'plot_legend': False,
     #     'plot_adversarial': True,

@@ -502,7 +502,7 @@ def plot_robustness(
     """Plot comprehensive overview of accuracy across all test epsilons and training epsilons.
     
     Args:
-        results: Nested results dictionary containing detailed_robustness for each training epsilon
+        results: Dictionary containing robustness results for each training epsilon
         epsilons: List of training epsilon values
         title: Plot title
         save_path: Path to save the plot
@@ -513,8 +513,13 @@ def plot_robustness(
     """
     fig, ax = plt.subplots(figsize=figsize)
     
-    # Get all test epsilons from the first training epsilon
-    test_epsilons = sorted([float(eps) for eps in results[str(epsilons[0])]['detailed_robustness'].keys()])
+    # Get all test epsilons from the first training epsilon's robustness data
+    # Handle both the old format (detailed_robustness) and new format (direct mapping)
+    if 'detailed_robustness' in results[str(epsilons[0])]:
+        test_epsilons = sorted([float(eps) for eps in results[str(epsilons[0])]['detailed_robustness'].keys()])
+    else:
+        # For the direct robustness.json format
+        test_epsilons = sorted([float(eps) for eps in results[str(epsilons[0])].keys()])
     
     # Define line styles for different test epsilons
     line_styles = ['-', '--', '-.', ':']
@@ -524,7 +529,12 @@ def plot_robustness(
         # Extract data for this test epsilon across all training epsilons
         test_data = {}
         for eps in epsilons:
-            test_data[eps] = results[str(eps)]['detailed_robustness'][str(test_eps)]
+            if 'detailed_robustness' in results[str(eps)]:
+                # Old format
+                test_data[eps] = results[str(eps)]['detailed_robustness'][str(test_eps)]
+            else:
+                # New format - direct mapping
+                test_data[eps] = [results[str(eps)][str(test_eps)]]  # Wrap in list for consistency
         
         # Calculate means and standard deviations
         means = [np.mean(test_data[eps]) for eps in epsilons]
@@ -569,7 +579,6 @@ def plot_robustness(
                     loc='best', ncol=2, framealpha=plot_args['legend_alpha'])
         else:
             ax.legend(fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND, loc='best', framealpha=plot_args['legend_alpha'])
-    
     
     plt.tight_layout()
     
@@ -708,49 +717,55 @@ def generate_plots(results: Dict, output_dir: Path, results_dir: Path, plot_args
 
     epsilons = sorted([float(eps) for eps in results.keys()])
 
-    layers = results[str(epsilons[0])]['layers'].keys()
-
+    # Check if layer-specific analysis exists
+    has_layer_analysis = bool(results.get(str(epsilons[0]), {}).get('layers'))
+    layers = []
+    if has_layer_analysis:
+        layers = list(results[str(epsilons[0])]['layers'].keys())
+    
     # Generate comprehensive overview plot with all layers and distributions
-    if plot_args['plot_feature_counts']:
-        fig = plot_feature_counts(
-            results, layers, epsilons,
-            title=f"{experiment_name}",
-            save_path=save_path("feature_counts"),
-            plot_args=plot_args
-        )
-        figures["feature_counts"] = fig
+    if has_layer_analysis and layers:
+        if plot_args['plot_feature_counts']:
+            fig = plot_feature_counts(
+                results, layers, epsilons,
+                title=f"{experiment_name}",
+                save_path=save_path("feature_counts"),
+                plot_args=plot_args
+            )
+            figures["feature_counts"] = fig
 
-    # Generate normalized feature counts plot
-    if plot_args['plot_normalized_feature_counts']:
-        fig = plot_normalized_feature_counts(
-            results, layers, epsilons,
-            title=f"{experiment_name}",
-            save_path=save_path("feature_counts_normalized"),
-            plot_args=plot_args
-        )
-        figures["feature_counts_normalized"] = fig
+        if plot_args['plot_normalized_feature_counts']:
+            fig = plot_normalized_feature_counts(
+                results, layers, epsilons,
+                title=f"{experiment_name}",
+                save_path=save_path("feature_counts_normalized"),
+                plot_args=plot_args
+            )
+            figures["feature_counts_normalized"] = fig
 
     # Generate comprehensive robustness overview plot
     if plot_args['plot_robustness']:
-        fig = plot_robustness(
-            results, epsilons,
-            title=f"{experiment_name}",
-            save_path=save_path("robustness"),
-            plot_args=plot_args
-        )
-        figures["robustness"] = fig
+        # Check if there is any robustness data to plot
+        if results.get(str(epsilons[0]), {}).get('detailed_robustness'):
+            fig = plot_robustness(
+                results, epsilons,
+                title=f"{experiment_name}",
+                save_path=save_path("robustness"),
+                plot_args=plot_args
+            )
+            figures["robustness"] = fig
 
     # LLC-specific plots (integrated from generate_llc_plots)
     if plot_args.get('plot_llc_evolution', False) or plot_args.get('plot_llc_clean_vs_adv', False):
         # Extract LLC data
-        has_llc_data = any('checkpoint_llc_analysis' in results[str(eps)] for eps in epsilons if 'checkpoint_llc_analysis' in results[str(eps)])
+        has_llc_data = any(results.get(str(eps), {}).get('checkpoint_llc_analysis') for eps in epsilons)
         if has_llc_data:
             # 1. LLC evolution across training for multiple epsilons
             if plot_args.get('plot_llc_evolution', False):
                 llc_checkpoint_evolution = {}
                 for eps in epsilons:
                     eps_str = str(eps)
-                    if 'checkpoint_llc_analysis' in results[eps_str]:
+                    if results.get(eps_str, {}).get('checkpoint_llc_analysis'):
                         llc_values = []
                         for checkpoint_analysis in results[eps_str]['checkpoint_llc_analysis']:
                             if 'epsilon_analysis' in checkpoint_analysis:
@@ -776,9 +791,9 @@ def generate_plots(results: Dict, output_dir: Path, results_dir: Path, plot_args
                 adv_llc_data = {}
                 for eps in epsilons:
                     eps_str = str(eps)
-                    if 'llc_clean' in results[eps_str] and results[eps_str]['llc_clean']:
+                    if results.get(eps_str, {}).get('llc_clean'):
                         clean_llc_data[eps] = [entry['llc_mean'] for entry in results[eps_str]['llc_clean'] if entry['llc_mean'] is not None]
-                    if 'llc_adversarial' in results[eps_str] and results[eps_str]['llc_adversarial']:
+                    if results.get(eps_str, {}).get('llc_adversarial'):
                         adv_llc_data[eps] = [entry['llc_mean'] for entry in results[eps_str]['llc_adversarial'] if entry['llc_mean'] is not None]
                 if clean_llc_data and adv_llc_data:
                     fig = plot_clean_vs_adversarial_llc(
@@ -789,17 +804,58 @@ def generate_plots(results: Dict, output_dir: Path, results_dir: Path, plot_args
                     )
                     figures["llc_clean_vs_adversarial"] = fig
 
+    # Inference-time LLC plots
+    if plot_args.get('plot_inference_llc', False):
+        # Check if inference-time LLC data is available
+        has_inference_llc_data = any(results.get(str(eps), {}).get('inference_llc_analysis') for eps in epsilons)
+        
+        if has_inference_llc_data:
+            # We typically analyze inference-time LLC on a single model (one epsilon)
+            # Find the first epsilon that has this data
+            target_eps_str = None
+            for eps in epsilons:
+                if results.get(str(eps), {}).get('inference_llc_analysis'):
+                    target_eps_str = str(eps)
+                    break
+            
+            if target_eps_str:
+                inference_llc_results = results[target_eps_str]['inference_llc_analysis']
+                
+                # Plot LLC traces
+                fig_traces = plot_llc_traces(
+                    inference_llc_results,
+                    save_path=save_path(f"inference_llc_traces_eps_{target_eps_str}"),
+                    show=False
+                )
+                figures[f"inference_llc_traces_eps_{target_eps_str}"] = fig_traces
+
+                # Plot LLC distribution
+                fig_dist = plot_llc_distribution(
+                    inference_llc_results,
+                    save_path=save_path(f"inference_llc_distribution_eps_{target_eps_str}"),
+                    show=False
+                )
+                figures[f"inference_llc_distribution_eps_{target_eps_str}"] = fig_dist
+                
+                # Plot LLC mean vs std
+                fig_mean_std = plot_llc_mean_std(
+                    inference_llc_results,
+                    save_path=save_path(f"inference_llc_mean_std_eps_{target_eps_str}"),
+                    show=False
+                )
+                figures[f"inference_llc_mean_std_eps_{target_eps_str}"] = fig_mean_std
+
     # Combined SAE + LLC plots (integrated from generate_combined_sae_llc_plots)
     if plot_args.get('plot_combined_sae_llc', False):
         # Check if both SAE and LLC data are available
-        has_sae_data = any('layers' in results[str(eps)] and any('clean_feature_count' in results[str(eps)]['layers'][layer] for layer in results[str(eps)]['layers']) for eps in epsilons)
-        has_llc_data = any('checkpoint_llc_analysis' in results[str(eps)] for eps in epsilons)
+        has_sae_data = any(results.get(str(eps), {}).get('layers') for eps in epsilons)
+        has_llc_data = any(results.get(str(eps), {}).get('checkpoint_llc_analysis') for eps in epsilons)
         if has_sae_data and has_llc_data:
             # Extract LLC data for correlation
             llc_final_values = {}
             for eps in epsilons:
                 eps_str = str(eps)
-                if 'checkpoint_llc_analysis' in results[eps_str]:
+                if results.get(eps_str, {}).get('checkpoint_llc_analysis'):
                     for checkpoint_analysis in results[eps_str]['checkpoint_llc_analysis']:
                         if 'epsilon_analysis' in checkpoint_analysis:
                             if eps_str in checkpoint_analysis['epsilon_analysis']:
@@ -807,7 +863,7 @@ def generate_plots(results: Dict, output_dir: Path, results_dir: Path, plot_args
                                 llc_final_values[eps] = final_checkpoint['llc_mean']
                                 break
             # Generate correlation plots for each layer
-            if 'layers' in results[str(epsilons[0])]:
+            if bool(results.get(str(epsilons[0]), {}).get('layers')):
                 layers = list(results[str(epsilons[0])]['layers'].keys())
                 for layer_name in layers:
                     sae_data = {}
@@ -1759,3 +1815,166 @@ def plot_llc_vs_sae_correlation_over_time(
         plt.savefig(save_path, bbox_inches='tight', dpi=300)
     
     return fig
+
+def load_and_analyze_existing_results(
+    results_dir: Union[str, Path],
+    plot_args: Optional[Dict[str, Any]] = None,
+    output_dir: Optional[Path] = None
+) -> Dict[str, plt.Figure]:
+    """Load and analyze existing results from a results directory.
+    
+    This function is useful when you want to re-analyze results without re-running
+    the training and evaluation phases. It will:
+    1. Load and aggregate results from all runs within the specified directory
+    2. Generate all plots based on the available data
+    3. Save plots to a new directory (or the same one if not specified)
+    
+    Args:
+        results_dir: Path to the results directory
+        plot_args: Dictionary controlling which plots to generate and their properties
+        output_dir: Directory to save new plots. If None, uses results_dir/plots
+        
+    Returns:
+        Dictionary mapping plot names to matplotlib figures
+    """
+    # Convert to Path object
+    results_dir = Path(results_dir)
+    if not results_dir.exists():
+        raise ValueError(f"Results directory {results_dir} does not exist")
+    
+    # Set up output directory
+    if output_dir is None:
+        output_dir = results_dir / "plots"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # The main results dictionary, keyed by training epsilon
+    results = {}
+    
+    # Find all eps directories
+    eps_dirs = sorted(list(results_dir.glob("eps_*")), key=lambda p: float(p.name.split("_")[1]))
+
+    for eps_dir in eps_dirs:
+        epsilon = float(eps_dir.name.split("_")[1])
+        
+        # This will hold the aggregated results for this epsilon across all runs
+        eps_results = {
+            'layers': {},
+            'detailed_robustness': {},
+            'checkpoint_llc_analysis': [],
+            'llc_clean': [],
+            'llc_adversarial': [],
+            'inference_llc_analysis': {}
+        }
+
+        run_dirs = list(eps_dir.glob("run_*"))
+        if not run_dirs:
+            run_dirs = [eps_dir]
+
+        # Buffers to hold data from each run before aggregation
+        all_run_evals = []
+        all_run_robustness = []
+        all_run_llc = []
+        all_run_checkpoints = []
+        all_run_inference_llc = []
+        all_run_checkpoint_llc = []
+
+        for run_dir_item in run_dirs:
+            # Load all possible json files from the correct locations
+            eval_file = run_dir_item / "evaluation_results.json"
+            if eval_file.exists():
+                with open(eval_file, 'r') as f:
+                    all_run_evals.append(json.load(f))
+
+            robustness_file = run_dir_item / "robustness.json"
+            if robustness_file.exists():
+                with open(robustness_file, 'r') as f:
+                    all_run_robustness.append(json.load(f))
+            
+            checkpoint_llc_file = run_dir_item / "checkpoints" / "llc_analysis_results.json"
+            if checkpoint_llc_file.exists():
+                with open(checkpoint_llc_file, 'r') as f: 
+                    all_run_checkpoint_llc.append(json.load(f))
+            
+            inference_llc_file = run_dir_item / "inference_llc" / "inference_llc_results.json"
+            if inference_llc_file.exists():
+                with open(inference_llc_file, 'r') as f:
+                    all_run_inference_llc.append(json.load(f))
+
+        # --- Aggregate the loaded data ---
+
+        # 1. Aggregate evaluation results (SAE feature counts)
+        if all_run_evals:
+            if 'layers' in all_run_evals[0]:
+                layer_names = all_run_evals[0]['layers'].keys()
+                for layer in layer_names:
+                    eps_results['layers'][layer] = {
+                        'clean_feature_count': [],
+                        'adv_feature_count': []
+                    }
+                    for run_eval in all_run_evals:
+                        if layer in run_eval.get('layers', {}):
+                            if 'clean_feature_count' in run_eval['layers'][layer]:
+                                eps_results['layers'][layer]['clean_feature_count'].append(run_eval['layers'][layer]['clean_feature_count'])
+                            if 'adv_feature_count' in run_eval['layers'][layer]:
+                                eps_results['layers'][layer]['adv_feature_count'].append(run_eval['layers'][layer]['adv_feature_count'])
+        
+        # 2. Aggregate robustness results
+        if all_run_robustness:
+            test_epsilons = set()
+            for run_robustness in all_run_robustness:
+                test_epsilons.update(run_robustness.keys())
+            
+            for test_eps in test_epsilons:
+                eps_results['detailed_robustness'][test_eps] = [r.get(test_eps) for r in all_run_robustness if r.get(test_eps) is not None]
+
+        if all_run_checkpoint_llc:
+            eps_results['checkpoint_llc_analysis'] = all_run_checkpoint_llc
+            clean_llcs, adv_llcs = [], []
+            for run_data in all_run_checkpoint_llc:
+                analysis = run_data.get('epsilon_analysis', {})
+                if '0.0' in analysis and analysis['0.0']:
+                    clean_llcs.append(analysis['0.0'][-1]['llc_mean'])
+                if str(epsilon) in analysis and analysis[str(epsilon)]:
+                    adv_llcs.append(analysis[str(epsilon)][-1]['llc_mean'])
+            if clean_llcs: eps_results['llc_clean'] = [{'llc_mean': v} for v in clean_llcs]
+            if adv_llcs: eps_results['llc_adversarial'] = [{'llc_mean': v} for v in adv_llcs]
+
+        if all_run_inference_llc:
+            aggregated_inference_llc = {}
+            cond_epsilons = set().union(*(run_data.keys() for run_data in all_run_inference_llc))
+            for cond_eps in cond_epsilons:
+                all_means, all_traces = [], []
+                for run_data in all_run_inference_llc:
+                    if cond_data := run_data.get(cond_eps):
+                        if 'means' in cond_data: all_means.extend(cond_data['means'])
+                        if 'trace' in cond_data:
+                            if isinstance(trace_data := cond_data['trace'], list) and trace_data:
+                                all_traces.extend(trace_data if isinstance(trace_data[0], list) else [trace_data])
+                if all_means:
+                    aggregated_inference_llc[str(float(cond_eps))] = {'means': all_means, 'mean': np.mean(all_means), 'std': np.std(all_means), 'trace': all_traces}
+            eps_results['inference_llc_analysis'] = aggregated_inference_llc
+
+        results[str(epsilon)] = eps_results
+    
+    # Set default plot arguments if none provided
+    if plot_args is None:
+        plot_args = {
+            'plot_feature_counts': True,
+            'plot_normalized_feature_counts': True,
+            'plot_robustness': True,
+            'plot_llc_evolution': True,
+            'plot_llc_clean_vs_adv': True,
+            'plot_combined_sae_llc': True,
+            'plot_inference_llc': True,
+            'plot_legend': True,
+            'legend_alpha': 0.8,
+            'plot_adversarial': True,
+            'y_lim': None,
+            'y_ticks': None,
+            'y_tick_labels': None
+        }
+    
+    # Generate plots
+    figures = generate_plots(results, output_dir, results_dir, plot_args)
+    
+    return figures

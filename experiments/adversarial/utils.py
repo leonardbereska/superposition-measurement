@@ -7,7 +7,7 @@ import logging
 import numpy as np
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Optional, Any, Tuple
+from typing import Dict, Optional, Any, Tuple, Union
 
 def create_directory(base_dir: Path, dir_name: str) -> Path:
     """Create a directory with the given name under the base directory.
@@ -170,21 +170,24 @@ def save_config(config: Dict[str, Any], results_dir: Path) -> None:
     with open(results_dir / "config.json", 'w') as f:
         json.dump(json_config, f, indent=4, default=json_serializer)
 
-def load_config(results_dir: Path) -> Dict:
-    """Load experiment configuration.
+def load_config(results_dir: Union[str, Path]) -> Dict[str, Any]:
+    """Load configuration from a results directory.
     
     Args:
-        results_dir: Directory containing experiment configuration
+        results_dir: Path to results directory
         
     Returns:
-        Dictionary with configuration
+        Configuration dictionary
     """
+    # Convert to Path object if string
+    results_dir = Path(results_dir)
     metadata_path = results_dir / "config.json"
-    if metadata_path.exists():
-        with open(metadata_path, 'r') as f:
-            return json.load(f)
-    else:
-        return {}
+    
+    if not metadata_path.exists():
+        raise FileNotFoundError(f"Config file not found: {metadata_path}")
+    
+    with open(metadata_path, 'r') as f:
+        return json.load(f)
 
 
 
