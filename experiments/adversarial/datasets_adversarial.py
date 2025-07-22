@@ -49,7 +49,8 @@ class MNISTDataset(Dataset):
                 mode='bilinear',
                 align_corners=True
             )
-        self.data = self.data.squeeze(1)  # Remove channel dimension [N, H, W]
+        # Keep channel dimension for CNN models [N, 1, H, W]
+        # self.data = self.data.squeeze(1)  # Remove channel dimension [N, H, W]
         self.targets = self.original_dataset.targets
         
         # Filter for selected classes if specified

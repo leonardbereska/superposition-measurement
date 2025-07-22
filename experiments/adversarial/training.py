@@ -10,8 +10,8 @@ from typing import Dict, List, Optional, Tuple, Callable, NamedTuple
 import copy
 import json
 
-from models import create_model, ModelConfig
-from attacks import AttackConfig, generate_adversarial_examples
+from .models import create_model, ModelConfig
+from .attacks import AttackConfig, generate_adversarial_examples
 import logging
 
 class TrainingConfig(NamedTuple):

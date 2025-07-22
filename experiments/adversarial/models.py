@@ -3,7 +3,12 @@
 
 import torch
 import torch.nn as nn
-from nnsight import NNsight
+try:
+    from nnsight import NNsight
+    NNSIGHT_AVAILABLE = True
+except ImportError:
+    print("Warning: nnsight not available. NNsightModelWrapper will not work.")
+    NNSIGHT_AVAILABLE = False
 import torchvision.models as models
 from typing import NamedTuple, Optional
 import numpy as np
@@ -20,19 +25,18 @@ class NNsightModelWrapper:
     """Wrapper for models to use with nnsight."""
     
     def __init__(self, model, device=None):
+        if not NNSIGHT_AVAILABLE:
+            raise ImportError("nnsight is not available. Please install nnsight to use NNsightModelWrapper.")
+        
+        self._base_model = model
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = NNsight(model)
-        self.device = device or next(model.parameters()).device
-        self._base_model = model  # Store reference to original model
     
     def __del__(self):
         """Clean up any weak references when the wrapper is destroyed."""
         # Remove any hooks or weak references
-        if hasattr(self.model, '_model'):
-            # Clear any hooks that might have been registered
-            for module in self.model._model.modules():
-                module._forward_hooks.clear()
-                module._backward_hooks.clear()
-                module._forward_pre_hooks.clear()
+        if hasattr(self, '_base_model'):
+            del self._base_model
     
     def get_clean_model_copy(self):
         """Create a clean copy of the base model without any hooks or weak references.
@@ -408,6 +412,34 @@ class SimpleCNN(nn.Module):
         x = self.fc(x)
         return x
     
+def get_resnet18_adapted_to_small_images(input_channels=3, output_dim=10):
+    """Create a ResNet-18 model adapted for small input images (like CIFAR-10 or MNIST).
+    
+    This function directly modifies and returns a ResNet-18 model
+    without wrapping it in another class, ensuring layer access
+    works correctly for feature extraction.
+    
+    Args:
+        input_channels: Number of input channels (1 for grayscale, 3 for RGB)
+        output_dim: Number of output dimensions (number of classes)
+        
+    Returns:
+        Modified ResNet-18 model
+    """
+    model = models.resnet18(weights=None)  # Start fresh
+    
+    # Adapt first layer for small images (32x32 or 28x28)
+    model.conv1 = nn.Conv2d(input_channels, 64, kernel_size=3, stride=1, padding=1, bias=False)
+    
+    # Remove the MaxPool layer (set to identity) for small images
+    model.maxpool = nn.Identity()
+    
+    # Adapt final classifier
+    model.fc = nn.Linear(model.fc.in_features, output_dim)
+    
+    return model
+
+
 def get_resnet18_adapted_to_cifar10(input_channels=3, output_dim=10):
     """Create a ResNet-18 model adapted for CIFAR-10.
     
@@ -422,19 +454,8 @@ def get_resnet18_adapted_to_cifar10(input_channels=3, output_dim=10):
     Returns:
         Modified ResNet-18 model
     """
-    model = models.resnet18(weights=None)  # Start fresh for CIFAR-10
-    
-    # Adapt first layer for 32x32 images
-    model.conv1 = nn.Conv2d(input_channels, 64, kernel_size=3, stride=1, padding=1, bias=False)
-    
-    # Remove the MaxPool layer (set to identity)
-    model.maxpool = nn.Identity()
-    
-    # Adapt final classifier
-    model.fc = nn.Linear(model.fc.in_features, output_dim)
-    
-    return model
-
+    # Use the generic function for CIFAR-10
+    return get_resnet18_adapted_to_small_images(input_channels, output_dim)
 
 
 def create_model(model_type='mlp', use_nnsight=False, **kwargs):
@@ -478,8 +499,8 @@ def create_model(model_type='mlp', use_nnsight=False, **kwargs):
             output_dim=kwargs['output_dim']
         )
     elif model_type.lower() == 'resnet18':
-        # Adapted ResNet-18 for smaller input images like CIFAR-10
-        model = get_resnet18_adapted_to_cifar10(
+        # Adapted ResNet-18 for small input images (CIFAR-10 or MNIST)
+        model = get_resnet18_adapted_to_small_images(
             input_channels=kwargs['input_channels'],
             output_dim=kwargs['output_dim']
         )
@@ -487,6 +508,9 @@ def create_model(model_type='mlp', use_nnsight=False, **kwargs):
         raise ValueError(f"Unknown model type: {model_type}")
     
     if use_nnsight:
+        if not NNSIGHT_AVAILABLE:
+            print("Warning: nnsight not available, returning unwrapped model.")
+            return model
         return NNsightModelWrapper(model)
     return model
 

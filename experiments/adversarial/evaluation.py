@@ -16,13 +16,12 @@ import random
 from functools import partial
 
 # SAE imports (existing)
-from sae import train_sae, SAEConfig
-from models import NNsightModelWrapper
-from training import create_adversarial_dataloader, load_checkpoint
-from analysis import plot_sampling_evolution
+from .sae import train_sae, SAEConfig
+from .models import NNsightModelWrapper
+from .training import create_adversarial_dataloader, load_checkpoint
+from .analysis import plot_sampling_evolution
+from .analysis import ScientificPlotStyle
 
-
-from analysis import ScientificPlotStyle
 from matplotlib import pyplot as plt
 
 # LLC imports (new)
@@ -58,7 +57,7 @@ def create_safe_model_checkpoint(model: nn.Module) -> nn.Module:
         return model.get_clean_model_copy()
     
     # For regular models, create a fresh instance
-    from training import create_model, ModelConfig
+    from .training import create_model, ModelConfig
     
     # Try to infer model configuration from the actual model structure
     model_class = model.__class__.__name__
@@ -183,6 +182,31 @@ def create_safe_model_checkpoint(model: nn.Module) -> nn.Module:
             input_channels=input_channels,
             hidden_dim=hidden_dim,
             image_size=image_size,
+            output_dim=output_dim,
+            use_nnsight=False
+        )
+        
+    elif 'ResNet' in model_class:
+        # For ResNet models, use the create_model function
+        # Extract configuration from the model structure
+        input_channels = 1  # default for MNIST
+        output_dim = 1      # default for binary classification
+        
+        for module in model.modules():
+            if isinstance(module, nn.Conv2d):
+                input_channels = module.in_channels
+                break
+        
+        for module in reversed(list(model.modules())):
+            if isinstance(module, nn.Linear):
+                output_dim = module.out_features
+                break
+        
+        clean_model = create_model(
+            model_type='resnet18',
+            input_channels=input_channels,
+            hidden_dim=16,  # default
+            image_size=28,  # default for MNIST
             output_dim=output_dim,
             use_nnsight=False
         )
@@ -762,8 +786,8 @@ def analyze_checkpoints_with_llc(
     Returns:
         Dictionary with LLC analysis results
     """
-    from attacks import AttackConfig
-    from training import load_checkpoint
+    from .attacks import AttackConfig
+    from .training import load_checkpoint
     
     log = logger.info if logger else print
     
@@ -1054,8 +1078,8 @@ def analyze_checkpoints_with_sae(
     Returns:
         Dictionary with SAE analysis results organized by epsilon, layer, and epoch
     """
-    from training import load_checkpoint, create_adversarial_dataloader
-    from attacks import AttackConfig
+    from .training import load_checkpoint, create_adversarial_dataloader
+    from .attacks import AttackConfig
     
     log = logger.info if logger else print
     

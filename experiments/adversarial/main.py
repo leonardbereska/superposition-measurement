@@ -1,6 +1,5 @@
 # %%
 """Main script for running adversarial robustness experiments with SAE and LLC analysis."""
-from analysis import ScientificPlotStyle
 import matplotlib.pyplot as plt
 import os
 import torch
@@ -11,31 +10,33 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
-from evaluation import analyze_checkpoints_with_sae, measure_superposition, analyze_checkpoints_with_llc, measure_inference_time_llc, analyze_checkpoints_combined_sae_llc
 
-from analysis import plot_combined_llc_sae_evolution, plot_aggregated_llc_sae_evolution, plot_llc_vs_sae_correlation_over_time, plot_llc_sae_dual_axis_evolution
-from training import create_adversarial_dataloader
-from training import load_checkpoint
-from attacks import AttackConfig
-from utils import get_config_and_results_dir, setup_logger
-from evaluation import estimate_llc
+from .evaluation import analyze_checkpoints_with_sae, measure_superposition, analyze_checkpoints_with_llc, measure_inference_time_llc, analyze_checkpoints_combined_sae_llc
+
+from .analysis import ScientificPlotStyle
+from .analysis import plot_combined_llc_sae_evolution, plot_aggregated_llc_sae_evolution, plot_llc_vs_sae_correlation_over_time, plot_llc_sae_dual_axis_evolution
+from .training import create_adversarial_dataloader
+from .training import load_checkpoint
+from .attacks import AttackConfig
+from .utils import get_config_and_results_dir, setup_logger
+from .evaluation import estimate_llc
 
 # Ensure working directory is script directory
 script_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(script_dir)
 
 # Import configuration, datasets, utils
-from config import get_default_config, update_config
-from datasets_adversarial import create_dataloaders
-from utils import json_serializer, setup_results_dir, save_config, get_config_and_results_dir, setup_logger, create_directory
+from .config import get_default_config, update_config
+from .datasets_adversarial import create_dataloaders
+from .utils import json_serializer, setup_results_dir, save_config, get_config_and_results_dir, setup_logger, create_directory
 
 # Import components for different phases 
-from training import train_model, evaluate_model_performance, load_model, save_model, TrainingConfig
-from attacks import AttackConfig, generate_adversarial_examples, get_adversarial_dataloader
-from models import ModelConfig, create_model
-from sae import SAEConfig
+from .training import train_model, evaluate_model_performance, load_model, save_model, TrainingConfig
+from .attacks import AttackConfig, generate_adversarial_examples, get_adversarial_dataloader
+from .models import ModelConfig, create_model
+from .sae import SAEConfig
 
-from analysis import (
+from .analysis import (
     generate_plots, 
     plot_training_evolution, 
     plot_sampling_evolution, 
@@ -1057,7 +1058,7 @@ def reanalyze_results(
     log(f"Dataset type: {dataset_type}")
     
     # Load and analyze results
-    from analysis import load_and_analyze_existing_results
+    from .analysis import load_and_analyze_existing_results
     figures = load_and_analyze_existing_results(
         results_dir=results_dir,
         plot_args=plot_args,
@@ -1077,32 +1078,32 @@ if __name__ == "__main__":
     """
     Example usage - Quick test with both SAE, LLC, and optional inference-time LLC
     """
-    # quick_test(
-    #     model_type='resnet18', 
-    #     dataset_type="mnist", 
-    #     testing_mode=True, 
-    #     enable_sae=True,
-    #     enable_llc=True,
-    #     enable_inference_llc=True,
-    #     enable_sae_checkpoints=True  
-    # )
+    quick_test(
+        model_type='resnet18', 
+        dataset_type="mnist", 
+        testing_mode=True, 
+        enable_sae=True,
+        enable_llc=True,
+        enable_inference_llc=True,
+        enable_sae_checkpoints=True  
+    )
 
     """
     reanalyze results
     """
-    plot_args = {
-        'plot_legend': True,
-        'plot_adversarial': True,
-        'legend_alpha': 1.0,
-        'plot_feature_counts': False,
-        'plot_normalized_feature_counts': False,
-        'plot_robustness': True,  # Make sure robustness plot is enabled
-    }
+    # plot_args = {
+    #     'plot_legend': True,
+    #     'plot_adversarial': True,
+    #     'legend_alpha': 1.0,
+    #     'plot_feature_counts': False,
+    #     'plot_normalized_feature_counts': False,
+    #     'plot_robustness': True,  # Make sure robustness plot is enabled
+    # }
     
-    figures = reanalyze_results(
-        results_dir="../../results/adversarial_robustness/mnist/2025-06-19_13-01_simplemlp_2-class_pgd_quick_test_mnist_simplemlp_with_llc_sae_inference_llc",
-        plot_args=plot_args
-    )
+    # figures = reanalyze_results(
+    #     results_dir="../../results/adversarial_robustness/mnist/2025-06-19_13-01_simplemlp_2-class_pgd_quick_test_mnist_simplemlp_with_llc_sae_inference_llc",
+    #     plot_args=None
+    # )
 
 
     '''Example usage - Full experiment with all analyses'''
