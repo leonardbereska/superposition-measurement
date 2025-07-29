@@ -19,12 +19,16 @@ module load CUDA/12.1.1
 # Activate Conda environment
 source activate devinterp_env
 
+# cd /gpfs/home6/ztzifa/superposition-measurement
+
 # pip install devinterp 
 # conda install pytorch torchvision=0.18.1 pytorch-cuda=12.1 -c pytorch -c nvidia -y
 
 # python -c "import torch; print(f'🔧 Torch: {torch.__version__}, CUDA: {torch.version.cuda}, Arch: {torch.cuda.get_device_capability()}')"
 
+# python -m experiments.grokking.grokking_llc_measurement
 # python experiments/grokking/grokking_llc_measurement.py
-python experiments/adversarial/main.py
+
+python -m experiments.adversarial.main
 
 

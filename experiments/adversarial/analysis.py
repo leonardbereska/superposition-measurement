@@ -10,8 +10,8 @@ from typing import Dict, List, Optional, Union, Tuple, Any
 import pandas as pd
 from datetime import datetime
 
-from config import get_default_config
-from utils import load_config
+from .config import get_default_config
+from .utils import load_config
 
 
 

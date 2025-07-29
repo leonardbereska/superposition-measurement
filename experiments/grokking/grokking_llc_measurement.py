@@ -23,6 +23,12 @@ from devinterp.slt.sampler import estimate_learning_coeff_with_summary
 from devinterp.utils import evaluate_ce, plot_trace
 from devinterp.vis_utils import EpsilonBetaAnalyzer
 
+
+import sys, os
+print("sys.path:", sys.path)
+print("Current working directory:", os.getcwd())
+
+
 # SAE imports and evaluation functions
 from experiments.adversarial.sae import TiedSparseAutoencoder, train_sae, SAEConfig, evaluate_sae
 from experiments.adversarial.evaluation import get_feature_distribution, calculate_feature_metrics
@@ -37,13 +43,12 @@ get_hidden_activations
 extract_activations (calls sae_config = SAEConfig()
 '''
 
-
 @dataclass
 class ExperimentParams:
     p: int = 53
     n_batches: int = 25000
-    n_save_model_checkpoints: int = 100
-    print_times: int = 100
+    n_save_model_checkpoints: int = 160
+    print_times: int = 160
     lr: float = 0.005
     batch_size: int = 128
     hidden_size: int = 48
@@ -188,6 +193,12 @@ def train(train_dataset, test_dataset, params, verbose=True, logger=None):
     if params.n_save_model_checkpoints > 0:
         checkpoint_every = params.n_batches // params.n_save_model_checkpoints
 
+    # Debug prints
+    print(f"DEBUG TRAINING: n_batches = {params.n_batches}")
+    print(f"DEBUG TRAINING: n_save_model_checkpoints = {params.n_save_model_checkpoints}")
+    print(f"DEBUG TRAINING: checkpoint_every = {checkpoint_every}")
+    print(f"DEBUG TRAINING: Expected number of checkpoints = {params.n_batches // checkpoint_every if checkpoint_every else 0}")
+
     loss_data = []
     if verbose:
         pbar = tqdm(total=params.n_batches, desc="Training")
@@ -239,6 +250,11 @@ def train(train_dataset, test_dataset, params, verbose=True, logger=None):
                 pbar.update(print_every)
     if verbose:
         pbar.close()
+    
+    # Final debug prints
+    print(f"DEBUG TRAINING: Actual number of checkpoints created = {len(all_models)}")
+    print(f"DEBUG TRAINING: Number of loss data points = {len(loss_data)}")
+    
     df = pd.DataFrame(loss_data)
     final_train_acc, final_train_loss = test(model, train_dataset, params.device)
     final_val_acc, final_val_loss = test(model, test_dataset, params.device)
@@ -320,63 +336,93 @@ def estimate_llc_given_model(
 
 def plot_combined_results(df, llcs, sae_metrics, params):
     """Plot combined results showing accuracy/loss and LLC/feature metrics."""
+    # Debug prints to verify the changes
+    print(f"DEBUG: Number of checkpoints (n_save_model_checkpoints): {params.n_save_model_checkpoints}")
+    print(f"DEBUG: DataFrame length: {len(df)}")
+    print(f"DEBUG: Number of LLC measurements: {len(llcs)}")
+    print(f"DEBUG: Number of SAE measurements: {len(sae_metrics)}")
+    print(f"DEBUG: DataFrame columns: {df.columns.tolist()}")
+    print(f"DEBUG: First few rows of DataFrame:")
+    print(df.head())
+    
     # Create figure with 1 row, 2 columns
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
 
     # --- Left plot: Accuracy and Loss ---
-    color_acc_train = ScientificPlotStyle.COLORS[1]
-    color_acc_test = ScientificPlotStyle.COLORS[0]
-    color_loss_train = '#888888'  # gray for loss
-    color_loss_test = '#FFA500'   # orange for loss
+    # Use consistent colors: green for train, orange for test
+    color_train = '#2E8B57'  # green for train metrics
+    color_test = '#FFA500'   # orange for test metrics
+    #F0BE5E', '#94B9A3', '#88A7B2', '#DDC6E1'
+    # color_loss_train = '#F0BE5E'
+    # color_loss_test = '#94B9A3'
+    # color_acc_train = '#88A7B2'
+    # color_acc_test = '#DDC6E1'
 
     # Accuracy (left y-axis)
-    ax1.plot(df["train_acc"], label="Train Accuracy", linewidth=ScientificPlotStyle.LINE_WIDTH, color=color_acc_train)
-    ax1.plot(df["val_acc"], label="Test Accuracy", linewidth=ScientificPlotStyle.LINE_WIDTH, color=color_acc_test)
-    ax1.set_xlabel("Checkpoint", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    # ax1.plot(df["train_acc"], label="Train Accuracy", linewidth=ScientificPlotStyle.LINE_WIDTH, color=color_acc_train)
+    # ax1.plot(df["val_acc"], label="Test Accuracy", linewidth=ScientificPlotStyle.LINE_WIDTH, color=color_acc_test)
+    ax1.plot(df["train_acc"], linewidth=ScientificPlotStyle.LINE_WIDTH, color=color_train)
+    ax1.plot(df["val_acc"], linewidth=ScientificPlotStyle.LINE_WIDTH, color=color_test)
+    
+    ax1.set_xlabel("Epoch", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
     ax1.set_ylabel("Accuracy", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
     ax1.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+    ax1.set_xticks(np.arange(0, 151, 50))  # Set x-ticks at 0, 50, 100, 150
 
     # Loss (right y-axis)
     ax1b = ax1.twinx()
-    ax1b.plot(df["train_loss"], label="Train Loss", linewidth=ScientificPlotStyle.LINE_WIDTH, linestyle='--', color=color_loss_train)
-    ax1b.plot(df["val_loss"], label="Test Loss", linewidth=ScientificPlotStyle.LINE_WIDTH, linestyle='--', color=color_loss_test)
-    ax1b.set_ylabel("Loss", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    # ax1b.plot(df["train_loss"], label="Train Loss", linewidth=ScientificPlotStyle.LINE_WIDTH, linestyle='--', color=color_loss_train)
+    # ax1b.plot(df["val_loss"], label="Test Loss", linewidth=ScientificPlotStyle.LINE_WIDTH, linestyle='--', color=color_loss_test)
+    ax1b.plot(df["train_loss"], linewidth=ScientificPlotStyle.LINE_WIDTH, linestyle='--', color=color_train)
+    ax1b.plot(df["val_loss"], linewidth=ScientificPlotStyle.LINE_WIDTH, linestyle='--', color=color_test)
+    
+    ax1b.set_ylabel("Loss", fontsize=32)
     ax1b.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
 
-    # Legends (combine both axes)
-    lines1, labels1 = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax1b.get_legend_handles_labels()
-    ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND, loc='upper center')
-    ax1.set_title("Training Accuracy & Loss", fontsize=ScientificPlotStyle.FONT_SIZE_TITLE)
+    # # Legends (combine both axes)
+    # lines1, labels1 = ax1.get_legend_handles_labels()
+    # lines2, labels2 = ax1b.get_legend_handles_labels()
+    # ax1.legend(
+    #     lines1 + lines2, labels1 + labels2,
+    #     fontsize=16,
+    #     loc='lower left'
+    # )
+    # ax1.set_title("Training Accuracy & Loss", fontsize=32)
 
     # --- Right plot: LLC and Feature Count ---
     llc_means = [llc["llc/mean"] for llc in llcs]
     feature_counts = [metrics['feature_count'] for metrics in sae_metrics]
     # active_features = [metrics['active_features'] for metrics in sae_metrics]  # Commented out as requested
 
-    ax2.plot(llc_means, label="LLC (λ̂)", linewidth=ScientificPlotStyle.LINE_WIDTH, color=ScientificPlotStyle.COLORS[2])
-    ax2.set_xlabel("Checkpoint", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
+    ax2.plot(llc_means, linewidth=ScientificPlotStyle.LINE_WIDTH, color=ScientificPlotStyle.COLORS[2])
+    ax2.set_xlabel("Epoch", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
     ax2.set_ylabel("LLC (λ̂)", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS, color=ScientificPlotStyle.COLORS[2])
     ax2.tick_params(axis='y', labelcolor=ScientificPlotStyle.COLORS[2], labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
     ax2.tick_params(axis='x', labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
+    ax2.set_xticks(np.arange(0, 151, 50))  # Set x-ticks at 0, 50, 100, 150
 
     # Feature count (right y-axis)
     ax2b = ax2.twinx()
-    ax2b.plot(feature_counts, label="Feature Count", linewidth=ScientificPlotStyle.LINE_WIDTH, color=ScientificPlotStyle.COLORS[0])
+    ax2b.plot(feature_counts, linewidth=ScientificPlotStyle.LINE_WIDTH, color=ScientificPlotStyle.COLORS[0])
     ax2b.set_ylabel("Feature Count", fontsize=ScientificPlotStyle.FONT_SIZE_LABELS, color=ScientificPlotStyle.COLORS[0])
     ax2b.tick_params(axis='y', labelcolor=ScientificPlotStyle.COLORS[0], labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
 
     # # Active features (commented out)
     # ax2b.plot(active_features, label="Active Features", linewidth=ScientificPlotStyle.LINE_WIDTH, color=ScientificPlotStyle.COLORS[1])
 
-    # Legends (combine both axes)
-    lines1, labels1 = ax2.get_legend_handles_labels()
-    lines2, labels2 = ax2b.get_legend_handles_labels()
-    ax2.legend(lines1 + lines2, labels1 + labels2, fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND, loc='upper center')
-    ax2.set_title("LLC & Feature Evolution", fontsize=ScientificPlotStyle.FONT_SIZE_TITLE)
+    # # Legends (combine both axes)
+    # lines1, labels1 = ax2.get_legend_handles_labels()
+    # lines2, labels2 = ax2b.get_legend_handles_labels()
+    # ax2.legend(
+    #     lines1 + lines2, labels1 + labels2,
+    #     fontsize=16,
+    #     loc='lower left'
+    # )
+    # ax2.set_title("LLC & Feature Evolution", fontsize=32)
 
     plt.tight_layout()
     plt.savefig("experiments/grokking/combined_grokking_analysis.png", dpi=300, bbox_inches='tight')
+    plt.savefig("experiments/grokking/combined_grokking_analysis.pdf", dpi=300, bbox_inches='tight')
     plt.close()
 
     # (Optional: keep the feature count vs accuracy plot if desired)
