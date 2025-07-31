@@ -84,35 +84,14 @@ def run_training_only(
     log(f"\tValidation loader size: {len(val_loader.dataset)}")
     
     # Create configurations
-    attack_config = AttackConfig(
-        attack_type=config['adversarial']['attack_type'],
-        epsilon=config['adversarial']['test_epsilons'][-1],  # Use max epsilon for attack config
-        steps=config['adversarial']['pgd_steps'],
-        step_size=config['adversarial']['pgd_step_size']
-    )
+    from .main import create_attack_config, create_model_config, create_training_config
     
-    model_config = ModelConfig(
-        model_type=config['model']['model_type'],
-        input_channels=config['model']['input_channels'],
-        hidden_dim=config['model']['hidden_dim'],
-        image_size=config['model']['image_size'],
-        output_dim=config['model']['output_dim']
-    )
+    attack_config = create_attack_config(config)
+    model_config = create_model_config(config)
+    training_config = create_training_config(config)
     
     # Train models with different adversarial strengths
     log("\n=== Starting Model Training ===")
-
-    # Log model structure
-    model = create_model(
-        model_type=model_config.model_type,
-        input_channels=model_config.input_channels,
-        hidden_dim=model_config.hidden_dim,
-        image_size=model_config.image_size,
-        output_dim=model_config.output_dim,
-        use_nnsight=False
-    ).to(device)
-    log(f"\tTraining {model_config.model_type.upper()} structure: {model}")
-    log(f"\tTraining {model_config.model_type.upper()} parameters: {sum(p.numel() for p in model.parameters())}")
 
     for epsilon in config['adversarial']['train_epsilons']:
         eps_dir = create_directory(results_dir, f"eps_{epsilon}")
@@ -125,12 +104,27 @@ def run_training_only(
             
             log(f"\n--- Training with epsilon={epsilon}, run {run_idx+1}/{config['adversarial']['n_runs']} (seed={run_seed}) ---")
             
+            # Create fresh model for each run
+            model = create_model(
+                model_type=model_config.model_type,
+                input_channels=model_config.input_channels,
+                hidden_dim=model_config.hidden_dim,
+                image_size=model_config.image_size,
+                output_dim=model_config.output_dim,
+                use_nnsight=False
+            ).to(device)
+            
+            # Log model structure (only for first run)
+            if epsilon == config['adversarial']['train_epsilons'][0] and run_idx == 0:
+                log(f"\tTraining {model_config.model_type.upper()} structure: {model}")
+                log(f"\tTraining {model_config.model_type.upper()} parameters: {sum(p.numel() for p in model.parameters())}")
+            
             # Train model
             model = train_model(
                 train_loader=train_loader,
                 val_loader=val_loader,
                 model_config=model_config,
-                training_config=config['training'],
+                training_config=training_config,
                 epsilon=epsilon,
                 attack_config=attack_config,
                 device=config['device'],
@@ -214,7 +208,7 @@ if __name__ == "__main__":
     Example usage - Quick training only
     """
     quick_train(
-        model_type='resnet18', 
+        model_type='simplecnn', 
         dataset_type="mnist", 
         testing_mode=True
     ) 

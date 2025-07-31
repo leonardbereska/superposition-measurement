@@ -381,9 +381,11 @@ def run_evaluation_phase(
                     results[str(epsilon)]['detailed_robustness'][test_eps] = []
                 results[str(epsilon)]['detailed_robustness'][test_eps].append(float(score))
 
-            # 1. SAE analysis (final model)
-            if enable_sae:
+            # 1. SAE analysis (final model) - Skip if checkpoint analysis is enabled to avoid redundancy
+            if enable_sae and not enable_sae_checkpoints:
                 run_sae_analysis(model, train_loader, adv_loader, layer_names, sae_config, run_dir, logger, results[str(epsilon)])
+            elif enable_sae and enable_sae_checkpoints:
+                log("Skipping final model SAE analysis - already covered by checkpoint analysis")
 
             # 2. Checkpoint analyses (SAE, LLC, or combined)
             checkpoint_dir = run_dir / "checkpoints"
@@ -1079,7 +1081,7 @@ if __name__ == "__main__":
     Example usage - Quick test with both SAE, LLC, and optional inference-time LLC
     """
     quick_test(
-        model_type='resnet18', 
+        model_type='simplecnn', 
         dataset_type="mnist", 
         testing_mode=True, 
         enable_sae=True,
@@ -1087,6 +1089,7 @@ if __name__ == "__main__":
         enable_inference_llc=True,
         enable_sae_checkpoints=True  
     )
+
 
     """
     reanalyze results

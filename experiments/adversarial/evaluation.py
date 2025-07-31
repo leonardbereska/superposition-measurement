@@ -56,166 +56,13 @@ def create_safe_model_checkpoint(model: nn.Module) -> nn.Module:
     if hasattr(model, 'get_clean_model_copy'):
         return model.get_clean_model_copy()
     
-    # For regular models, create a fresh instance
-    from .training import create_model, ModelConfig
-    
-    # Try to infer model configuration from the actual model structure
-    model_class = model.__class__.__name__
-    
-    if 'SimpleMLP' in model_class:
-        # Extract actual configuration from the model
-        input_channels = 1  # default for MNIST
-        image_size = 28     # default for MNIST
-        
-        # Find the first linear layer to get input dimension
-        for module in model.modules():
-            if isinstance(module, nn.Linear):
-                input_dim = module.in_features
-                # Calculate hidden_dim from input_dim (assuming MNIST: 784 = 1*28*28)
-                if input_dim == 784:  # MNIST
-                    input_channels = 1
-                    image_size = 28
-                elif input_dim == 3072:  # CIFAR-10
-                    input_channels = 3
-                    image_size = 32
-                else:
-                    # Try to infer from the shape
-                    image_size = int(np.sqrt(input_dim / input_channels))
-                break
-        
-        # Find the first linear layer to get hidden_dim
-        hidden_dim = None
-        for module in model.modules():
-            if isinstance(module, nn.Linear):
-                hidden_dim = module.out_features
-                break
-        
-        # Find the last linear layer to get output_dim
-        output_dim = None
-        for module in reversed(list(model.modules())):
-            if isinstance(module, nn.Linear):
-                output_dim = module.out_features
-                break
-        
-        # Use defaults if we couldn't extract the values
-        if hidden_dim is None:
-            hidden_dim = 128
-        if output_dim is None:
-            output_dim = 10
-        
-        clean_model = create_model(
-            model_type='simplemlp',
-            input_channels=input_channels,
-            hidden_dim=hidden_dim,
-            image_size=image_size,
-            output_dim=output_dim,
-            use_nnsight=False
-        )
-        
-    elif 'StandardCNN' in model_class:
-        # Infer configuration from model structure
-        input_channels = 1  # default for MNIST
-        output_dim = 1      # default for binary classification
-        
-        for module in model.modules():
-            if isinstance(module, nn.Conv2d):
-                input_channels = module.in_channels
-                break
-        
-        for module in reversed(list(model.modules())):
-            if isinstance(module, nn.Linear):
-                output_dim = module.out_features
-                break
-        
-        clean_model = create_model(
-            model_type='standard_cnn',
-            input_channels=input_channels,
-            hidden_dim=128,  # default
-            image_size=28,   # default for MNIST
-            output_dim=output_dim,
-            use_nnsight=False
-        )
-        
-    elif 'StandardMLP' in model_class:
-        # Extract actual configuration from the model
-        input_channels = 1  # default for MNIST
-        image_size = 28     # default for MNIST
-        
-        # Find the first linear layer to get input dimension
-        for module in model.modules():
-            if isinstance(module, nn.Linear):
-                input_dim = module.in_features
-                # Calculate hidden_dim from input_dim (assuming MNIST: 784 = 1*28*28)
-                if input_dim == 784:  # MNIST
-                    input_channels = 1
-                    image_size = 28
-                elif input_dim == 3072:  # CIFAR-10
-                    input_channels = 3
-                    image_size = 32
-                else:
-                    # Try to infer from the shape
-                    image_size = int(np.sqrt(input_dim / input_channels))
-                break
-        
-        # Find the first linear layer to get hidden_dim
-        hidden_dim = None
-        for module in model.modules():
-            if isinstance(module, nn.Linear):
-                hidden_dim = module.out_features
-                break
-        
-        # Find the last linear layer to get output_dim
-        output_dim = None
-        for module in reversed(list(model.modules())):
-            if isinstance(module, nn.Linear):
-                output_dim = module.out_features
-                break
-        
-        # Use defaults if we couldn't extract the values
-        if hidden_dim is None:
-            hidden_dim = 128
-        if output_dim is None:
-            output_dim = 10
-        
-        clean_model = create_model(
-            model_type='mlp',
-            input_channels=input_channels,
-            hidden_dim=hidden_dim,
-            image_size=image_size,
-            output_dim=output_dim,
-            use_nnsight=False
-        )
-        
-    elif 'ResNet' in model_class:
-        # For ResNet models, use the create_model function
-        # Extract configuration from the model structure
-        input_channels = 1  # default for MNIST
-        output_dim = 1      # default for binary classification
-        
-        for module in model.modules():
-            if isinstance(module, nn.Conv2d):
-                input_channels = module.in_channels
-                break
-        
-        for module in reversed(list(model.modules())):
-            if isinstance(module, nn.Linear):
-                output_dim = module.out_features
-                break
-        
-        clean_model = create_model(
-            model_type='resnet18',
-            input_channels=input_channels,
-            hidden_dim=16,  # default
-            image_size=28,  # default for MNIST
-            output_dim=output_dim,
-            use_nnsight=False
-        )
-        
-    else:
-        # For other model types, create a basic copy
-        clean_model = type(model)()
-        # Copy state dict
-        clean_model.load_state_dict(model.state_dict())
+    # For regular models, create a direct copy to avoid configuration mismatches
+    try:
+        import copy
+        clean_model = copy.deepcopy(model)
+    except Exception as e:
+        print(f"Error creating deepcopy of model: {e}")
+        raise e
     
     # Copy to same device
     device = next(model.parameters()).device
@@ -370,7 +217,6 @@ def evaluate_model_performance is in training
 def generate_adversarial_example is in attacks.py
 
 def evaluate_feature_organization is nowhere
-def measure_superposition is nowhere
 def measure_superposition_on_mixed_distribution is nowhere
 '''
 
@@ -1169,7 +1015,6 @@ def analyze_checkpoints_with_sae(
     log(f"SAE checkpoint analysis results saved to: {results_path}")
     
     return results
-
 
 
 def analyze_checkpoints_combined_sae_llc(
