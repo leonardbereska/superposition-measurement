@@ -1,4 +1,3 @@
-# %%
 """Model architectures for adversarial robustness experiments."""
 
 import torch
@@ -22,21 +21,6 @@ class NNsightModelWrapper:
         self.model = NNsight(model)
         self.device = device or next(model.parameters()).device
         self._base_model = model  # Store reference to original model
-    
-    # def get_activations(self, dataloader, layer_name, max_activations=10000):
-    #     total_samples = 0
-    #     activations = []
-    #     for i, (inputs, _) in enumerate(dataloader):
-    #         batch_size = inputs.shape[0]
-    #         # hot fix: reduce batch size to 1
-    #         # batch_size = 1
-    #         # inputs = inputs[:1]
-    #         total_samples += batch_size
-    #         if max_activations and total_samples >= max_activations:
-    #             break
-    #         layer_output = self.get_layer_output(inputs, layer_name)
-    #         activations.append(layer_output.cpu())
-    #     return torch.cat(activations, dim=0)
     
     def get_activations(self, dataloader, layer_name, max_activations=10000):
         """Extract activations with streaming and periodic memory cleanup."""
@@ -76,9 +60,6 @@ class NNsightModelWrapper:
                     # Clear buffer and force garbage collection
                     consolidation_buffer = []
                     torch.cuda.empty_cache()
-                    
-                    # if total_samples % (max_activations // 5) == 0:  # Log progress
-                    #     print(f"Extracted {total_samples}/{max_activations} samples")
         
         # Handle remaining samples in buffer
         if consolidation_buffer:
@@ -447,33 +428,12 @@ def explore_model_structure(model):
     
     return layer_paths
 
-# %%
-# Example usage
 if __name__ == "__main__":
-    # Test model creation and structure exploration
-    mlp = create_model('mlp', input_channels=1, hidden_dim=32, image_size=28, output_dim=1)
-    explore_model_structure(mlp)
-
-    cnn = create_model('cnn', input_channels=3, hidden_dim=64, image_size=32, output_dim=10)
-    explore_model_structure(cnn)
-
-    simplemlp = create_model('simplemlp', input_channels=1, hidden_dim=128, image_size=28, output_dim=10)
-    explore_model_structure(simplemlp)
-
-    simplecnn = create_model('simplecnn', input_channels=1, hidden_dim=8, image_size=28, output_dim=10)
-    explore_model_structure(simplecnn)
-
-    # mlp = create_model('mlp', input_channels=1, hidden_dim=32, image_size=28, output_dim=1)
-    # cnn = create_model('cnn', input_channels=1, hidden_dim=16, image_size=28, output_dim=1)
-    # mlp.eval()
-    # cnn.eval()
-    # mlp.to('cuda')
-    # cnn.to('cuda')
-    # print(f"MLP parameters: {sum(p.numel() for p in mlp.parameters())}")
-    # print(f"CNN parameters: {sum(p.numel() for p in cnn.parameters())}")
-    
-    # Test with a more complex model
-    resnet = models.resnet18(pretrained=False, num_classes=10)
-    wrapped_resnet = NNsightModelWrapper(resnet)
-    explore_model_structure(wrapped_resnet)
-# %%
+    for name, model_kwargs in [
+        ("mlp", dict(input_channels=1, hidden_dim=32, image_size=28, output_dim=10)),
+        ("cnn", dict(input_channels=3, hidden_dim=64, image_size=32, output_dim=10)),
+        ("simplemlp", dict(input_channels=1, hidden_dim=128, image_size=28, output_dim=10)),
+        ("simplecnn", dict(input_channels=1, hidden_dim=8, image_size=28, output_dim=10)),
+    ]:
+        model = create_model(name, **model_kwargs)
+        explore_model_structure(model)

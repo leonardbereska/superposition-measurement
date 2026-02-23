@@ -152,58 +152,13 @@ print(f"\nResults saved to {results_path}")
 # %%
 n_samples =20000
 # %%
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 
-class ScientificPlotStyle:
-    """Standard style settings for scientific visualizations in our papers."""
-    
-    # Color palette - soft muted colors for data series
-    COLORS = ['#F0BE5E', '#94B9A3', '#88A7B2', '#DDC6E1']  # yellow, green, blue, purple
-    ERROR_COLOR = '#BA898A'  # soft red for error indicators
-    REFERENCE_LINE_COLOR = '#8B5C5D'  # dark red for reference lines
-    
-    # Typography - large sizes for readability
-    FONT_SIZE_TITLE = 48     # plot titles
-    FONT_SIZE_LABELS = 36    # axis labels
-    FONT_SIZE_TICKS = 36     # tick labels
-    FONT_SIZE_LEGEND = 28    # legend text
-    
-    # Plot elements
-    MARKER_SIZE = 15         # data point size
-    LINE_WIDTH = 5.0         # line thickness
-    CAPSIZE = 12             # error bar cap size
-    CAPTHICK = 5.0           # error bar cap thickness
-    GRID_ALPHA = 0.3         # grid transparency
-    
-    # Figure dimensions
-    FIGURE_SIZE = (12, 10)   # standard figure size
-    COMBINED_FIG_SIZE = (20, 10)  # two-panel figure size
-    
-    @staticmethod
-    def apply_axis_style(ax, title, xlabel, ylabel, legend=True):
-        """Apply consistent styling to a matplotlib axis."""
-        ax.set_title(title, fontsize=ScientificPlotStyle.FONT_SIZE_TITLE, fontweight='bold')
-        ax.set_xlabel(xlabel, fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-        ax.set_ylabel(ylabel, fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-        ax.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
-        ax.grid(True, alpha=ScientificPlotStyle.GRID_ALPHA)
-        if legend:
-            ax.legend(fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND, loc='best')
-        return ax
-    
-    @staticmethod
-    def errorbar_kwargs(color_idx=0):
-        """Return standard error bar parameters."""
-        return {
-            'marker': 'o',
-            'color': ScientificPlotStyle.COLORS[color_idx % len(ScientificPlotStyle.COLORS)],
-            'markersize': ScientificPlotStyle.MARKER_SIZE,
-            'linewidth': ScientificPlotStyle.LINE_WIDTH,
-            'capsize': ScientificPlotStyle.CAPSIZE,
-            'capthick': ScientificPlotStyle.CAPTHICK,
-            'elinewidth': ScientificPlotStyle.LINE_WIDTH
-        }
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from plotting import ScientificPlotStyle
 
 
 # Load results from JSON

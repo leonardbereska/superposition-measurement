@@ -1,11 +1,9 @@
-# %%
 """Configuration utilities for adversarial robustness experiments."""
 
 import os
 import torch
 from typing import Dict, Any, List, Optional, Tuple
 
-# %%
 def get_default_device() -> torch.device:
     """Get default device for computations."""
     if torch.cuda.is_available():
@@ -15,7 +13,6 @@ def get_default_device() -> torch.device:
     else:
         return torch.device("cpu")
 
-# %%
 def get_dataset_config(dataset_type: str, selected_classes: Optional[Tuple[int, ...]] = None) -> Dict[str, Any]:
     """Get dataset-specific configuration.
     
@@ -48,7 +45,6 @@ def get_output_dim(selected_classes):
     num_classes = len(selected_classes)
     return num_classes if num_classes > 2 else 1
 
-# %%
 def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", selected_classes: Tuple[int, ...] = (0, 1)) -> Dict[str, Any]:
     """Get default configuration for experiments.
     
@@ -181,7 +177,6 @@ def get_default_config(testing_mode: bool = False, dataset_type: str = "mnist", 
     
     return config
 
-# %%
 def update_config(config: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
     """Update configuration with new values.
     
@@ -250,7 +245,6 @@ def update_config(config: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, 
     
     return updated_config
 
-# %%
 # Example usage
 if __name__ == "__main__":
     # Get default config

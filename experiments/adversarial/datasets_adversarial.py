@@ -1,4 +1,3 @@
-# %%
 """Dataset utilities for MNIST and CIFAR-10."""
 
 import torch
@@ -408,7 +407,6 @@ def test_dataset(dataset_type: str, **kwargs) -> None:
     print(f"\nCompleted testing {dataset_type} dataset.")
 
 
-# %%
 if __name__ == "__main__":
     # Test both MNIST and CIFAR-10 datasets
     
@@ -417,7 +415,6 @@ if __name__ == "__main__":
     
     # Test CIFAR-10 with a few classes
     test_dataset('cifar10', selected_classes=(0, 1, 2), target_size=32, data_dir='../../data')
-# %%
 
     # get number of classes from dataset
     train_loader, test_loader = create_dataloaders(
@@ -435,4 +432,3 @@ if __name__ == "__main__":
     # print number of classes for train_loader
     print(train_loader.dataset.targets)
 
-# %%

@@ -1,4 +1,3 @@
-# %%
 """Sparse autoencoder implementation for feature discovery."""
 
 import time
@@ -18,7 +17,6 @@ class SAEConfig(NamedTuple):
     learning_rate: float
     n_epochs: int
 
-# %%
 class TiedSparseAutoencoder(nn.Module):
     """Sparse autoencoder with tied encoder/decoder weights."""
     
@@ -140,7 +138,6 @@ class TiedSparseAutoencoder(nn.Module):
         model.load_state_dict(state['state_dict'])
         return model
 
-# %%
 def compute_loss(
     model: TiedSparseAutoencoder,
     x: torch.Tensor,
@@ -177,7 +174,6 @@ def compute_loss(
     
     return total_loss, loss_dict
 
-# %%
 def train_sae_epoch(
     model: TiedSparseAutoencoder,
     dataloader: torch.utils.data.DataLoader,
@@ -234,7 +230,6 @@ def train_sae_epoch(
     
     return epoch_losses
 
-# %%
 def train_sae(
     activations: torch.Tensor, 
     sae_config: SAEConfig,
@@ -343,7 +338,6 @@ def train_sae(
     
     return sae
 
-# %%
 def evaluate_sae(
     sae: TiedSparseAutoencoder,
     activations: torch.Tensor,
@@ -424,7 +418,6 @@ def evaluate_sae(
     
     return metrics
 
-# %%
 def analyze_feature_statistics(
     sae: TiedSparseAutoencoder,
     activations: torch.Tensor,

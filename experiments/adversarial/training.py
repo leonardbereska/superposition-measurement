@@ -1,4 +1,3 @@
-# %%
 """Training utilities for adversarial robustness experiments."""
 
 import torch
@@ -26,10 +25,8 @@ class TrainingConfig(NamedTuple):
     min_epochs: int = 0
     use_early_stopping: bool = True  # Whether to use early stopping at all
 
-# %%
 
 
-# %%
 def train_step(
     model: nn.Module, 
     inputs: torch.Tensor, 
@@ -60,7 +57,6 @@ def train_step(
     
     return {'loss': loss.item()}
 
-# %%
 def adversarial_train_step(
     model: nn.Module, 
     inputs: torch.Tensor, 
@@ -111,7 +107,6 @@ def adversarial_train_step(
         'adv_loss': adv_loss.item()
     }
 
-# %%
 def train_epoch(
     model: nn.Module, 
     dataloader: DataLoader, 
@@ -163,7 +158,6 @@ def train_epoch(
     
     return epoch_stats
 
-# %%
 def evaluate_model(
     model: nn.Module, 
     dataloader: DataLoader, 
@@ -224,7 +218,6 @@ def get_progressive_epsilon(epoch, target_epsilon, total_epochs):
         return 0.66 * target_epsilon
     else:
         return target_epsilon
-# %%
 def train_model(
     train_loader: DataLoader,
     val_loader: DataLoader,

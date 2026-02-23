@@ -296,43 +296,9 @@ class LayerwiseAnalyzer:
         return results_path
 
 
-class ScientificPlotStyle:
-    """Standard style settings for scientific visualizations."""
-    
-    COLORS = ['#F0BE5E', '#94B9A3', '#88A7B2', '#DDC6E1']
-    FONT_SIZE_TITLE = 24
-    FONT_SIZE_LABELS = 18
-    FONT_SIZE_TICKS = 16
-    FONT_SIZE_LEGEND = 14
-    MARKER_SIZE = 8
-    LINE_WIDTH = 2.5
-    CAPSIZE = 6
-    CAPTHICK = 2.5
-    GRID_ALPHA = 0.3
-    FIGURE_SIZE = (12, 10)
-    
-    @staticmethod
-    def apply_axis_style(ax, title, xlabel, ylabel, legend=True):
-        ax.set_title(title, fontsize=ScientificPlotStyle.FONT_SIZE_TITLE, fontweight='bold')
-        ax.set_xlabel(xlabel, fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-        ax.set_ylabel(ylabel, fontsize=ScientificPlotStyle.FONT_SIZE_LABELS)
-        ax.tick_params(labelsize=ScientificPlotStyle.FONT_SIZE_TICKS)
-        ax.grid(True, alpha=ScientificPlotStyle.GRID_ALPHA)
-        if legend:
-            ax.legend(fontsize=ScientificPlotStyle.FONT_SIZE_LEGEND, loc='best')
-        return ax
-    
-    @staticmethod
-    def errorbar_kwargs(color_idx=0):
-        return {
-            'marker': 'o',
-            'color': ScientificPlotStyle.COLORS[color_idx % len(ScientificPlotStyle.COLORS)],
-            'markersize': ScientificPlotStyle.MARKER_SIZE,
-            'linewidth': ScientificPlotStyle.LINE_WIDTH,
-            'capsize': ScientificPlotStyle.CAPSIZE,
-            'capthick': ScientificPlotStyle.CAPTHICK,
-            'elinewidth': ScientificPlotStyle.LINE_WIDTH
-        }
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from plotting import ScientificPlotStyle
 
 
 def plot_results(results_path: Path, output_dir: Optional[Path] = None, n_samples: int = 20000, n_seeds: int = 3):

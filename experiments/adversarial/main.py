@@ -1,4 +1,3 @@
-# %%
 """Main script for running adversarial robustness experiments."""
 
 import os
@@ -306,8 +305,6 @@ def run_evaluation_phase(
             for layer_name in layer_names:
                 log(f"Layer: {layer_name}")
                 
-                # try:
-                    # Measure feature organization for clean data
                 log(f"Clean data")
                 clean_metrics = measure_superposition(
                     model=model,
@@ -340,12 +337,6 @@ def run_evaluation_phase(
                 log(f"\tClean features: {clean_metrics['feature_count']:.2f}")
                 log(f"\tAdversarial features: {adv_metrics['feature_count']:.2f}")
                 log(f"\tFeature ratio (adv/clean): {adv_metrics['feature_count']/clean_metrics['feature_count']:.2f}")
-                    
-                # except Exception as e:
-                #     log(f"\tError evaluating layer {layer_name}: {e}")
-                #     # Add placeholder values to maintain consistency
-                #     results[str(epsilon)]['layers'][layer_name]['clean_feature_count'].append(None)
-                #     results[str(epsilon)]['layers'][layer_name]['adv_feature_count'].append(None)
     
     # Save results in a cleaner nested structure
     results_file = results_dir / "results.json"
@@ -460,7 +451,6 @@ def run_analysis_phase(
     # Only include layers specified by get_layer_names based on model type
     model_type = config['model']['model_type']
     layer_names = get_layer_names_for_model(model_type)
-    # print(f"Layer names: {layer_names}")
     # Extract available layers from results
     available_layers = next(iter(results.values())).get('layers', {}).keys()
     
@@ -605,231 +595,39 @@ def quick_test(model_type: str = None, dataset_type: str = "cifar10", testing_mo
     print(f"Quick test completed. Results in: {results_dir}")
     return results_dir
 
-# %%
 if __name__ == "__main__":
+    import argparse
 
-    # analyze cifar10 cnn 2-class pgd
-    # run evaluation for resnet18 2, 3, 5, 10 class pgd, and fgsm and analyze
-    # model_types = ['resnet18']
-    # class_counts = [2, 3, 5, 10]
-    # dataset_types = ['cifar10']
-    # attack_types = ['pgd', 'fgsm']
-    # # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode=False)
-    # for model_type in model_types:
-    #     for class_count in class_counts:
-    #         for dataset_type in dataset_types:
-    #             for attack_type in attack_types:
-    #                 run_evaluation_phase(search_string=f"{model_type}_{class_count}-class_{attack_type}", dataset_type=dataset_type)
-    #                 run_analysis_phase(search_string=f"{model_type}_{class_count}-class_{attack_type}", dataset_type=dataset_type)
+    parser = argparse.ArgumentParser(description="Adversarial robustness experiments")
+    parser.add_argument("phase", choices=["train", "evaluate", "analyze", "all", "quick_test"],
+                        help="Experiment phase to run")
+    parser.add_argument("--dataset", type=str, default="mnist", choices=["mnist", "cifar10"])
+    parser.add_argument("--model", type=str, default=None, help="Model type (mlp, cnn, resnet18, simplemlp, simplecnn)")
+    parser.add_argument("--search", type=str, default=None, help="Search string to find results directory")
+    parser.add_argument("--results-dir", type=str, default=None, help="Path to results directory")
+    parser.add_argument("--testing", action="store_true", help="Use minimal settings for testing")
 
+    args = parser.parse_args()
 
-    # run a single experiment with simplemlp 
-    # model_types = ['simplemlp', 'simplecnn']
-    # class_counts = [3, 5]
-    # dataset_types = ['mnist']
-    # attack_types = ['fgsm', 'pgd']
-    # testing_mode = False
-    # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode)
-    # run_evaluation_phase(search_string="simplemlp_2-class_fgsm", dataset_type="mnist")
+    results_dir = Path(args.results_dir) if args.results_dir else None
 
-    # run mnist mlp 2-class pgd to train with progressive epsilon
-    # model_types = ['mlp']
-    # class_counts = [2, 3, 5, 10]
-    # dataset_types = ['mnist']
-    # attack_types = ['pgd']
-    # testing_mode = False
-    # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode)
-
-    # simplemlp 2-class pgd
-    # model_types = ['simplemlp']
-    # class_counts = [2]
-    # dataset_types = ['mnist']
-    # attack_types = ['fgsm']
-    # testing_mode = False
-    # hidden_dims = [8, 32, 128, 512]
-    # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, hidden_dims, testing_mode)
-
-    # mlp 2-class pgd
-    # model_types = ['mlp']
-    # class_counts = [2]
-    # dataset_types = ['mnist']
-    # attack_types = ['pgd']
-    # testing_mode = False
-    # # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode)
-    # run_analysis_phase(search_string="43_mlp_2-class_pgd", dataset_type="mnist")
-    for hidden_dim in [8, 32]:
-        run_analysis_phase(search_string=f"simplemlp_2-class_fgsm_h{hidden_dim}", dataset_type="mnist")
-    # plot_args = {
-    #     'plot_legend': False,
-    #     'plot_adversarial': True,
-    #     'legend_alpha': 1.0, 
-    #     # 'y_lim': (0.35, 8.),
-    #     'y_ticks': [0.5, 1.0, 2.0],
-    #     'y_tick_labels': ['0.5', '1', '2'],
-    #     'y_scale': 'log',
-    #     'plot_feature_counts': False,
-    #     'plot_robustness': False,
-    #     'plot_normalized_feature_counts': True,
-    # }
-    # for model_type in ['simplemlp', 'simplecnn']:
-    # for model_type in ['_mlp', '_cnn']: # 'simplemlp', 'simplecnn']:
-    # dataset_type = 'cifar10'
-    # dataset_type = 'mnist'
-    # for model_type in ['_mlp', '_cnn']: # 'simplemlp', 'simplecnn']:
-    # for model_type in ['simplemlp', 'simplecnn']: 
-    #     for n_classes in [2, 10]:
-    #         for attack_type in ['fgsm', 'pgd']:
-    #             run_analysis_phase(search_string=f"{model_type}_{n_classes}-class_{attack_type}", dataset_type=dataset_type, plot_args=plot_args)
-    # run_analysis_phase(search_string="simplecnn_5-class_pgd", dataset_type="mnist", plot_args=plot_args)
-
-
-    # run_model_class_experiment(
-    #     model_types=['simplemlp', 'simplecnn'],
-    #     class_counts=[2, 3, 5, 10],
-    #     dataset_types=['mnist'],
-    #     attack_types=['pgd'],
-    #     testing_mode=False
-    # )
-# %% 
-    # MNIST experiment
-    # config = get_default_config(
-    #     dataset_type="cifar10", 
-    #     testing_mode=True,
-    #     selected_classes=(0, 1)
-    # )
-    # config = update_config(config, {
-    #     'model': {'model_type': 'resnet18'},
-    #     'adversarial': {'attack_type': 'fgsm', 'train_epsilons': [0.0, 0.1, 0.2], 'test_epsilons': [0.0, 0.1, 0.2], 'n_runs': 1},
-    # })
-    # results_dir = run_training_phase(config)
-    # run_evaluation_phase(results_dir=results_dir, dataset_type="cifar10")
-    # run_analysis_phase(results_dir=results_dir, dataset_type="cifar10")
-
-    # === PREVIOUS EXPERIMENTS (commented out) ===
-    # experiments to start:
-    # - epsilon scaling and limits:
-    # mnist cnn 2-class fgsm - 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0 - 100 epochs, 1 run  
-
-    # Run quick test
-    # quick_test(model_type='resnet18', dataset_type="cifar10", testing_mode=True)
-    # quick_test(model_type='cnn', dataset_type="mnist", testing_mode=True)
-    # quick_test(model_type='mlp', dataset_type="cifar10", testing_mode=True)
-    # quick_test(model_type='cnn', dataset_type="cifar10", testing_mode=True)
-    # quick_test(model_type='resnet18', dataset_type="cifar10", testing_mode=True)
-    # run_evaluation_phase(search_string="cnn_2-class", dataset_type="mnist")
-    # run_analysis_phase(search_string="cnn_3-class", dataset_type="mnist")
-
-    # Run single experiment: standard experiment
-    # dataset_type = "mnist"
-    # comment = "test"
-    # config = get_default_config(testing_mode=True, dataset_type=dataset_type)
-    # # update config for standard experiment
-    # config = update_config(config, {
-    #     'model': {
-    #         'model_type': 'cnn',
-    #         'hidden_dim': 32 
-    #     },
-    #     'dataset': {
-    #         'selected_classes': tuple(i for i in range(10)) 
-    #     },
-    #     'training': {
-    #         'n_epochs': 10
-    #     },
-    #     'adversarial': {
-    #         'train_epsilons': [0.0, 0.1, 0.2],
-    #         'test_epsilons': [0.0, 0.1, 0.2],
-    #         'n_runs': 1,  # 1 run for quick test
-    #         'attack_type': 'fgsm',
-    #     },
-    #     'comment': comment
-    # })
-
-    # results_dir = run_training_phase(config)
-    # run_evaluation_phase(results_dir=results_dir, dataset_type=dataset_type)
-    # run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
-    # run_analysis_phase(search_string="cnn_2-class", dataset_type="cifar10")
-
-    # NOTE: to run
-    # 2025-05-23 10-55
-    # base_channels = [16, 32, 64, 128]
-    # for base_channel in base_channels:
-    #     config = get_default_config(testing_mode=False, dataset_type="mnist")
-    #     config = update_config(config, {
-    #         'model': {'model_type': 'cnn', 'hidden_dim': base_channel}
-    #     })
-    #     results_dir = run_training_phase(config)
-    #     run_evaluation_phase(results_dir=results_dir, dataset_type="mnist")
-    #     run_analysis_phase(results_dir=results_dir, dataset_type="mnist")
-
-    # analyze mnist cnn
-    # for n_classes in [2, 3, 5, 10]:
-    #     for attack_type in ['fgsm', 'pgd']:
-    #         for model_type in ['cnn', 'mlp']:
-    #             run_analysis_phase(search_string=f"{model_type}_{n_classes}-class_{attack_type}", dataset_type="mnist")
-
-    # 2025-05-23 16-05  NOTE current experiment
-    # model_types = ['mlp', 'cnn']
-    # class_counts = [2, 3, 5, 10]
-    # dataset_types = ['mnist']
-    # attack_types = ['fgsm', 'pgd']
-    # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode=False)
-
-    # 2025-05-23 16-04  NOTE current experiment
-    # model_types = ['resnet18']
-    # class_counts = [2, 3, 5, 10]
-    # dataset_types = ['cifar10']
-    # attack_types = ['fgsm', 'pgd']
-    # run_model_class_experiment(model_types, class_counts, dataset_types, attack_types, testing_mode=False)
-
-
-    # NOTE: previous experiments
-    # 2025-05-22 17-26 
-    # model_types = ['cnn', 'resnet18']
-    # class_counts = [2, 3, 5, 10]
-    # datasets = ['cifar10']
-    # attack_types = ['pgd']
-    # run_model_class_experiment(model_types, class_counts, datasets, attack_types, testing_mode=False)
-
-    # 2025-05-21 10-25
-    # model_types = ['cnn', 'mlp']
-    # class_counts = [2, 3, 5, 10]
-    # datasets = ['mnist']
-    # attack_types = ['fgsm', 'pgd']
-    # run_model_class_experiment(model_types, class_counts, datasets, attack_types, testing_mode=False)
-    
-    # model_types = ['resnet18']
-    # class_counts = [2, 3, 5, 10]
-    # datasets = ['cifar10']
-    # attack_types = ['fgsm', 'pgd']
-    # run_model_class_experiment(model_types, class_counts, datasets, attack_types, testing_mode=False)
-
-     # 2025-05-20 10-25
-    # Run single experiment: capacity scaling
-    # dataset_type = "mnist"
-    # for hidden_dim in [16, 32, 64, 128, 256]:
-    #     comment = f"h{hidden_dim}"
-    #     config = get_default_config(testing_mode=False, dataset_type=dataset_type)
-    #     config = update_config(config, {
-    #         'model': {
-    #             'model_type': 'mlp',
-    #             'hidden_dim': hidden_dim 
-    #         },
-    #         'dataset': {
-    #             'selected_classes': tuple(i for i in range(10)) 
-    #         },
-    #         'training': {
-    #             'n_epochs': 100 
-    #         },
-    #         'adversarial': {
-    #             'train_epsilons': [0.0, 0.1, 0.2],
-    #             'test_epsilons': [0.0, 0.1, 0.2],
-    #             'n_runs': 2,
-    #             'attack_type': 'fgsm',
-    #         },
-    #         'comment': comment
-    #     })
-    #     results_dir = run_training_phase(config)
-    #     run_evaluation_phase(results_dir=results_dir, dataset_type=dataset_type)
-    #     run_analysis_phase(results_dir=results_dir, dataset_type=dataset_type)
-
-# %%
+    if args.phase == "quick_test":
+        quick_test(model_type=args.model, dataset_type=args.dataset, testing_mode=True)
+    elif args.phase == "train":
+        config = get_default_config(dataset_type=args.dataset, testing_mode=args.testing)
+        if args.model:
+            config = update_config(config, {"model": {"model_type": args.model}})
+        results_dir = run_training_phase(config, results_dir=results_dir)
+        print(f"Training complete. Results in: {results_dir}")
+    elif args.phase == "evaluate":
+        run_evaluation_phase(search_string=args.search, results_dir=results_dir, dataset_type=args.dataset)
+    elif args.phase == "analyze":
+        run_analysis_phase(search_string=args.search, results_dir=results_dir, dataset_type=args.dataset)
+    elif args.phase == "all":
+        config = get_default_config(dataset_type=args.dataset, testing_mode=args.testing)
+        if args.model:
+            config = update_config(config, {"model": {"model_type": args.model}})
+        results_dir = run_training_phase(config, results_dir=results_dir)
+        run_evaluation_phase(results_dir=results_dir, dataset_type=args.dataset)
+        run_analysis_phase(results_dir=results_dir, dataset_type=args.dataset)
+        print(f"All phases complete. Results in: {results_dir}")
