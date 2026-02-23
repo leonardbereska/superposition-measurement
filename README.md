@@ -34,7 +34,7 @@ We use this metric to study how adversarial training, dropout, algorithmic tasks
 
 ```
   Phase 1: Training          Phase 2: Evaluation        Phase 3: Analysis
-  ┌─────────────────┐       ┌─────────────────────┐    ┌──────────────────┐
+  ┌─────────────────┐       ┌──────────────────────┐    ┌──────────────────┐
   │ For each ε:     │       │ For each trained     │    │ Load results.json│
   │  Train model    │──────>│ model:               │───>│ Generate plots:  │
   │  with FGSM/PGD  │       │  Extract activations │    │  - feature count │
@@ -42,7 +42,7 @@ We use this metric to study how adversarial training, dropout, algorithmic tasks
   │  training       │       │  Compute entropy     │    │  - robustness    │
   │  Evaluate       │       │  → feature count     │    │    curves        │
   │  robustness     │       │  (clean & adv data)  │    │                  │
-  └─────────────────┘       └─────────────────────┘    └──────────────────┘
+  └─────────────────┘       └──────────────────────┘    └──────────────────┘
 ```
 
 ## Installation
